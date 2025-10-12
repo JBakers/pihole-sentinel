@@ -1,68 +1,70 @@
-# Pi-hole HA - Voor Bestaande Pi-holes
+# Pi-hole Sentinel - For Existing Pi-holes
 
-## 🎯 Voor Gebruikers Met Werkende Pi-holes
+## 🎯 For Users With Working Pi-holes
 
-Je hebt al werkende Pi-holes en wilt:
-- ⚙️ Keepalived toevoegen voor automatische failover (Virtual IP)
-- 📊 Monitor dashboard voor real-time status
-- 🔄 Optioneel: Verbeterde sync die ook DHCP leases synct
+You already have working Pi-holes and want to add:
+- ⚙️ Keepalived for automatic failover (Virtual IP)
+- 📊 Monitor dashboard for real-time status
+- 🔄 Optional: Enhanced sync that includes DHCP leases
 
-**Deze guide is voor jou als:**
-- ✅ Je hebt 2 werkende Pi-holes
-- ✅ Je hebt optioneel al sync (Nebula-sync, Gravity-sync, etc.)
-- ✅ Je wilt HA toevoegen zonder je bestaande setup te verstoren
+**This guide is for you if:**
+- ✅ You have 2 working Pi-holes
+- ✅ You optionally already have sync (Nebula-sync, Gravity-sync, etc.)
+- ✅ You want to add HA without disrupting your existing setup
 
-## 🚀 Quick Setup (30 minuten)
+## 🚀 Quick Setup (30 minutes)
 
-### Stap 1: Genereer Configuraties (5 min)
+### Step 1: Generate Configurations (5 min)
 
-**Op je Windows machine (of Linux werkstation):**
+**On your Windows machine (or Linux workstation):**
 
 ```powershell
-# Navigeer naar de monitoring folder
-cd c:\Users\jbake\.vscode\Workspace\monitoring\pihole-ha
+# Navigate to the project folder
+cd c:\path\to\pihole-sentinel
 
-# Of op Linux:
-# cd /path/to/monitoring/pihole-ha
+# Or on Linux:
+# cd /path/to/pihole-sentinel
 
 # Run setup script
 python3 setup.py
 ```
 
-**Het script vraagt om:**
+**The script will ask for:**
 ```
-Network interface (bijv: eth0, ens18)
+Network interface (e.g., eth0, ens18)
 Primary Pi-hole IP
 Secondary Pi-hole IP
-Virtual IP (VIP) - Kies een VRIJ IP in je netwerk
-Gateway IP (je router)
-Pi-hole wachtwoorden (voor API toegang)
+Virtual IP (VIP) - Choose a FREE IP in your network
+Gateway IP (your router)
+DHCP failover (y/n)
+Monitor location (separate server or primary Pi-hole)
+Pi-hole passwords (for API access)
 ```
 
 **💡 Tips:**
-- VIP moet een ongebruikt IP zijn in hetzelfde subnet
-- Gebruik het web interface wachtwoord van je Pi-holes
-- Netmask is meestal 24 voor /24 netwerken
+- VIP must be an unused IP in the same subnet
+- Use the web interface password of your Pi-holes
+- Netmask is usually 24 for /24 networks
 
-**Resultaat:** Alle configuratie bestanden in `generated_configs/`
+**Result:** All configuration files in `generated_configs/`
 
-### Stap 2: Deploy Keepalived op Primary (10 min)
+### Step 2: Deploy Keepalived on Primary (10 min)
 
 ```powershell
-# Kopieer bestanden
-scp generated_configs/primary_keepalived.conf root@10.10.100.10:/tmp/
-scp generated_configs/primary.env root@10.10.100.10:/tmp/
-scp keepalived/scripts/*.sh root@10.10.100.10:/tmp/
+# Copy files
+scp generated_configs/primary_keepalived.conf root@<primary-ip>:/tmp/
+scp generated_configs/primary.env root@<primary-ip>:/tmp/
+scp keepalived/scripts/*.sh root@<primary-ip>:/tmp/
 ```
 
-**SSH naar primary:**
+**SSH to primary:**
 ```bash
-ssh root@10.10.100.10
+ssh root@<primary-ip>
 
-# Installeer keepalived (als nog niet geïnstalleerd)
+# Install keepalived (if not already installed)
 apt update && apt install -y keepalived arping
 
-# Deploy configuratie
+# Deploy configuration
 cp /tmp/primary_keepalived.conf /etc/keepalived/keepalived.conf
 cp /tmp/primary.env /etc/keepalived/.env
 cp /tmp/*.sh /usr/local/bin/
@@ -78,22 +80,22 @@ systemctl start keepalived
 # Check status
 systemctl status keepalived
 
-# Verify VIP is toegewezen
-ip addr show | grep 10.10.100.1  # (of jouw gekozen VIP)
+# Verify VIP is assigned
+ip addr show | grep <your-vip>
 ```
 
-### Stap 3: Deploy Keepalived op Secondary (10 min)
+### Step 3: Deploy Keepalived on Secondary (10 min)
 
 ```powershell
-# Kopieer bestanden
-scp generated_configs/secondary_keepalived.conf root@10.10.100.20:/tmp/
-scp generated_configs/secondary.env root@10.10.100.20:/tmp/
-scp keepalived/scripts/*.sh root@10.10.100.20:/tmp/
+# Copy files
+scp generated_configs/secondary_keepalived.conf root@<secondary-ip>:/tmp/
+scp generated_configs/secondary.env root@<secondary-ip>:/tmp/
+scp keepalived/scripts/*.sh root@<secondary-ip>:/tmp/
 ```
 
-**SSH naar secondary:**
+**SSH to secondary:**
 ```bash
-ssh root@10.10.100.20
+ssh root@<secondary-ip>
 
 apt update && apt install -y keepalived arping
 
@@ -109,32 +111,32 @@ systemctl enable keepalived
 systemctl start keepalived
 systemctl status keepalived
 
-# VIP zou NIET zichtbaar moeten zijn (backup node)
-ip addr show | grep 10.10.100.1
+# VIP should NOT be visible (backup node)
+ip addr show | grep <your-vip>
 ```
 
-### Stap 4: Deploy Monitor Dashboard (10 min)
+### Step 4: Deploy Monitor Dashboard (10 min)
 
 ```powershell
-# Kopieer bestanden naar monitor
-scp dashboard/monitor.py root@10.10.100.99:/tmp/
-scp dashboard/index.html root@10.10.100.99:/tmp/
-scp generated_configs/monitor.env root@10.10.100.99:/tmp/
+# Copy files to monitor
+scp dashboard/monitor.py root@<monitor-ip>:/tmp/
+scp dashboard/index.html root@<monitor-ip>:/tmp/
+scp generated_configs/monitor.env root@<monitor-ip>:/tmp/
 ```
 
-**SSH naar monitor:**
+**SSH to monitor:**
 ```bash
-ssh root@10.10.100.99
+ssh root@<monitor-ip>
 
-# Installeer dependencies (als nog niet gedaan)
+# Install dependencies (if not already done)
 apt update
 apt install -y python3 python3-pip python3-venv
 
-# Setup applicatie
+# Setup application
 mkdir -p /opt/pihole-monitor
 cd /opt/pihole-monitor
 
-# Kopieer bestanden
+# Copy files
 cp /tmp/monitor.py .
 cp /tmp/index.html .
 cp /tmp/monitor.env .env
@@ -144,7 +146,7 @@ python3 -m venv venv
 source venv/bin/activate
 pip install fastapi uvicorn aiohttp aiosqlite python-dotenv
 
-# Maak service user
+# Create service user
 useradd -r -s /bin/false pihole-monitor || true
 
 # Permissions
@@ -178,59 +180,59 @@ systemctl status pihole-monitor
 ```
 
 **Test monitor:**
-Open browser: `http://10.10.100.99:8080`
+Open browser: `http://<monitor-ip>:8080`
 
-### Stap 5: Test Failover (5 min)
+### Step 5: Test Failover (5 min)
 
 **Test 1: DNS via VIP**
 ```powershell
-nslookup google.com 10.10.100.1
+nslookup google.com <your-vip>
 ```
 
 **Test 2: Failover**
 ```bash
 # Stop primary Pi-hole
-ssh root@10.10.100.10 "systemctl stop pihole-FTL"
+ssh root@<primary-ip> "systemctl stop pihole-FTL"
 
-# Wacht 15 seconden
+# Wait 15 seconds
 Start-Sleep -Seconds 15
 
-# Check monitor dashboard - secondary zou MASTER moeten zijn
-# Check VIP is verplaatst naar secondary
-ssh root@10.10.100.20 "ip addr show | grep 10.10.100.1"
+# Check monitor dashboard - secondary should be MASTER
+# Check VIP moved to secondary
+ssh root@<secondary-ip> "ip addr show | grep <your-vip>"
 
-# Test DNS nog werkt
-nslookup google.com 10.10.100.1
+# Test DNS still works
+nslookup google.com <your-vip>
 
-# Start primary weer
-ssh root@10.10.100.10 "systemctl start pihole-FTL"
+# Start primary again
+ssh root@<primary-ip> "systemctl start pihole-FTL"
 ```
 
-## ⚙️ Integratie met Nebula-sync
+## ⚙️ Integration with Nebula-sync
 
-### Wat Nebula-sync Doet (Blijft Werken!)
+### What Nebula-sync Does (Keeps Working!)
 
-Je huidige Nebula-sync configuratie is perfect en blijft gewoon werken:
+Your current Nebula-sync configuration is perfect and continues to work:
 ```yaml
 ✅ SYNC_GRAVITY_GROUP=true          # Groups
 ✅ SYNC_GRAVITY_AD_LIST=true        # Adlists
 ✅ SYNC_GRAVITY_DOMAIN_LIST=true    # Black/whitelist/regex
 ✅ SYNC_GRAVITY_CLIENT=true         # Client assignments
-✅ SYNC_GRAVITY_DHCP_LEASES=true    # DHCP reserveringen
-✅ SYNC_CONFIG_DHCP=true            # DHCP config (zonder 'active')
+✅ SYNC_GRAVITY_DHCP_LEASES=true    # DHCP reservations
+✅ SYNC_CONFIG_DHCP=true            # DHCP config (without 'active')
 ✅ SYNC_CONFIG_DNS=true             # DNS hosts
 ```
 
-### Wat Keepalived Doet (Nieuw!)
+### What Keepalived Does (New!)
 
 ```yaml
-✅ Virtual IP (VIP) management       # Automatisch verplaatsen bij failover
-✅ Health monitoring                # Check of Pi-hole gezond is
-✅ DHCP active/inactive toggle      # Schakelt DHCP aan/uit bij failover
-✅ Automatic failover               # Binnen 15 seconden
+✅ Virtual IP (VIP) management       # Automatic move during failover
+✅ Health monitoring                # Check if Pi-hole is healthy
+✅ DHCP active/inactive toggle      # Switches DHCP on/off during failover
+✅ Automatic failover               # Within 15 seconds
 ```
 
-### Perfect Samenspel
+### Perfect Together
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -266,97 +268,97 @@ Je huidige Nebula-sync configuratie is perfect en blijft gewoon werken:
 
 ## 📊 Monitor Dashboard
 
-Open: `http://10.10.100.99:8080`
+Open: `http://<monitor-ip>:8080`
 
-Je ziet:
-- ✅ Status beide Pi-holes (online/offline)
-- ✅ Welke server MASTER is
+You see:
+- ✅ Status of both Pi-holes (online/offline)
+- ✅ Which server is MASTER
 - ✅ VIP status
 - ✅ Query statistics
-- ✅ Failover event geschiedenis
+- ✅ Failover event history
 - ✅ DHCP leases
 
-## 🔧 Keepalived Scripts Uitleg
+## 🔧 Keepalived Scripts Explained
 
 ### check_pihole_service.sh
-Controleert of Pi-hole gezond is:
-1. ✅ pihole-FTL service actief
-2. ✅ DNS reageert lokaal
-3. ✅ DHCP port open (als DHCP active=true)
+Checks if Pi-hole is healthy:
+1. ✅ pihole-FTL service active
+2. ✅ DNS responds locally
+3. ✅ DHCP port open (if DHCP active=true)
 
-**Belangrijk:** Checkt DHCP alleen als `active=true` in pihole.toml!
+**Important:** Only checks DHCP if `active=true` in pihole.toml!
 
 ### dhcp_control.sh
-Toggle DHCP aan/uit:
+Toggle DHCP on/off:
 ```bash
-# Enable: zet active=true in [dhcp] sectie
-# Disable: zet active=false in [dhcp] sectie
+# Enable: sets active=true in [dhcp] section
+# Disable: sets active=false in [dhcp] section
 # Restart pihole-FTL
 ```
 
-**Perfect met Nebula-sync:** 
-- Nebula-sync synct DHCP settings MAAR sluit 'active' uit
-- Keepalived beheert alleen 'active' flag
-- Geen conflicts!
+**Perfect with Nebula-sync:** 
+- Nebula-sync syncs DHCP settings BUT excludes 'active'
+- Keepalived only manages 'active' flag
+- No conflicts!
 
 ### keepalived_notify.sh
-Triggered bij state changes:
+Triggered on state changes:
 ```bash
 MASTER:  Enable DHCP + send ARP update
 BACKUP:  Disable DHCP
 FAULT:   Disable DHCP
 ```
 
-## ⚠️ Belangrijke Notities
+## ⚠️ Important Notes
 
 ### DHCP 'active' Flag
 
-**Nebula-sync configuratie:**
+**Nebula-sync configuration:**
 ```yaml
 SYNC_CONFIG_DHCP=true
-SYNC_CONFIG_DHCP_EXCLUDE=active  ← Cruciaal!
+SYNC_CONFIG_DHCP_EXCLUDE=active  ← Crucial!
 ```
 
-Dit zorgt ervoor dat:
-- ✅ Nebula-sync: Synct DHCP settings (range, router, etc.)
-- ✅ Keepalived: Beheert alleen 'active' flag
-- ✅ Geen conflicts tussen sync en keepalived
+This ensures that:
+- ✅ Nebula-sync: Syncs DHCP settings (range, router, etc.)
+- ✅ Keepalived: Only manages 'active' flag
+- ✅ No conflicts between sync and keepalived
 
 ### DHCP Leases
 
-**Jouw Nebula-sync:**
+**Your Nebula-sync:**
 ```yaml
 SYNC_GRAVITY_DHCP_LEASES=true  ← Perfect!
 ```
 
-Dit synct:
-- ✅ Statische DHCP reserveringen
+This syncs:
+- ✅ Static DHCP reservations
 - ✅ Client MAC/IP mappings
 - ✅ Hostnames
 
-**Keepalived heeft hier GEEN invloed op** - blijft gewoon via Nebula-sync!
+**Keepalived has NO influence here** - continues via Nebula-sync!
 
 ### Sync Timing
 
 ```
-Nebula-sync:  Elke 12 uur (CRON=0 */12 * * *)
-Keepalived:   Real-time health checks (elke 5 sec)
+Nebula-sync:  Every 12 hours (CRON=0 */12 * * *)
+Keepalived:   Real-time health checks (every 5 sec)
 ```
 
-Perfect combinatie:
-- Nebula-sync: Configuratie consistency
+Perfect combination:
+- Nebula-sync: Configuration consistency
 - Keepalived: Instant failover
 
-## 🎯 Jouw Workflow
+## 🎯 Your Workflow
 
-### Wijzigingen Maken
+### Making Changes
 
-**Op Primary (10.10.100.10):**
-1. Login: `http://10.10.100.10/admin`
-2. Maak wijzigingen (add blocklist, etc.)
-3. Wacht op Nebula-sync (max 12 uur) OF force sync:
+**On Primary:**
+1. Login: `http://<primary-ip>/admin`
+2. Make changes (add blocklist, etc.)
+3. Wait for Nebula-sync (max 12 hours) OR force sync:
    ```bash
-   # Als je Nebula-sync container draait
+   # If you run Nebula-sync container
    docker exec nebula-sync /app/sync.sh
    ```
 
@@ -364,107 +366,107 @@ Perfect combinatie:
 
 ```bash
 # Stop primary
-ssh root@10.10.100.10 "systemctl stop pihole-FTL"
+ssh root@<primary-ip> "systemctl stop pihole-FTL"
 
 # Check monitor dashboard
-# Secondary neemt over binnen 15 sec
+# Secondary takes over within 15 sec
 
 # Check VIP
-ssh root@10.10.100.20 "ip addr show"
+ssh root@<secondary-ip> "ip addr show"
 
-# Start primary weer
-ssh root@10.10.100.10 "systemctl start pihole-FTL"
+# Start primary again
+ssh root@<primary-ip> "systemctl start pihole-FTL"
 ```
 
 ### Status Check
 
 ```bash
 # Keepalived status
-ssh root@10.10.100.10 "systemctl status keepalived"
-ssh root@10.10.100.20 "systemctl status keepalived"
+ssh root@<primary-ip> "systemctl status keepalived"
+ssh root@<secondary-ip> "systemctl status keepalived"
 
-# Wie heeft VIP?
-ssh root@10.10.100.10 "ip addr show | grep 10.10.100.1"
-ssh root@10.10.100.20 "ip addr show | grep 10.10.100.1"
+# Who has VIP?
+ssh root@<primary-ip> "ip addr show | grep <your-vip>"
+ssh root@<secondary-ip> "ip addr show | grep <your-vip>"
 
 # DHCP status (in pihole.toml)
-ssh root@10.10.100.10 "grep -A5 '\[dhcp\]' /etc/pihole/pihole.toml | grep active"
-ssh root@10.10.100.20 "grep -A5 '\[dhcp\]' /etc/pihole/pihole.toml | grep active"
+ssh root@<primary-ip> "grep -A5 '\[dhcp\]' /etc/pihole/pihole.toml | grep active"
+ssh root@<secondary-ip> "grep -A5 '\[dhcp\]' /etc/pihole/pihole.toml | grep active"
 ```
 
 ## 🔍 Troubleshooting
 
 ### Keepalived Logs
 ```bash
-ssh root@10.10.100.10 "journalctl -u keepalived -n 50"
-ssh root@10.10.100.10 "tail -f /var/log/keepalived-notify.log"
+ssh root@<primary-ip> "journalctl -u keepalived -n 50"
+ssh root@<primary-ip> "tail -f /var/log/keepalived-notify.log"
 ```
 
 ### Pi-hole Status
 ```bash
-ssh root@10.10.100.10 "pihole status"
-ssh root@10.10.100.20 "pihole status"
+ssh root@<primary-ip> "pihole status"
+ssh root@<secondary-ip> "pihole status"
 ```
 
-### VIP Problemen
+### VIP Issues
 ```bash
 # Check VRRP traffic
-ssh root@10.10.100.10 "tcpdump -i eth0 vrrp"
+ssh root@<primary-ip> "tcpdump -i eth0 vrrp"
 
 # Check authentication password matches
-ssh root@10.10.100.10 "grep auth_pass /etc/keepalived/keepalived.conf"
-ssh root@10.10.100.20 "grep auth_pass /etc/keepalived/keepalived.conf"
+ssh root@<primary-ip> "grep auth_pass /etc/keepalived/keepalived.conf"
+ssh root@<secondary-ip> "grep auth_pass /etc/keepalived/keepalived.conf"
 ```
 
 ### Monitor Dashboard Offline
 ```bash
-ssh root@10.10.100.99 "systemctl status pihole-monitor"
-ssh root@10.10.100.99 "journalctl -u pihole-monitor -n 50"
+ssh root@<monitor-ip> "systemctl status pihole-monitor"
+ssh root@<monitor-ip> "journalctl -u pihole-monitor -n 50"
 ```
 
-## 📝 Router/Clients Configureren
+## 📝 Configure Router/Clients
 
 ### Router DNS Settings
 ```
-Primary DNS:   10.10.100.1  ← VIP
-Secondary DNS: 1.1.1.1       ← Backup (als beide Pi-holes down)
+Primary DNS:   <your-vip>    ← VIP
+Secondary DNS: 1.1.1.1       ← Backup (if both Pi-holes down)
 ```
 
 ### Client Static DNS
 ```
-DNS Server 1: 10.10.100.1    ← VIP
-DNS Server 2: 10.10.100.10   ← Primary direct (backup)
+DNS Server 1: <your-vip>     ← VIP
+DNS Server 2: <primary-ip>   ← Primary direct (backup)
 ```
 
 ## ✅ Checklist
 
-- [ ] Keepalived geïnstalleerd op beide Pi-holes
-- [ ] Scripts gekopieerd naar beide servers
-- [ ] Primary keepalived running & heeft VIP
-- [ ] Secondary keepalived running & geen VIP
-- [ ] Monitor dashboard toegankelijk
-- [ ] Monitor toont beide Pi-holes online
-- [ ] DNS query via VIP werkt
-- [ ] Failover test succesvol
-- [ ] Nebula-sync blijft werken
-- [ ] DHCP active flag wordt correct getoggled
-- [ ] Router/clients gebruiken VIP als DNS
+- [ ] Keepalived installed on both Pi-holes
+- [ ] Scripts copied to both servers
+- [ ] Primary keepalived running & has VIP
+- [ ] Secondary keepalived running & no VIP
+- [ ] Monitor dashboard accessible
+- [ ] Monitor shows both Pi-holes online
+- [ ] DNS query via VIP works
+- [ ] Failover test successful
+- [ ] Nebula-sync continues working
+- [ ] DHCP active flag toggled correctly
+- [ ] Router/clients use VIP as DNS
 
-## 🎉 Klaar!
+## 🎉 Done!
 
-Je hebt nu:
-- ✅ Bestaande Pi-holes met Nebula-sync (blijft werken)
-- ✅ Keepalived voor automatische failover (nieuw!)
-- ✅ Monitor dashboard voor real-time status (nieuw!)
-- ✅ Virtual IP voor transparante failover (nieuw!)
-- ✅ DHCP automatic toggle bij failover (nieuw!)
+You now have:
+- ✅ Existing Pi-holes with Nebula-sync (keeps working)
+- ✅ Keepalived for automatic failover (new!)
+- ✅ Monitor dashboard for real-time status (new!)
+- ✅ Virtual IP for transparent failover (new!)
+- ✅ DHCP automatic toggle on failover (new!)
 
 **Total added value:**
-- Automatische failover binnen 15 seconden
-- Geen handmatige interventie nodig bij problemen
-- Real-time monitoring en alerting
-- Transparant voor clients (gebruiken altijd VIP)
+- Automatic failover within 15 seconds
+- No manual intervention needed during issues
+- Real-time monitoring and alerting
+- Transparent for clients (always use VIP)
 
-**Geschatte setup tijd: 30-40 minuten**
+**Estimated setup time: 30-40 minutes**
 
-Succes! 🚀
+Success! 🚀

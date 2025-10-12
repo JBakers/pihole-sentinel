@@ -1,4 +1,4 @@
-# Pi-hole Configuration Sync Setup
+# Pi-hole Sentinel - Configuration Sync Setup
 
 ## Overzicht
 

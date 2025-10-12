@@ -1,6 +1,6 @@
-# Pi-hole High Availability Setup
+# Pi-hole Sentinel
 
-Add automatic failover to your existing Pi-holes with Keepalived and real-time monitoring.
+High availability solution for Pi-hole with automatic failover, real-time monitoring, and seamless DNS/DHCP redundancy.
 
 ## What does it do?
 
@@ -74,21 +74,9 @@ Add automatic failover to your existing Pi-holes with Keepalived and real-time m
 - Network access to both Pi-holes
 - Python 3.8+ available
 
-### Software Requirements
+## Quick Start
 
-#### Monitor Server
-- Python 3.8+
-- pip packages: fastapi, uvicorn, aiohttp, aiosqlite
-- Network access to both Pi-holes
-
-#### Pi-hole Servers
-- Pi-hole 2023.05+
-- Keepalived
-- arping
-
-## Quick Start Guides
-
-- **📦 Proxmox Deployment**: See [`PROXMOX-DEPLOYMENT.md`](PROXMOX-DEPLOYMENT.md) for complete step-by-step guide
+- **📋 Existing Pi-holes**: See [`EXISTING-SETUP.md`](EXISTING-SETUP.md) for adding HA to your current setup
 - **🔄 Configuration Sync**: See [`SYNC-SETUP.md`](SYNC-SETUP.md) for keeping Pi-holes in sync
 - **⚙️ Automated Setup**: Use `setup.py` to generate all configurations automatically
 
@@ -96,8 +84,8 @@ Add automatic failover to your existing Pi-holes with Keepalived and real-time m
 
 1. **Prepare Environment**
    ```bash
-   git clone https://github.com/username/pihole-ha.git
-   cd pihole-ha
+   git clone https://github.com/JBakers/pihole-sentinel.git
+   cd pihole-sentinel
    ```
 
 2. **Run Setup**
@@ -132,21 +120,6 @@ See `EXISTING-SETUP.md` for detailed steps
 - Updates available through your package manager
 - No special steps needed when updating Pi-hole
 - Failover automatically handles maintenance reboots
-```bash
-# Copy files
-sudo mkdir -p /usr/local/bin
-sudo cp keepalived/scripts/* /usr/local/bin/
-sudo chmod +x /usr/local/bin/*.sh
-
-# Configure keepalived
-sudo cp keepalived/pihole2/.env.example /etc/keepalived/.env
-sudo nano /etc/keepalived/.env
-sudo cp keepalived/pihole2/keepalived.conf /etc/keepalived/
-
-# Start service
-sudo systemctl enable keepalived
-sudo systemctl start keepalived
-```
 
 ## Monitoring & Maintenance
 
