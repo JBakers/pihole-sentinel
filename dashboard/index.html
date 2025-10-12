@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pi-hole High Availability Monitor</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+    <title>Pi-hole Sentinel</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' style='stop-color:%23667eea'/><stop offset='100%' style='stop-color:%23764ba2'/></linearGradient></defs><circle cx='50' cy='50' r='45' fill='url(%23g)'/><path d='M 50 -6 L -6 34 L 24 34 L 24 94 L -6 94 L 50 138 L 106 94 L 76 94 L 76 34 L 106 34 Z' fill='white' transform='translate(50 50) scale(0.1953125) translate(-256 -256)'/><circle cx='50' cy='50' r='40' fill='none' stroke='white' stroke-width='2' opacity='0.3'/></svg>"
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         * {
@@ -21,23 +21,59 @@
             transition: background 0.3s ease;
         }
         
+        body.dark-mode {
+            background: #0f172a;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(102, 126, 234, 0.2) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(118, 75, 162, 0.2) 0px, transparent 50%);
+        }
+        
         .container {
             max-width: 1400px;
             margin: 0 auto;
         }
         
         .header {
-            background: white;
-            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
             padding: 30px;
             margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: background 0.3s ease, color 0.3s ease;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        body.dark-mode .header {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
         
         .header h1 {
-            color: #333;
+            color: #1e293b;
             margin-bottom: 10px;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        body.dark-mode .header h1 {
+            color: #ffffff;
+        }
+        
+        .logo {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
         
         .header-info {
@@ -45,7 +81,11 @@
             justify-content: space-between;
             align-items: center;
             margin-top: 15px;
-            color: #666;
+            color: #64748b;
+        }
+        
+        body.dark-mode .header-info {
+            color: rgba(255, 255, 255, 0.6);
         }
         
         .status-grid {
@@ -56,16 +96,24 @@
         }
         
         .node-card {
-            background: white;
-            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
             padding: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            border: 10px solid transparent;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
         }
         
+        body.dark-mode .node-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
         .node-card.master {
-            border-color: #10b981;
+            border: 2px solid #10b981;
+            box-shadow: 0 8px 32px rgba(16, 185, 129, 0.3), 0 0 0 1px rgba(16, 185, 129, 0.1);
         }
         
         .node-card-header {
@@ -76,8 +124,13 @@
         }
         
         .node-card h2 {
-            color: #333;
+            color: #1e293b;
             font-size: 20px;
+            font-weight: 600;
+        }
+        
+        body.dark-mode .node-card h2 {
+            color: #ffffff;
         }
         
         .badge {
@@ -88,19 +141,26 @@
         }
         
         .badge.master {
-            background: #d1fae5;
-            color: #065f46;
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
         }
         
         .badge.backup {
-            background: #e5e7eb;
-            color: #374151;
+            background: rgba(148, 163, 184, 0.2);
+            color: #94a3b8;
+            border: 1px solid rgba(148, 163, 184, 0.3);
         }
         
         .node-ip {
-            font-family: monospace;
-            color: #666;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            color: #64748b;
             margin-bottom: 15px;
+            font-size: 14px;
+        }
+        
+        body.dark-mode .node-ip {
+            color: rgba(255, 255, 255, 0.6);
         }
         
         .status-items {
@@ -114,9 +174,17 @@
             align-items: center;
             gap: 8px;
             padding: 8px;
-            border-radius: 6px;
-            background: #f9fafb;
-            transition: background 0.3s ease;
+            border-radius: 8px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+            color: #334155;
+        }
+        
+        body.dark-mode .status-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.8);
         }
         
         .status-dot {
@@ -127,19 +195,29 @@
         
         .status-dot.online {
             background: #10b981;
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
         }
         
         .status-dot.offline {
             background: #ef4444;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
         }
         
         .chart-card {
-            background: white;
-            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
             padding: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
-            transition: background 0.3s ease, color 0.3s ease;
+            transition: all 0.3s ease;
+        }
+        
+        body.dark-mode .chart-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
         
         .chart-card canvas {
@@ -160,26 +238,52 @@
         
         .time-btn {
             padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            background: #e5e7eb;
-            color: #374151;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f8fafc;
+            color: #475569;
             cursor: pointer;
             font-weight: 500;
             transition: all 0.2s;
         }
         
-        .time-btn.active {
-            background: #667eea;
+        .time-btn:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+        
+        body.dark-mode .time-btn {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        body.dark-mode .time-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
             color: white;
         }
         
+        .time-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
         .events-card {
-            background: white;
-            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
             padding: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: background 0.3s ease, color 0.3s ease;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        body.dark-mode .events-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
         
         .event-item {
@@ -187,10 +291,18 @@
             align-items: center;
             gap: 15px;
             padding: 15px;
-            background: #f9fafb;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
             border-radius: 8px;
             margin-bottom: 10px;
-            transition: background 0.3s ease;
+            color: #334155;
+            transition: all 0.3s ease;
+        }
+        
+        body.dark-mode .event-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.8);
         }
         
         .event-icon {
@@ -211,6 +323,10 @@
         .event-time {
             color: #9ca3af;
             font-size: 14px;
+        }
+        
+        body.dark-mode .event-time {
+            color: #64748b;
         }
 
         .collapsible-header {
@@ -245,6 +361,47 @@
         .collapsible-content.collapsed {
             max-height: 0;
             opacity: 0;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding: 20px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        body.dark-mode .footer {
+            color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.03);
+        }
+        
+        body:not(.dark-mode) .footer {
+            color: #64748b;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        
+        .footer a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+        
+        .footer-divider {
+            margin: 0 8px;
+            opacity: 0.5;
         }
 
         .summary-info {
@@ -370,15 +527,19 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🛡️ Pi-hole High Availability Monitor</h1>
+            <h1>
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M 50 20 L 35 35 L 42 35 L 42 55 L 35 55 L 50 70 L 65 55 L 58 55 L 58 35 L 65 35 Z" fill="white"/>
+                        <circle cx="50" cy="50" r="40" fill="none" stroke="white" stroke-width="2" opacity="0.3"/>
+                    </svg>
+                </div>
+                Pi-hole Sentinel
+            </h1>
             <p style="color: #666;">Keepalived System Monitor</p>
             <div class="header-info">
                 <div>
-<<<<<<< HEAD:monitoring/index.html
-                    <span>VIP: <strong id="vip-ip">IP.IP.IP.IP</strong></span>
-=======
-                    <span>VIP: <strong id="vip-ip">192.168.1.2</strong></span>
->>>>>>> 7ddc47f (Herstructureer Pi-hole monitor naar volledige HA-oplossing):monitoring/pihole-ha/dashboard/index.html
+                    <span>VIP: <strong id="vip-ip">-</strong></span>
                     <span style="margin-left: 30px;">DHCP Leases: <strong id="dhcp-leases">-</strong></span>
                 </div>
                 <div>
@@ -390,33 +551,19 @@
         <div class="status-grid">
             <div class="node-card" id="primary-card">
                 <div class="node-card-header">
-<<<<<<< HEAD:monitoring/index.html
-                    <h2>Primaire Pihole</h2>
-                    <span class="badge" id="primary-badge">-</span>
-                </div>
-                <div class="node-ip" id="primary-ip">IP.IP.IP.IP</div>
-=======
                     <h2>Primary Pi-hole</h2>
                     <span class="badge" id="primary-badge">-</span>
                 </div>
-                <div class="node-ip" id="primary-ip">192.168.1.10</div>
->>>>>>> 7ddc47f (Herstructureer Pi-hole monitor naar volledige HA-oplossing):monitoring/pihole-ha/dashboard/index.html
+                <div class="node-ip" id="primary-ip">-</div>
                 <div class="status-items" id="primary-status"></div>
             </div>
             
             <div class="node-card" id="secondary-card">
                 <div class="node-card-header">
-<<<<<<< HEAD:monitoring/index.html
-                    <h2>Secundaire Pihole</h2>
-                    <span class="badge" id="secondary-badge">-</span>
-                </div>
-                <div class="node-ip" id="secondary-ip">IP.IP.IP.IP</div>
-=======
                     <h2>Secondary Pi-hole</h2>
                     <span class="badge" id="secondary-badge">-</span>
                 </div>
-                <div class="node-ip" id="secondary-ip">192.168.1.11</div>
->>>>>>> 7ddc47f (Herstructureer Pi-hole monitor naar volledige HA-oplossing):monitoring/pihole-ha/dashboard/index.html
+                <div class="node-ip" id="secondary-ip">-</div>
                 <div class="status-items" id="secondary-status"></div>
             </div>
         </div>
@@ -476,6 +623,17 @@
             <div class="summary-info" id="events-summary"></div>
             <div class="collapsible-content" id="events-content">
                 <div id="events-list"></div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div>
+                Made with ❤️ by <a href="https://github.com/JBakers" target="_blank">JBakers</a>
+                <span class="footer-divider">•</span>
+                <a href="https://github.com/JBakers/pihole-sentinel" target="_blank">Pi-hole Sentinel</a>
+            </div>
+            <div style="margin-top: 8px; opacity: 0.7;">
+                © 2025 JBakers <span class="footer-divider">•</span> Open Source Project
             </div>
         </div>
     </div>

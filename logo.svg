@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Main gradient -->
+    <linearGradient id="mainGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Glow effect -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Shadow -->
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="url(#mainGradient)" filter="url(#shadow)"/>
+  
+  <!-- Sentinel tower icon (up/down arrows representing failover) -->
+  <g filter="url(#glow)">
+    <!-- Main tower/arrow shape - perfectly centered -->
+    <path d="M 256 156 L 200 216 L 230 216 L 230 296 L 200 296 L 256 352 L 312 296 L 282 296 L 282 216 L 312 216 Z" 
+          fill="white" 
+          opacity="0.95"/>
+    
+    <!-- Shield outline circles (representing protection) - centered at 256,256 -->
+    <circle cx="256" cy="256" r="180" fill="none" stroke="white" stroke-width="8" opacity="0.15"/>
+    <circle cx="256" cy="256" r="160" fill="none" stroke="white" stroke-width="6" opacity="0.2"/>
+    <circle cx="256" cy="256" r="140" fill="none" stroke="white" stroke-width="4" opacity="0.25"/>
+    
+    <!-- Network dots (representing HA nodes) - centered symmetrically -->
+    <circle cx="156" cy="196" r="12" fill="white" opacity="0.8"/>
+    <circle cx="356" cy="196" r="12" fill="white" opacity="0.8"/>
+    <circle cx="156" cy="316" r="12" fill="white" opacity="0.8"/>
+    <circle cx="356" cy="316" r="12" fill="white" opacity="0.8"/>
+    
+    <!-- Connection lines between nodes -->
+    <line x1="156" y1="196" x2="256" y2="216" stroke="white" stroke-width="2" opacity="0.4"/>
+    <line x1="356" y1="196" x2="256" y2="216" stroke="white" stroke-width="2" opacity="0.4"/>
+    <line x1="156" y1="316" x2="256" y2="296" stroke="white" stroke-width="2" opacity="0.4"/>
+    <line x1="356" y1="316" x2="256" y2="296" stroke="white" stroke-width="2" opacity="0.4"/>
+  </g>
+  
+  <!-- Outer ring accent -->
+  <circle cx="256" cy="256" r="240" fill="none" stroke="white" stroke-width="3" opacity="0.2"/>
+</svg>

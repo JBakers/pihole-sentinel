@@ -1,6 +1,23 @@
+<div align="center">
+
+<img src="logo.svg" alt="Pi-hole Sentinel Logo" width="200"/>
+
 # Pi-hole Sentinel
 
-High availability solution for Pi-hole with automatic failover, real-time monitoring, and seamless DNS/DHCP redundancy.
+**High Availability for Pi-hole**
+
+*Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
+
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
+[![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
+[![Made by JBakers](https://img.shields.io/badge/Made%20by-JBakers-667eea)](https://github.com/JBakers)
+
+[Features](#what-does-it-do) • [Installation](#installation) • [Documentation](#setup-options) • [Contributing](#-done)
+
+</div>
+
+---
 
 ## What does it do?
 
@@ -21,8 +38,9 @@ High availability solution for Pi-hole with automatic failover, real-time monito
 ### Features
 - **DNS Failover**: Always enabled
 - **DHCP Failover**: Optional, if you use DHCP on your Pi-holes
+- **Configuration Sync**: Built-in sync script (includes DHCP leases)
 - **Monitoring**: Choose between separate server or on primary Pi-hole
-- **Sync**: Works alongside existing sync solutions (Nebula-sync, etc.)
+- **Compatible**: Works alongside existing sync solutions (Nebula-sync, etc.)
 
 ### Prerequisites
 - ✅ 2 working Pi-holes (with DNS)

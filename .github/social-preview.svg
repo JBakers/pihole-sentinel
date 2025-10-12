@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1280" height="640" viewBox="0 0 1280 640" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradient backgrounds -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea"/>
+      <stop offset="100%" style="stop-color:#764ba2"/>
+    </linearGradient>
+    
+    <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.2"/>
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0.05"/>
+    </linearGradient>
+    
+    <!-- Glow effect -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Shadow -->
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="12" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1280" height="640" fill="url(#bgGrad)"/>
+  
+  <!-- Decorative circles -->
+  <circle cx="200" cy="150" r="100" fill="url(#logoGrad)" opacity="0.3"/>
+  <circle cx="1100" cy="500" r="150" fill="url(#logoGrad)" opacity="0.2"/>
+  <circle cx="100" cy="550" r="80" fill="url(#logoGrad)" opacity="0.25"/>
+  
+  <!-- Main logo circle - centered at 240, 160 -->
+  <g transform="translate(240, 160)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="120" fill="white" opacity="0.95"/>
+    <g filter="url(#glow)">
+      <!-- Sentinel tower icon - matched to logo.svg -->
+      <path d="M 0 -46 L -26 -20 L -14 -20 L -14 19 L -26 19 L 0 45 L 26 19 L 14 19 L 14 -20 L 26 -20 Z" 
+            fill="url(#bgGrad)" opacity="0.95"/>
+      
+      <!-- Shield outline circles -->
+      <circle cx="0" cy="0" r="84" fill="none" stroke="url(#bgGrad)" stroke-width="4" opacity="0.15"/>
+      <circle cx="0" cy="0" r="75" fill="none" stroke="url(#bgGrad)" stroke-width="3" opacity="0.2"/>
+      <circle cx="0" cy="0" r="66" fill="none" stroke="url(#bgGrad)" stroke-width="2" opacity="0.25"/>
+      
+      <!-- Network dots (representing HA nodes) -->
+      <circle cx="-47" cy="-28" r="6" fill="url(#bgGrad)" opacity="0.8"/>
+      <circle cx="47" cy="-28" r="6" fill="url(#bgGrad)" opacity="0.8"/>
+      <circle cx="-47" cy="28" r="6" fill="url(#bgGrad)" opacity="0.8"/>
+      <circle cx="47" cy="28" r="6" fill="url(#bgGrad)" opacity="0.8"/>
+      
+      <!-- Connection lines between nodes -->
+      <line x1="-47" y1="-28" x2="-14" y2="-20" stroke="url(#bgGrad)" stroke-width="1" opacity="0.4"/>
+      <line x1="47" y1="-28" x2="14" y2="-20" stroke="url(#bgGrad)" stroke-width="1" opacity="0.4"/>
+      <line x1="-47" y1="28" x2="-14" y2="19" stroke="url(#bgGrad)" stroke-width="1" opacity="0.4"/>
+      <line x1="47" y1="28" x2="14" y2="19" stroke="url(#bgGrad)" stroke-width="1" opacity="0.4"/>
+    </g>
+  </g>
+  
+  <!-- Text content -->
+  <g transform="translate(420, 120)">
+    <!-- Title -->
+    <text x="0" y="0" 
+          font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" 
+          font-size="96" 
+          font-weight="700" 
+          fill="white"
+          filter="url(#shadow)">
+      Pi-hole Sentinel
+    </text>
+    
+    <!-- Subtitle -->
+    <text x="0" y="60" 
+          font-family="system-ui, -apple-system, sans-serif" 
+          font-size="36" 
+          font-weight="400" 
+          fill="white" 
+          opacity="0.9">
+      High Availability for Pi-hole
+    </text>
+    
+    <!-- Features -->
+    <g transform="translate(0, 130)">
+      <text font-family="system-ui, -apple-system, sans-serif" 
+            font-size="28" 
+            font-weight="500" 
+            fill="white" 
+            opacity="0.85">
+        <tspan x="0" dy="0">✓ Automatic Failover</tspan>
+        <tspan x="0" dy="45">✓ Real-time Monitoring</tspan>
+        <tspan x="0" dy="45">✓ DNS/DHCP Redundancy</tspan>
+      </text>
+    </g>
+  </g>
+  
+  <!-- System Requirements Box -->
+  <g transform="translate(50, 390)">
+    <rect x="0" y="0" width="340" height="180" rx="12" 
+          fill="white" opacity="0.15" filter="url(#shadow)"/>
+    <text font-family="system-ui, -apple-system, sans-serif" 
+          font-size="18" 
+          font-weight="600" 
+          fill="white" 
+          opacity="0.9">
+      <tspan x="20" y="30">📋 System Requirements</tspan>
+    </text>
+    <text font-family="system-ui, -apple-system, sans-serif" 
+          font-size="16" 
+          font-weight="400" 
+          fill="white" 
+          opacity="0.8">
+      <tspan x="20" y="60">• 2x Raspberry Pi 3+ / VM</tspan>
+      <tspan x="20" y="85">• 1GB RAM minimum</tspan>
+      <tspan x="20" y="110">• Debian/Ubuntu Linux</tspan>
+      <tspan x="20" y="135">• Pi-hole 5.0+</tspan>
+      <tspan x="20" y="160">• Network connectivity</tspan>
+    </text>
+  </g>
+  
+  <!-- Project Info Box -->
+  <g transform="translate(420, 390)">
+    <rect x="0" y="0" width="340" height="180" rx="12" 
+          fill="white" opacity="0.15" filter="url(#shadow)"/>
+    <text font-family="system-ui, -apple-system, sans-serif" 
+          font-size="18" 
+          font-weight="600" 
+          fill="white" 
+          opacity="0.9">
+      <tspan x="20" y="30">🌐 Project Info</tspan>
+    </text>
+    <text font-family="system-ui, -apple-system, sans-serif" 
+          font-size="16" 
+          font-weight="400" 
+          fill="white" 
+          opacity="0.8">
+      <tspan x="20" y="60">github.com/JBakers/</tspan>
+      <tspan x="20" y="82">pihole-sentinel</tspan>
+      <tspan x="20" y="110" font-size="14" opacity="0.7">MIT License • Free &amp; Open Source</tspan>
+      <tspan x="20" y="135" font-size="14" opacity="0.7">Created by JBakers</tspan>
+      <tspan x="20" y="160" font-size="14" opacity="0.7">Community Supported</tspan>
+    </text>
+  </g>
+  
+  <!-- Footer badges -->
+  <g transform="translate(790, 440)">
+    <rect x="0" y="0" width="180" height="50" rx="25" 
+          fill="white" opacity="0.2" filter="url(#shadow)"/>
+    <text x="90" y="33" 
+          text-anchor="middle"
+          font-family="system-ui, -apple-system, sans-serif" 
+          font-size="20" 
+          font-weight="600" 
+          fill="white">
+      🚀 Easy Setup
+    </text>
+  </g>
+  
+  <g transform="translate(1000, 440)">
+    <rect x="0" y="0" width="230" height="50" rx="25" 
+          fill="white" opacity="0.2" filter="url(#shadow)"/>
+    <text x="115" y="33" 
+          text-anchor="middle"
+          font-family="system-ui, -apple-system, sans-serif" 
+          font-size="20" 
+          font-weight="600" 
+          fill="white">
+      💯 Production Ready
+    </text>
+  </g>
+  
+  <g transform="translate(790, 510)">
+    <rect x="0" y="0" width="440" height="50" rx="25" 
+          fill="white" opacity="0.2" filter="url(#shadow)"/>
+    <text x="220" y="33" 
+          text-anchor="middle"
+          font-family="system-ui, -apple-system, sans-serif" 
+          font-size="20" 
+          font-weight="600" 
+          fill="white">
+      ⭐ Star on GitHub
+    </text>
+  </g>
+</svg>
