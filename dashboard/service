@@ -1,0 +1,15 @@
+[Unit]
+Description=Pi-hole Keepalived Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/pihole-monitor
+Environment="PATH=/opt/pihole-monitor/venv/bin"
+ExecStart=/opt/pihole-monitor/venv/bin/python /opt/pihole-monitor/monitor.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
