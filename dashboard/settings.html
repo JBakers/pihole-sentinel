@@ -319,6 +319,70 @@
         body.dark-mode .setup-instructions code {
             background: rgba(255, 255, 255, 0.1);
         }
+        
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            gap: 8px;
+        }
+        
+        .input-wrapper input {
+            flex: 1;
+        }
+        
+        .toggle-visibility {
+            padding: 8px 12px;
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+            min-width: 40px;
+        }
+        
+        .toggle-visibility:hover {
+            background: rgba(102, 126, 234, 0.2);
+        }
+        
+        body.dark-mode .toggle-visibility {
+            background: rgba(102, 126, 234, 0.2);
+            color: #a5b4fc;
+            border-color: rgba(165, 180, 252, 0.3);
+        }
+        
+        .event-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            padding: 12px;
+            background: rgba(102, 126, 234, 0.05);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: background 0.2s;
+        }
+        
+        .event-checkbox:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        body.dark-mode .event-checkbox {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        body.dark-mode .event-checkbox:hover {
+            background: rgba(102, 126, 234, 0.15);
+        }
+        
+        .event-checkbox strong {
+            color: #1e293b;
+        }
+        
+        body.dark-mode .event-checkbox strong {
+            color: rgba(255, 255, 255, 0.9);
+        }
     </style>
 </head>
 <body>
@@ -345,13 +409,19 @@
                 <div id="telegram-fields" class="collapsible">
                     <div class="form-group">
                         <label for="telegram-bot-token">Bot Token</label>
-                        <input type="text" id="telegram-bot-token" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz">
+                        <div class="input-wrapper">
+                            <input type="password" id="telegram-bot-token" class="sensitive-field" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz">
+                            <button type="button" class="toggle-visibility" onclick="toggleVisibility('telegram-bot-token')">👁️</button>
+                        </div>
                         <small>Get from <a href="https://t.me/BotFather" target="_blank">@BotFather</a></small>
                     </div>
                     
                     <div class="form-group">
                         <label for="telegram-chat-id">Chat ID</label>
-                        <input type="text" id="telegram-chat-id" placeholder="987654321">
+                        <div class="input-wrapper">
+                            <input type="password" id="telegram-chat-id" class="sensitive-field" placeholder="123456789">
+                            <button type="button" class="toggle-visibility" onclick="toggleVisibility('telegram-chat-id')">👁️</button>
+                        </div>
                         <small>Get from <a href="https://t.me/userinfobot" target="_blank">@userinfobot</a></small>
                     </div>
                     
@@ -372,7 +442,10 @@
                 <div id="discord-fields" class="collapsible">
                     <div class="form-group">
                         <label for="discord-webhook-url">Webhook URL</label>
-                        <input type="text" id="discord-webhook-url" placeholder="https://discord.com/api/webhooks/...">
+                        <div class="input-wrapper">
+                            <input type="password" id="discord-webhook-url" class="sensitive-field" placeholder="https://discord.com/api/webhooks/...">
+                            <button type="button" class="toggle-visibility" onclick="toggleVisibility('discord-webhook-url')">👁️</button>
+                        </div>
                         <small>Create in your Discord channel settings → Integrations → Webhooks</small>
                     </div>
                     
@@ -393,13 +466,19 @@
                 <div id="pushover-fields" class="collapsible">
                     <div class="form-group">
                         <label for="pushover-user-key">User Key</label>
-                        <input type="text" id="pushover-user-key" placeholder="uQiRzpo4DXghDmr9QzzfQu27cmVRsG">
+                        <div class="input-wrapper">
+                            <input type="password" id="pushover-user-key" class="sensitive-field" placeholder="uQiRzpo4DXghDmr9QzzfQu27cmVRsG">
+                            <button type="button" class="toggle-visibility" onclick="toggleVisibility('pushover-user-key')">👁️</button>
+                        </div>
                         <small>From your <a href="https://pushover.net/" target="_blank">Pushover dashboard</a></small>
                     </div>
                     
                     <div class="form-group">
                         <label for="pushover-app-token">App Token</label>
-                        <input type="text" id="pushover-app-token" placeholder="azGDORePK8gMaC0QOYAMyEEuzJnyUi">
+                        <div class="input-wrapper">
+                            <input type="password" id="pushover-app-token" class="sensitive-field" placeholder="azGDORePK8gMaC0QOYAMyEEuzJnyUi">
+                            <button type="button" class="toggle-visibility" onclick="toggleVisibility('pushover-app-token')">👁️</button>
+                        </div>
                         <small>Create an application to get an API token</small>
                     </div>
                     
@@ -447,11 +526,54 @@
                 <div id="webhook-fields" class="collapsible">
                     <div class="form-group">
                         <label for="webhook-url">Webhook URL</label>
-                        <input type="text" id="webhook-url" placeholder="https://your-server.com/api/alerts">
+                        <div class="input-wrapper">
+                            <input type="password" id="webhook-url" class="sensitive-field" placeholder="https://your-server.com/api/alerts">
+                            <button type="button" class="toggle-visibility" onclick="toggleVisibility('webhook-url')">👁️</button>
+                        </div>
                         <small>JSON payload will be POST'ed to this URL</small>
                     </div>
                     
                     <button type="button" class="test-btn" onclick="testNotification('webhook')">Send Test Request</button>
+                </div>
+            </div>
+            
+            <!-- Notification Events -->
+            <div class="settings-card">
+                <h2>🔔 Notification Events</h2>
+                <p style="opacity: 0.7; margin-bottom: 20px; font-size: 14px;">Choose which events trigger notifications</p>
+                
+                <div class="form-group">
+                    <label class="event-checkbox">
+                        <input type="checkbox" id="notify-failover" checked style="width: auto;">
+                        <div>
+                            <strong>Failover Events</strong>
+                            <small style="display: block; margin-top: 4px;">When primary Pi-hole fails and backup takes over</small>
+                        </div>
+                    </label>
+                    
+                    <label class="event-checkbox">
+                        <input type="checkbox" id="notify-recovery" checked style="width: auto;">
+                        <div>
+                            <strong>Recovery Events</strong>
+                            <small style="display: block; margin-top: 4px;">When primary Pi-hole comes back online</small>
+                        </div>
+                    </label>
+                    
+                    <label class="event-checkbox">
+                        <input type="checkbox" id="notify-fault" checked style="width: auto;">
+                        <div>
+                            <strong>Fault Events</strong>
+                            <small style="display: block; margin-top: 4px;">When critical errors occur (both nodes down)</small>
+                        </div>
+                    </label>
+                    
+                    <label class="event-checkbox" style="margin-bottom: 0;">
+                        <input type="checkbox" id="notify-startup" style="width: auto;">
+                        <div>
+                            <strong>Startup Events</strong>
+                            <small style="display: block; margin-top: 4px;">When the monitoring system starts (optional)</small>
+                        </div>
+                    </label>
                 </div>
             </div>
             
@@ -464,6 +586,28 @@
 
     <script>
         const API_BASE = window.location.origin;
+        
+        // Store masked values to detect if user changed them
+        const maskedValues = {};
+        
+        // Toggle password visibility
+        function toggleVisibility(fieldId) {
+            const field = document.getElementById(fieldId);
+            const button = field.parentElement.querySelector('.toggle-visibility');
+            
+            if (field.type === 'password') {
+                field.type = 'text';
+                button.textContent = '🙈';
+            } else {
+                field.type = 'password';
+                button.textContent = '👁️';
+            }
+        }
+        
+        // Check if a value is masked
+        function isMasked(value) {
+            return value && value.includes('••••');
+        }
         
         // Load settings on page load
         async function loadSettings() {
@@ -479,26 +623,44 @@
         }
         
         function populateForm(settings) {
+            // Notification Events
+            if (settings.events) {
+                document.getElementById('notify-failover').checked = settings.events.failover !== false;
+                document.getElementById('notify-recovery').checked = settings.events.recovery !== false;
+                document.getElementById('notify-fault').checked = settings.events.fault !== false;
+                document.getElementById('notify-startup').checked = settings.events.startup === true;
+            }
+            
             // Telegram
             if (settings.telegram) {
                 document.getElementById('telegram-enabled').checked = settings.telegram.enabled;
-                document.getElementById('telegram-bot-token').value = settings.telegram.bot_token || '';
-                document.getElementById('telegram-chat-id').value = settings.telegram.chat_id || '';
+                const botToken = settings.telegram.bot_token || '';
+                const chatId = settings.telegram.chat_id || '';
+                document.getElementById('telegram-bot-token').value = botToken;
+                document.getElementById('telegram-chat-id').value = chatId;
+                if (isMasked(botToken)) maskedValues['telegram-bot-token'] = botToken;
+                if (isMasked(chatId)) maskedValues['telegram-chat-id'] = chatId;
                 toggleService('telegram');
             }
             
             // Discord
             if (settings.discord) {
                 document.getElementById('discord-enabled').checked = settings.discord.enabled;
-                document.getElementById('discord-webhook-url').value = settings.discord.webhook_url || '';
+                const webhookUrl = settings.discord.webhook_url || '';
+                document.getElementById('discord-webhook-url').value = webhookUrl;
+                if (isMasked(webhookUrl)) maskedValues['discord-webhook-url'] = webhookUrl;
                 toggleService('discord');
             }
             
             // Pushover
             if (settings.pushover) {
                 document.getElementById('pushover-enabled').checked = settings.pushover.enabled;
-                document.getElementById('pushover-user-key').value = settings.pushover.user_key || '';
-                document.getElementById('pushover-app-token').value = settings.pushover.app_token || '';
+                const userKey = settings.pushover.user_key || '';
+                const appToken = settings.pushover.app_token || '';
+                document.getElementById('pushover-user-key').value = userKey;
+                document.getElementById('pushover-app-token').value = appToken;
+                if (isMasked(userKey)) maskedValues['pushover-user-key'] = userKey;
+                if (isMasked(appToken)) maskedValues['pushover-app-token'] = appToken;
                 toggleService('pushover');
             }
             
@@ -513,7 +675,9 @@
             // Webhook
             if (settings.webhook) {
                 document.getElementById('webhook-enabled').checked = settings.webhook.enabled;
-                document.getElementById('webhook-url').value = settings.webhook.url || '';
+                const webhookUrl = settings.webhook.url || '';
+                document.getElementById('webhook-url').value = webhookUrl;
+                if (isMasked(webhookUrl)) maskedValues['webhook-url'] = webhookUrl;
                 toggleService('webhook');
             }
         }
@@ -551,20 +715,36 @@
         }
         
         function collectFormData() {
+            // Helper to get value only if it was changed (not masked)
+            function getValue(fieldId) {
+                const value = document.getElementById(fieldId).value;
+                // If value is unchanged masked value, return null (backend will keep existing)
+                if (maskedValues[fieldId] && value === maskedValues[fieldId]) {
+                    return null;
+                }
+                return value;
+            }
+            
             return {
+                events: {
+                    failover: document.getElementById('notify-failover').checked,
+                    recovery: document.getElementById('notify-recovery').checked,
+                    fault: document.getElementById('notify-fault').checked,
+                    startup: document.getElementById('notify-startup').checked
+                },
                 telegram: {
                     enabled: document.getElementById('telegram-enabled').checked,
-                    bot_token: document.getElementById('telegram-bot-token').value,
-                    chat_id: document.getElementById('telegram-chat-id').value
+                    bot_token: getValue('telegram-bot-token'),
+                    chat_id: getValue('telegram-chat-id')
                 },
                 discord: {
                     enabled: document.getElementById('discord-enabled').checked,
-                    webhook_url: document.getElementById('discord-webhook-url').value
+                    webhook_url: getValue('discord-webhook-url')
                 },
                 pushover: {
                     enabled: document.getElementById('pushover-enabled').checked,
-                    user_key: document.getElementById('pushover-user-key').value,
-                    app_token: document.getElementById('pushover-app-token').value
+                    user_key: getValue('pushover-user-key'),
+                    app_token: getValue('pushover-app-token')
                 },
                 ntfy: {
                     enabled: document.getElementById('ntfy-enabled').checked,
@@ -573,7 +753,7 @@
                 },
                 webhook: {
                     enabled: document.getElementById('webhook-enabled').checked,
-                    url: document.getElementById('webhook-url').value
+                    url: getValue('webhook-url')
                 }
             };
         }

@@ -385,7 +385,7 @@ async def root():
 
 @app.get("/api/notifications/settings")
 async def get_notification_settings():
-    """Get current notification settings"""
+    """Get current notification settings (with masked sensitive data)"""
     import json
     
     config_path = CONFIG["notify_config_path"]
@@ -393,12 +393,16 @@ async def get_notification_settings():
     if os.path.exists(config_path):
         try:
             with open(config_path, 'r') as f:
-                return json.load(f)
+                settings = json.load(f)
+                # Mask sensitive fields
+                settings = mask_sensitive_data(settings)
+                return settings
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to load settings: {str(e)}")
     
     # Return default empty settings
     return {
+        "events": {"failover": True, "recovery": True, "fault": True, "startup": False},
         "telegram": {"enabled": False, "bot_token": "", "chat_id": ""},
         "discord": {"enabled": False, "webhook_url": ""},
         "pushover": {"enabled": False, "user_key": "", "app_token": ""},
@@ -406,9 +410,55 @@ async def get_notification_settings():
         "webhook": {"enabled": False, "url": ""}
     }
 
+def mask_sensitive_data(settings):
+    """Mask sensitive fields with *** but indicate if they're set"""
+    masked = settings.copy()
+    
+    # Telegram
+    if masked.get("telegram", {}).get("bot_token"):
+        masked["telegram"]["bot_token"] = "••••••••" + masked["telegram"]["bot_token"][-4:]
+    if masked.get("telegram", {}).get("chat_id"):
+        masked["telegram"]["chat_id"] = "••••" + masked["telegram"]["chat_id"][-4:]
+    
+    # Discord
+    if masked.get("discord", {}).get("webhook_url"):
+        masked["discord"]["webhook_url"] = "••••••••" + masked["discord"]["webhook_url"][-8:]
+    
+    # Pushover
+    if masked.get("pushover", {}).get("user_key"):
+        masked["pushover"]["user_key"] = "••••••••" + masked["pushover"]["user_key"][-4:]
+    if masked.get("pushover", {}).get("app_token"):
+        masked["pushover"]["app_token"] = "••••••••" + masked["pushover"]["app_token"][-4:]
+    
+    # Ntfy (topic and server are not sensitive)
+    
+    # Webhook
+    if masked.get("webhook", {}).get("url"):
+        masked["webhook"]["url"] = "••••••••" + masked["webhook"]["url"][-8:]
+    
+    return masked
+
+def merge_settings(existing, new):
+    """Merge new settings with existing, preserving values where new is None"""
+    merged = existing.copy()
+    
+    for service, config in new.items():
+        if service not in merged:
+            merged[service] = {}
+        
+        for key, value in config.items():
+            # Only update if new value is not None (None means "keep existing")
+            if value is not None:
+                merged[service][key] = value
+            elif key in existing.get(service, {}):
+                # Keep existing value
+                merged[service][key] = existing[service][key]
+    
+    return merged
+
 @app.post("/api/notifications/settings")
 async def save_notification_settings(settings: dict):
-    """Save notification settings"""
+    """Save notification settings (preserving masked values)"""
     import json
     
     config_path = CONFIG["notify_config_path"]
@@ -417,9 +467,21 @@ async def save_notification_settings(settings: dict):
     # Create directory if it doesn't exist
     os.makedirs(config_dir, exist_ok=True)
     
+    # Load existing settings to preserve masked values
+    existing_settings = {}
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                existing_settings = json.load(f)
+        except:
+            pass
+    
+    # Merge settings, keeping existing values where new value is None
+    merged_settings = merge_settings(existing_settings, settings)
+    
     try:
         with open(config_path, 'w') as f:
-            json.dump(settings, f, indent=2)
+            json.dump(merged_settings, f, indent=2)
         
         # Also update the bash config file for keepalived scripts
         bash_config = "/etc/pihole-sentinel/notify.conf"
@@ -429,23 +491,37 @@ async def save_notification_settings(settings: dict):
             f.write("# Pi-hole Sentinel Notification Configuration\n")
             f.write("# Auto-generated from web interface\n\n")
             
-            if settings.get('telegram', {}).get('enabled'):
-                f.write(f"TELEGRAM_BOT_TOKEN=\"{settings['telegram'].get('bot_token', '')}\"\n")
-                f.write(f"TELEGRAM_CHAT_ID=\"{settings['telegram'].get('chat_id', '')}\"\n\n")
+            # Event settings
+            events = merged_settings.get('events', {})
+            f.write("# Notification Event Controls\n")
+            f.write(f"NOTIFY_FAILOVER=\"{'true' if events.get('failover', True) else 'false'}\"\n")
+            f.write(f"NOTIFY_RECOVERY=\"{'true' if events.get('recovery', True) else 'false'}\"\n")
+            f.write(f"NOTIFY_FAULT=\"{'true' if events.get('fault', True) else 'false'}\"\n")
+            f.write(f"NOTIFY_STARTUP=\"{'true' if events.get('startup', False) else 'false'}\"\n\n")
             
-            if settings.get('discord', {}).get('enabled'):
-                f.write(f"DISCORD_WEBHOOK_URL=\"{settings['discord'].get('webhook_url', '')}\"\n\n")
+            # Service credentials
+            if merged_settings.get('telegram', {}).get('enabled'):
+                f.write("# Telegram\n")
+                f.write(f"TELEGRAM_BOT_TOKEN=\"{merged_settings['telegram'].get('bot_token', '')}\"\n")
+                f.write(f"TELEGRAM_CHAT_ID=\"{merged_settings['telegram'].get('chat_id', '')}\"\n\n")
             
-            if settings.get('pushover', {}).get('enabled'):
-                f.write(f"PUSHOVER_USER_KEY=\"{settings['pushover'].get('user_key', '')}\"\n")
-                f.write(f"PUSHOVER_APP_TOKEN=\"{settings['pushover'].get('app_token', '')}\"\n\n")
+            if merged_settings.get('discord', {}).get('enabled'):
+                f.write("# Discord\n")
+                f.write(f"DISCORD_WEBHOOK_URL=\"{merged_settings['discord'].get('webhook_url', '')}\"\n\n")
             
-            if settings.get('ntfy', {}).get('enabled'):
-                f.write(f"NTFY_TOPIC=\"{settings['ntfy'].get('topic', '')}\"\n")
-                f.write(f"NTFY_SERVER=\"{settings['ntfy'].get('server', 'https://ntfy.sh')}\"\n\n")
+            if merged_settings.get('pushover', {}).get('enabled'):
+                f.write("# Pushover\n")
+                f.write(f"PUSHOVER_USER_KEY=\"{merged_settings['pushover'].get('user_key', '')}\"\n")
+                f.write(f"PUSHOVER_APP_TOKEN=\"{merged_settings['pushover'].get('app_token', '')}\"\n\n")
             
-            if settings.get('webhook', {}).get('enabled'):
-                f.write(f"CUSTOM_WEBHOOK_URL=\"{settings['webhook'].get('url', '')}\"\n\n")
+            if merged_settings.get('ntfy', {}).get('enabled'):
+                f.write("# Ntfy\n")
+                f.write(f"NTFY_TOPIC=\"{merged_settings['ntfy'].get('topic', '')}\"\n")
+                f.write(f"NTFY_SERVER=\"{merged_settings['ntfy'].get('server', 'https://ntfy.sh')}\"\n\n")
+            
+            if merged_settings.get('webhook', {}).get('enabled'):
+                f.write("# Custom Webhook\n")
+                f.write(f"CUSTOM_WEBHOOK_URL=\"{merged_settings['webhook'].get('url', '')}\"\n\n")
         
         return {"status": "success", "message": "Settings saved successfully"}
     
@@ -466,11 +542,29 @@ async def test_notification(data: dict):
             if not settings.get('bot_token') or not settings.get('chat_id'):
                 raise HTTPException(status_code=400, detail="Bot token and chat ID required")
             
+            test_message = (
+                "🧪 <b>Pi-hole Sentinel Test Notification</b>\n\n"
+                "📋 <b>Example Event Messages:</b>\n\n"
+                "🟢 <b>MASTER/Recovery Event:</b>\n"
+                "Pi-hole is now MASTER\n"
+                "✅ DHCP server enabled\n"
+                "🌐 Virtual IP active\n\n"
+                "🟡 <b>BACKUP/Failover Event:</b>\n"
+                "Pi-hole is now BACKUP\n"
+                "⏸️ DHCP server disabled\n"
+                "👀 Monitoring MASTER\n\n"
+                "🔴 <b>FAULT Event:</b>\n"
+                "Pi-hole entered FAULT state\n"
+                "❌ DHCP server disabled\n"
+                "⚠️ Service issues detected\n\n"
+                "✅ If you see this, notifications are working!"
+            )
+            
             async with aiohttp.ClientSession() as session:
                 url = f"https://api.telegram.org/bot{settings['bot_token']}/sendMessage"
                 async with session.post(url, json={
                     'chat_id': settings['chat_id'],
-                    'text': '🧪 Test notification from Pi-hole Sentinel\n\nIf you see this, notifications are working!',
+                    'text': test_message,
                     'parse_mode': 'HTML'
                 }) as response:
                     if response.status != 200:
@@ -482,12 +576,36 @@ async def test_notification(data: dict):
             
             async with aiohttp.ClientSession() as session:
                 async with session.post(settings['webhook_url'], json={
-                    'embeds': [{
-                        'title': '🧪 Test Notification',
-                        'description': 'Test notification from Pi-hole Sentinel\n\nIf you see this, notifications are working!',
-                        'color': 3447003,
-                        'footer': {'text': 'Pi-hole Sentinel HA Monitor'}
-                    }]
+                    'embeds': [
+                        {
+                            'title': '🧪 Pi-hole Sentinel Test Notification',
+                            'description': '**Example Event Messages:**',
+                            'color': 3447003,
+                            'fields': [
+                                {
+                                    'name': '🟢 MASTER/Recovery Event',
+                                    'value': 'Pi-hole is now MASTER\n✅ DHCP enabled\n🌐 Virtual IP active',
+                                    'inline': False
+                                },
+                                {
+                                    'name': '🟡 BACKUP/Failover Event',
+                                    'value': 'Pi-hole is now BACKUP\n⏸️ DHCP disabled\n👀 Monitoring MASTER',
+                                    'inline': False
+                                },
+                                {
+                                    'name': '🔴 FAULT Event',
+                                    'value': 'Pi-hole entered FAULT state\n❌ DHCP disabled\n⚠️ Service issues detected',
+                                    'inline': False
+                                },
+                                {
+                                    'name': '✅ Status',
+                                    'value': 'If you see this, notifications are working!',
+                                    'inline': False
+                                }
+                            ],
+                            'footer': {'text': 'Pi-hole Sentinel HA Monitor'}
+                        }
+                    ]
                 }) as response:
                     if response.status not in [200, 204]:
                         raise Exception(f"Discord API returned {response.status}")
@@ -496,12 +614,24 @@ async def test_notification(data: dict):
             if not settings.get('user_key') or not settings.get('app_token'):
                 raise HTTPException(status_code=400, detail="User key and app token required")
             
+            test_message = (
+                "🧪 Test Notification\n\n"
+                "Example Event Messages:\n\n"
+                "🟢 MASTER/Recovery:\n"
+                "✅ DHCP enabled, Virtual IP active\n\n"
+                "🟡 BACKUP/Failover:\n"
+                "⏸️ DHCP disabled, Monitoring MASTER\n\n"
+                "🔴 FAULT:\n"
+                "❌ DHCP disabled, Service issues\n\n"
+                "✅ Notifications are working!"
+            )
+            
             async with aiohttp.ClientSession() as session:
                 async with session.post('https://api.pushover.net/1/messages.json', data={
                     'token': settings['app_token'],
                     'user': settings['user_key'],
                     'title': 'Pi-hole Sentinel Test',
-                    'message': '🧪 Test notification\n\nIf you see this, notifications are working!'
+                    'message': test_message
                 }) as response:
                     if response.status != 200:
                         raise Exception(f"Pushover API returned {response.status}")
@@ -513,11 +643,20 @@ async def test_notification(data: dict):
             server = settings.get('server', 'https://ntfy.sh')
             url = f"{server}/{settings['topic']}"
             
+            test_message = (
+                "🧪 Test Notification\n\n"
+                "Example Event Messages:\n\n"
+                "🟢 MASTER/Recovery: DHCP enabled, Virtual IP active\n"
+                "🟡 BACKUP/Failover: DHCP disabled, Monitoring MASTER\n"
+                "🔴 FAULT: DHCP disabled, Service issues detected\n\n"
+                "✅ If you see this, notifications are working!"
+            )
+            
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, data='🧪 Test notification from Pi-hole Sentinel\n\nIf you see this, notifications are working!', headers={
+                async with session.post(url, data=test_message, headers={
                     'Title': 'Pi-hole Sentinel Test',
                     'Priority': 'default',
-                    'Tags': 'white_check_mark'
+                    'Tags': 'white_check_mark,test_tube'
                 }) as response:
                     if response.status != 200:
                         raise Exception(f"Ntfy returned {response.status}")
@@ -530,7 +669,12 @@ async def test_notification(data: dict):
                 async with session.post(settings['url'], json={
                     'service': 'pihole-sentinel',
                     'type': 'test',
-                    'message': 'Test notification from Pi-hole Sentinel',
+                    'message': 'Test notification - Example events',
+                    'examples': {
+                        'master': 'DHCP enabled, Virtual IP active',
+                        'backup': 'DHCP disabled, Monitoring MASTER',
+                        'fault': 'DHCP disabled, Service issues detected'
+                    },
                     'timestamp': datetime.now().isoformat()
                 }) as response:
                     if response.status not in [200, 201, 202, 204]:
