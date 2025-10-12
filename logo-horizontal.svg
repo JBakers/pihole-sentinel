@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="200" viewBox="0 0 800 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea"/>
+      <stop offset="100%" style="stop-color:#764ba2"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Logo circle -->
+  <circle cx="100" cy="100" r="80" fill="url(#grad)"/>
+  
+  <!-- Sentinel icon - matched to logo.svg -->
+  <g filter="url(#glow)">
+    <!-- Main tower/arrow shape -->
+    <path d="M 100 61 L 78 85 L 90 85 L 90 115 L 78 115 L 100 139 L 122 115 L 110 115 L 110 85 L 122 85 Z" 
+          fill="white" opacity="0.95"/>
+    
+    <!-- Shield outline circle -->
+    <circle cx="100" cy="100" r="65" fill="none" stroke="white" stroke-width="2" opacity="0.3"/>
+    
+    <!-- Network dots (representing HA nodes) -->
+    <circle cx="61" cy="77" r="4" fill="white" opacity="0.8"/>
+    <circle cx="139" cy="77" r="4" fill="white" opacity="0.8"/>
+    <circle cx="61" cy="123" r="4" fill="white" opacity="0.8"/>
+    <circle cx="139" cy="123" r="4" fill="white" opacity="0.8"/>
+    
+    <!-- Connection lines between nodes -->
+    <line x1="61" y1="77" x2="90" y2="85" stroke="white" stroke-width="1" opacity="0.4"/>
+    <line x1="139" y1="77" x2="110" y2="85" stroke="white" stroke-width="1" opacity="0.4"/>
+    <line x1="61" y1="123" x2="90" y2="115" stroke="white" stroke-width="1" opacity="0.4"/>
+    <line x1="139" y1="123" x2="110" y2="115" stroke="white" stroke-width="1" opacity="0.4"/>
+  </g>
+  
+  <!-- Text -->
+  <text x="210" y="120" font-family="system-ui, -apple-system, sans-serif" font-size="64" font-weight="700" fill="#1e293b">
+    Pi-hole <tspan fill="url(#grad)">Sentinel</tspan>
+  </text>
+</svg>

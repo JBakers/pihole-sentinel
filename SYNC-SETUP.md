@@ -11,9 +11,10 @@ Deze sync oplossing zorgt ervoor dat beide Pi-hole servers altijd dezelfde confi
 - ✅ Custom DNS records
 - ✅ CNAME records
 - ✅ Pi-hole settings
+- ✅ DHCP static leases
 
 **Wat wordt NIET gesynchroniseerd:**
-- ❌ DHCP leases (moeten verschillend zijn)
+- ❌ DHCP 'active' flag (beheerd door Keepalived)
 - ❌ Query logs (historische data blijft lokaal)
 - ❌ Statistics (blijven per server)
 

@@ -5,7 +5,7 @@
 You already have working Pi-holes and want to add:
 - ⚙️ Keepalived for automatic failover (Virtual IP)
 - 📊 Monitor dashboard for real-time status
-- 🔄 Optional: Enhanced sync that includes DHCP leases
+- 🔄 Built-in configuration sync (includes DHCP leases)
 
 **This guide is for you if:**
 - ✅ You have 2 working Pi-holes
