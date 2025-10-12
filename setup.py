@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Pi-hole HA Setup Configuration Script
-===================================
+Pi-hole Sentinel Setup Configuration Script
+==========================================
 
-This script helps you configure your Pi-hole High Availability setup by:
+This script helps you configure your Pi-hole Sentinel High Availability setup by:
 1. Collecting network configuration
 2. Validating inputs
 3. Generating secure passwords
@@ -470,8 +470,8 @@ def main():
         setup = SetupConfig()
         
         print("""
-Pi-hole High Availability Setup
-============================
+Pi-hole Sentinel - High Availability Setup
+=========================================
 
 This script will help you set up:
 1. Automatic failover between your Pi-holes
@@ -509,12 +509,6 @@ Choose deployment mode:
         if mode == "1":
             setup.show_next_steps()
         elif mode == "2":
-            setup.deploy_monitor()
-        elif mode == "3":
-            setup.deploy_keepalived("primary")
-        elif mode == "4":
-            setup.deploy_keepalived("secondary")
-        elif mode == "5":
             print("\nStarting complete deployment...")
             if setup.deploy_monitor():
                 if setup.deploy_keepalived("primary"):
@@ -526,6 +520,12 @@ Choose deployment mode:
                     print("\nError deploying primary node")
             else:
                 print("\nError deploying monitor")
+        elif mode == "3":
+            setup.deploy_monitor()
+        elif mode == "4":
+            setup.deploy_keepalived("primary")
+        elif mode == "5":
+            setup.deploy_keepalived("secondary")
         else:
             print("\nInvalid choice!")
             sys.exit(1)

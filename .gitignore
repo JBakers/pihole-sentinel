@@ -27,6 +27,14 @@ logs/
 .env.local
 .env.*.local
 
+# Generated configurations (may contain sensitive data)
+generated_configs/
+*.env
+
+# Project documentation (personal/internal)
+PROJECT-HISTORY.md
+chat.txt
+
 # System
 .DS_Store
 Thumbs.db
