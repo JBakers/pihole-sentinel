@@ -55,6 +55,78 @@ class SetupConfig:
         """Generate a secure random password."""
         alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
         return ''.join(secrets.choice(alphabet) for _ in range(length))
+    
+    def remote_exec(self, host, user, port, command, password=None):
+        """Execute command on remote host via SSH."""
+        cmd = ["ssh", "-p", port, "-o", "StrictHostKeyChecking=no"]
+        
+        if password:
+            cmd = ["sshpass", "-p", password] + cmd
+        else:
+            cmd = cmd + ["-o", "BatchMode=yes"]
+        
+        cmd = cmd + [f"{user}@{host}", command]
+        
+        return subprocess.run(cmd, check=True)
+    
+    def remote_copy(self, local_file, host, user, port, remote_path, password=None):
+        """Copy file to remote host via SCP."""
+        cmd = ["scp", "-P", port, "-o", "StrictHostKeyChecking=no"]
+        
+        if password:
+            cmd = ["sshpass", "-p", password] + cmd
+        else:
+            cmd = cmd + ["-o", "BatchMode=yes"]
+        
+        cmd = cmd + [local_file, f"{user}@{host}:{remote_path}"]
+        
+        return subprocess.run(cmd, check=True)
+    
+    def install_remote_dependencies(self, host, user, port, password=None, packages=None):
+        """Install system dependencies on remote host."""
+        if packages is None:
+            packages = [
+                "build-essential", "python3.11-dev", "python3-pip",
+                "keepalived", "arping", "iproute2", "iputils-ping",
+                "sqlite3", "python3.11-venv"
+            ]
+        
+        print(f"Installing system dependencies on {host}...")
+        
+        try:
+            # Update package lists
+            self.remote_exec(host, user, port, "apt-get update -qq", password)
+            
+            # Install packages
+            pkg_list = " ".join(packages)
+            self.remote_exec(host, user, port, f"DEBIAN_FRONTEND=noninteractive apt-get install -y -qq {pkg_list}", password)
+            
+            print(f"✓ Dependencies installed on {host}")
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"✗ Failed to install dependencies on {host}: {e}")
+            return False
+    
+    def deploy_to_remote(self, host, user, port, files_to_copy, commands_to_run):
+        """Deploy files and run commands on remote host."""
+        try:
+            print(f"\nDeploying to {host}...")
+            
+            # Copy files
+            for local_file, remote_path in files_to_copy:
+                print(f"  Copying {local_file} to {remote_path}...")
+                self.remote_copy(local_file, host, user, port, remote_path)
+            
+            # Run commands
+            for cmd in commands_to_run:
+                print(f"  Running: {cmd[:50]}...")
+                self.remote_exec(host, user, port, cmd)
+            
+            print(f"✓ Deployment to {host} successful!")
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"✗ Deployment to {host} failed: {e}")
+            return False
 
     def get_interface_names(self):
         """Get list of network interfaces."""
@@ -88,8 +160,8 @@ class SetupConfig:
             print("\nEnter IP addresses (press Enter for defaults):")
             primary_ip = input("Primary Pi-hole IP [10.10.100.10]: ").strip() or "10.10.100.10"
             secondary_ip = input("Secondary Pi-hole IP [10.10.100.20]: ").strip() or "10.10.100.20"
-            vip = input("Virtual IP (VIP) address [10.10.100.1]: ").strip() or "10.10.100.1"
-            gateway = input("Network gateway IP [10.10.100.254]: ").strip() or "10.10.100.254"
+            vip = input("Virtual IP (VIP) address [10.10.100.2]: ").strip() or "10.10.100.2"
+            gateway = input("Network gateway IP [10.10.100.1]: ").strip() or "10.10.100.1"
             
             if not all(map(self.validate_ip, [primary_ip, secondary_ip, vip, gateway])):
                 print("Error: Invalid IP address format!")
@@ -142,17 +214,57 @@ class SetupConfig:
             while True:
                 monitor_ip = input("\nMonitor server IP: ")
                 if self.validate_ip(monitor_ip):
+                    self.config['monitor_ip'] = monitor_ip
+                    # Ask for SSH access
+                    self.config['monitor_ssh_user'] = input(f"SSH user for {monitor_ip} [root]: ").strip() or "root"
+                    self.config['monitor_ssh_port'] = input(f"SSH port for {monitor_ip} [22]: ").strip() or "22"
+                    
+                    print("\nSSH Authentication:")
+                    print("1. Use SSH key (passwordless - must be setup first!)")
+                    print("2. Use password (will ask once, used for all operations)")
+                    auth_choice = input("Choice (1/2) [1]: ").strip() or "1"
+                    
+                    if auth_choice == "2":
+                        self.config['monitor_ssh_pass'] = getpass(f"SSH password for {self.config['monitor_ssh_user']}@{monitor_ip}: ")
+                    else:
+                        self.config['monitor_ssh_pass'] = None
+                        print("\n💡 Tip: If you don't have SSH keys setup, choose option 2 (password)")
+                    
                     if self.check_host_reachable(monitor_ip):
-                        self.config['monitor_ip'] = monitor_ip
-                        break
+                        # Test SSH connection
+                        test_cmd = ["ssh", "-p", self.config['monitor_ssh_port'],
+                                   "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+                                   f"{self.config['monitor_ssh_user']}@{monitor_ip}", "echo 'SSH OK'"]
+                        
+                        if self.config.get('monitor_ssh_pass'):
+                            test_cmd = ["sshpass", "-p", self.config['monitor_ssh_pass']] + test_cmd
+                        
+                        test_ssh = subprocess.run(test_cmd, capture_output=True, timeout=10)
+                        
+                        if test_ssh.returncode == 0:
+                            print(f"✓ SSH connection to monitor server successful!")
+                            break
+                        else:
+                            if not self.config.get('monitor_ssh_pass'):
+                                print(f"✗ SSH key authentication failed!")
+                                print(f"   Either setup SSH keys first (ssh-copy-id {self.config['monitor_ssh_user']}@{monitor_ip})")
+                                print(f"   OR choose password authentication (option 2)")
+                            else:
+                                print(f"✗ SSH password authentication failed! Check your password.")
+                            retry = input("Try again? (Y/n): ").lower()
+                            if retry == 'n':
+                                sys.exit(1)
                     else:
                         proceed = input("Warning: Monitor server not reachable. Proceed anyway? (y/N): ").lower()
                         if proceed == 'y':
-                            self.config['monitor_ip'] = monitor_ip
                             break
                 print("Please enter a valid IP address")
         else:
             self.config['monitor_ip'] = self.config['primary_ip']
+            self.config['monitor_ssh_user'] = None
+            self.config['monitor_ssh_port'] = None
+            self.config['monitor_ssh_pass'] = None
+            print(f"\n✓ Monitor will be installed on primary Pi-hole: {self.config['monitor_ip']}")
 
     def collect_pihole_config(self):
         """Collect Pi-hole configuration."""
@@ -161,6 +273,39 @@ class SetupConfig:
         print("\nPi-hole web interface passwords:")
         self.config['primary_password'] = getpass("Primary Pi-hole password: ")
         self.config['secondary_password'] = getpass("Secondary Pi-hole password: ")
+        
+        # Collect SSH access for Pi-holes
+        print("\nSSH access for remote deployment:")
+        
+        # Primary
+        self.config['primary_ssh_user'] = input(f"SSH user for primary ({self.config['primary_ip']}) [root]: ").strip() or "root"
+        self.config['primary_ssh_port'] = input(f"SSH port for primary [22]: ").strip() or "22"
+        
+        print("\nSSH Authentication for primary:")
+        print("1. Use SSH key (passwordless - must be setup first!)")
+        print("2. Use password (will ask once)")
+        auth_choice = input("Choice (1/2) [1]: ").strip() or "1"
+        
+        if auth_choice == "2":
+            self.config['primary_ssh_pass'] = getpass(f"SSH password for {self.config['primary_ssh_user']}@{self.config['primary_ip']}: ")
+        else:
+            self.config['primary_ssh_pass'] = None
+            print("💡 Tip: If you don't have SSH keys setup, choose option 2")
+        
+        # Secondary
+        self.config['secondary_ssh_user'] = input(f"\nSSH user for secondary ({self.config['secondary_ip']}) [root]: ").strip() or "root"
+        self.config['secondary_ssh_port'] = input(f"SSH port for secondary [22]: ").strip() or "22"
+        
+        print("\nSSH Authentication for secondary:")
+        print("1. Use SSH key (passwordless - must be setup first!)")
+        print("2. Use password (will ask once)")
+        auth_choice = input("Choice (1/2) [1]: ").strip() or "1"
+        
+        if auth_choice == "2":
+            self.config['secondary_ssh_pass'] = getpass(f"SSH password for {self.config['secondary_ssh_user']}@{self.config['secondary_ip']}: ")
+        else:
+            self.config['secondary_ssh_pass'] = None
+            print("💡 Tip: If you don't have SSH keys setup, choose option 2")
         
         # Generate secure keepalived password
         self.config['keepalived_password'] = self.generate_secure_password()
@@ -331,8 +476,9 @@ NODE_STATE=MASTER
             print("Copying application files...")
             subprocess.run(["sudo", "cp", "dashboard/monitor.py", "/opt/pihole-monitor/"], check=True)
             subprocess.run(["sudo", "cp", "dashboard/index.html", "/opt/pihole-monitor/"], check=True)
+            subprocess.run(["sudo", "cp", "dashboard/settings.html", "/opt/pihole-monitor/"], check=True)
             subprocess.run(["sudo", "cp", "generated_configs/monitor.env", "/opt/pihole-monitor/.env"], check=True)
-            subprocess.run(["sudo", "cp", "dashboard/service/pihole-monitor.service", 
+            subprocess.run(["sudo", "cp", "systemd/pihole-monitor.service", 
                           "/etc/systemd/system/"], check=True)
             
             # Set correct ownership and permissions
@@ -343,7 +489,7 @@ NODE_STATE=MASTER
             subprocess.run(["sudo", "chmod", "755", "/opt/pihole-monitor"], check=True)
             
             # Application files: 644 pihole-monitor:pihole-monitor
-            for file in ["monitor.py", "index.html"]:
+            for file in ["monitor.py", "index.html", "settings.html"]:
                 subprocess.run(["sudo", "chown", "pihole-monitor:pihole-monitor", 
                               f"/opt/pihole-monitor/{file}"], check=True)
                 subprocess.run(["sudo", "chmod", "644", f"/opt/pihole-monitor/{file}"], check=True)
@@ -374,6 +520,77 @@ NODE_STATE=MASTER
             return True
         except subprocess.CalledProcessError as e:
             print(f"Error deploying monitor: {e}")
+            return False
+
+    def deploy_monitor_remote(self):
+        """Deploy monitor service to remote server via SSH."""
+        if not self.config.get('monitor_ssh_user'):
+            print("No remote monitor configured, deploying locally...")
+            return self.deploy_monitor()
+        
+        host = self.config['monitor_ip']
+        user = self.config['monitor_ssh_user']
+        port = self.config['monitor_ssh_port']
+        password = self.config.get('monitor_ssh_pass')
+        
+        try:
+            print(f"\nDeploying monitor to {host} via SSH...")
+            
+            # Install system dependencies first
+            if not self.install_remote_dependencies(host, user, port, password):
+                return False
+            
+            # Create remote temp directory
+            print("Preparing remote server...")
+            self.remote_exec(host, user, port, "mkdir -p /tmp/pihole-sentinel-deploy", password)
+            
+            # Copy necessary files
+            print("Copying files...")
+            files_to_copy = [
+                ("dashboard/monitor.py", "/tmp/pihole-sentinel-deploy/monitor.py"),
+                ("dashboard/index.html", "/tmp/pihole-sentinel-deploy/index.html"),
+                ("dashboard/settings.html", "/tmp/pihole-sentinel-deploy/settings.html"),
+                ("generated_configs/monitor.env", "/tmp/pihole-sentinel-deploy/monitor.env"),
+                ("systemd/pihole-monitor.service", "/tmp/pihole-sentinel-deploy/pihole-monitor.service"),
+                ("requirements.txt", "/tmp/pihole-sentinel-deploy/requirements.txt"),
+            ]
+            
+            for local, remote in files_to_copy:
+                self.remote_copy(local, host, user, port, remote, password)
+            
+            # Execute installation commands
+            print("Installing monitor service...")
+            commands = [
+                "useradd -r -s /bin/false pihole-monitor 2>/dev/null || true",
+                "mkdir -p /opt/pihole-monitor",
+                "python3 -m venv /opt/pihole-monitor/venv",
+                "cd /tmp/pihole-sentinel-deploy && /opt/pihole-monitor/venv/bin/pip install -r requirements.txt",
+                "cp /tmp/pihole-sentinel-deploy/monitor.py /opt/pihole-monitor/",
+                "cp /tmp/pihole-sentinel-deploy/index.html /opt/pihole-monitor/",
+                "cp /tmp/pihole-sentinel-deploy/settings.html /opt/pihole-monitor/",
+                "cp /tmp/pihole-sentinel-deploy/monitor.env /opt/pihole-monitor/.env",
+                "cp /tmp/pihole-sentinel-deploy/pihole-monitor.service /etc/systemd/system/",
+                "chown -R pihole-monitor:pihole-monitor /opt/pihole-monitor",
+                "chmod 755 /opt/pihole-monitor",
+                "chmod 644 /opt/pihole-monitor/*.py /opt/pihole-monitor/*.html",
+                "chmod 600 /opt/pihole-monitor/.env",
+                "chmod 755 -R /opt/pihole-monitor/venv",
+                "chown root:root /etc/systemd/system/pihole-monitor.service",
+                "chmod 644 /etc/systemd/system/pihole-monitor.service",
+                "systemctl daemon-reload",
+                "systemctl enable pihole-monitor",
+                "systemctl restart pihole-monitor",
+                "rm -rf /tmp/pihole-sentinel-deploy"
+            ]
+            
+            for cmd in commands:
+                self.remote_exec(host, user, port, cmd, password)
+            
+            print(f"✓ Monitor deployed successfully to {host}!")
+            return True
+            
+        except subprocess.CalledProcessError as e:
+            print(f"✗ Error deploying monitor to {host}: {e}")
             return False
 
     def deploy_keepalived(self, node_type="primary"):
@@ -414,7 +631,13 @@ NODE_STATE=MASTER
             print("Setting up monitoring scripts...")
             for script in ["check_pihole_service.sh", "dhcp_control.sh", "keepalived_notify.sh"]:
                 # Scripts: 755 root:root (executable by root only)
+                # First copy to temp location and fix line endings
                 subprocess.run(["sudo", "cp", f"keepalived/scripts/{script}",
+                              f"/tmp/{script}"], check=True)
+                # Convert CRLF to LF (fix Windows line endings)
+                subprocess.run(["sudo", "sed", "-i", "s/\\r$//", f"/tmp/{script}"], check=True)
+                # Move to final location
+                subprocess.run(["sudo", "mv", f"/tmp/{script}", 
                               f"/usr/local/bin/{script}"], check=True)
                 subprocess.run(["sudo", "chown", "root:root", f"/usr/local/bin/{script}"], check=True)
                 subprocess.run(["sudo", "chmod", "755", f"/usr/local/bin/{script}"], check=True)
@@ -428,6 +651,74 @@ NODE_STATE=MASTER
             return True
         except subprocess.CalledProcessError as e:
             print(f"Error deploying keepalived: {e}")
+            return False
+
+    def deploy_keepalived_remote(self, node_type="primary"):
+        """Deploy keepalived configuration to remote Pi-hole via SSH."""
+        host = self.config[f'{node_type}_ip']
+        user = self.config[f'{node_type}_ssh_user']
+        port = self.config[f'{node_type}_ssh_port']
+        password = self.config.get(f'{node_type}_ssh_pass')
+        
+        try:
+            print(f"\nDeploying {node_type} keepalived to {host} via SSH...")
+            
+            # Install system dependencies first
+            if not self.install_remote_dependencies(host, user, port, password):
+                return False
+            
+            # Create remote temp directory
+            print("Preparing remote server...")
+            self.remote_exec(host, user, port, "mkdir -p /tmp/pihole-sentinel-deploy", password)
+            
+            # Copy necessary files
+            print("Copying files...")
+            config_suffix = "primary" if node_type == "primary" else "secondary"
+            files_to_copy = [
+                (f"generated_configs/{config_suffix}_keepalived.conf", "/tmp/pihole-sentinel-deploy/keepalived.conf"),
+                (f"generated_configs/{config_suffix}.env", "/tmp/pihole-sentinel-deploy/.env"),
+                ("keepalived/scripts/check_pihole_service.sh", "/tmp/pihole-sentinel-deploy/check_pihole_service.sh"),
+                ("keepalived/scripts/dhcp_control.sh", "/tmp/pihole-sentinel-deploy/dhcp_control.sh"),
+                ("keepalived/scripts/keepalived_notify.sh", "/tmp/pihole-sentinel-deploy/keepalived_notify.sh"),
+            ]
+            
+            for local, remote in files_to_copy:
+                self.remote_copy(local, host, user, port, remote, password)
+            
+            # Execute installation commands
+            print("Installing keepalived...")
+            commands = [
+                "command -v keepalived >/dev/null 2>&1 || (apt-get update && apt-get install -y keepalived arping)",
+                "mkdir -p /etc/keepalived",
+                "chmod 755 /etc/keepalived",
+                "mkdir -p /usr/local/bin",
+                "chmod 755 /usr/local/bin",
+                "cp /tmp/pihole-sentinel-deploy/keepalived.conf /etc/keepalived/keepalived.conf",
+                "chown root:root /etc/keepalived/keepalived.conf",
+                "chmod 644 /etc/keepalived/keepalived.conf",
+                "cp /tmp/pihole-sentinel-deploy/.env /etc/keepalived/.env",
+                "chown root:root /etc/keepalived/.env",
+                "chmod 600 /etc/keepalived/.env",
+                # Copy and fix line endings for scripts
+                "for script in check_pihole_service.sh dhcp_control.sh keepalived_notify.sh; do " +
+                "cp /tmp/pihole-sentinel-deploy/$script /tmp/$script && " +
+                "sed -i 's/\\r$//' /tmp/$script && " +
+                "mv /tmp/$script /usr/local/bin/$script && " +
+                "chown root:root /usr/local/bin/$script && " +
+                "chmod 755 /usr/local/bin/$script; done",
+                "systemctl enable keepalived",
+                "systemctl restart keepalived",
+                "rm -rf /tmp/pihole-sentinel-deploy"
+            ]
+            
+            for cmd in commands:
+                self.remote_exec(host, user, port, cmd, password)
+            
+            print(f"✓ Keepalived {node_type} deployed successfully to {host}!")
+            return True
+            
+        except subprocess.CalledProcessError as e:
+            print(f"✗ Error deploying keepalived to {host}: {e}")
             return False
 
     def show_next_steps(self):
@@ -465,10 +756,209 @@ NODE_STATE=MASTER
 For security, delete the generated_configs directory after deployment.
 """)
 
-def main():
+def check_command_exists(cmd):
+    """Check if a command exists on the system."""
     try:
-        setup = SetupConfig()
+        result = subprocess.run(["which", cmd], capture_output=True, text=True)
+        return result.returncode == 0
+    except:
+        return False
+
+def check_package_installed(pkg, pkg_manager="apt"):
+    """Check if a package is installed."""
+    try:
+        if pkg_manager == "apt":
+            result = subprocess.run(["dpkg", "-l", pkg], capture_output=True, text=True)
+            return result.returncode == 0 and "ii" in result.stdout
+        elif pkg_manager == "yum":
+            result = subprocess.run(["rpm", "-q", pkg], capture_output=True, text=True)
+            return result.returncode == 0
+        elif pkg_manager == "pacman":
+            result = subprocess.run(["pacman", "-Q", pkg], capture_output=True, text=True)
+            return result.returncode == 0
+    except:
+        return False
+    return False
+
+def check_dependencies():
+    """Check all required dependencies and report missing ones."""
+    import platform
+    
+    print("\n=== Checking Dependencies ===\n")
+    
+    missing_system = []
+    missing_commands = []
+    missing_python = []
+    
+    # Check system packages from system-requirements.txt
+    if os.path.exists("system-requirements.txt"):
+        with open("system-requirements.txt") as f:
+            sys_pkgs = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         
+        # Detect package manager
+        pkg_manager = None
+        if os.path.exists("/usr/bin/apt-get"):
+            pkg_manager = "apt"
+        elif os.path.exists("/usr/bin/yum"):
+            pkg_manager = "yum"
+        elif os.path.exists("/usr/bin/pacman"):
+            pkg_manager = "pacman"
+        
+        if pkg_manager and platform.system() == "Linux":
+            print("Checking system packages...")
+            for pkg in sys_pkgs:
+                if not check_package_installed(pkg, pkg_manager):
+                    missing_system.append(pkg)
+                    print(f"  ✗ {pkg} - NOT INSTALLED")
+                else:
+                    print(f"  ✓ {pkg} - installed")
+    
+    # Check required commands
+    print("\nChecking required commands...")
+    required_commands = {
+        'python3': 'Python 3 interpreter',
+        'pip3': 'Python package manager (pip)',
+        'systemctl': 'Systemd service manager',
+        'useradd': 'User management utility',
+        'ping': 'Network connectivity tool',
+    }
+    
+    for cmd, description in required_commands.items():
+        if not check_command_exists(cmd):
+            missing_commands.append(f"{cmd} ({description})")
+            print(f"  ✗ {cmd} - NOT FOUND")
+        else:
+            print(f"  ✓ {cmd} - found")
+    
+    # Check Python version
+    print("\nChecking Python version...")
+    py_version = sys.version_info
+    if py_version.major < 3 or (py_version.major == 3 and py_version.minor < 8):
+        missing_python.append("Python 3.8+ required")
+        print(f"  ✗ Python {py_version.major}.{py_version.minor} - TOO OLD (need 3.8+)")
+    else:
+        print(f"  ✓ Python {py_version.major}.{py_version.minor} - OK")
+    
+    # Check Python packages from requirements.txt
+    print("\nChecking Python packages...")
+    if os.path.exists("requirements.txt"):
+        with open("requirements.txt") as f:
+            py_pkgs = [line.strip().split('==')[0] for line in f if line.strip() and not line.startswith('#')]
+        
+        for pkg in py_pkgs:
+            try:
+                __import__(pkg.replace('-', '_'))
+                print(f"  ✓ {pkg} - installed")
+            except ImportError:
+                missing_python.append(pkg)
+                print(f"  ✗ {pkg} - NOT INSTALLED")
+    
+    # Report summary
+    print("\n" + "="*50)
+    if not missing_system and not missing_commands and not missing_python:
+        print("✓ All dependencies are satisfied!")
+        return True
+    else:
+        print("✗ Missing dependencies detected:\n")
+        
+        if missing_system:
+            print("System packages:")
+            for pkg in missing_system:
+                print(f"  - {pkg}")
+        
+        if missing_commands:
+            print("\nRequired commands:")
+            for cmd in missing_commands:
+                print(f"  - {cmd}")
+        
+        if missing_python:
+            print("\nPython packages:")
+            for pkg in missing_python:
+                print(f"  - {pkg}")
+        
+        return False
+
+def main():
+
+    import platform
+    def is_root():
+        if platform.system() == "Windows":
+            # On Windows, check for admin
+            try:
+                import ctypes
+                return ctypes.windll.shell32.IsUserAnAdmin() != 0
+            except Exception:
+                return False
+        else:
+            return os.geteuid() == 0
+
+    def run_with_sudo(cmd, check=True):
+        if is_root():
+            return subprocess.run(cmd, check=check)
+        else:
+            return subprocess.run(["sudo"] + cmd, check=check)
+
+    try:
+        # Check for root/sudo
+        if not is_root():
+            print("\nERROR: This setup script must be run as root or with sudo privileges!")
+            print("Please run: sudo python3 setup.py")
+            sys.exit(1)
+
+        # Check all dependencies
+        deps_ok = check_dependencies()
+        
+        if not deps_ok:
+            print("\n" + "="*50)
+            print("Do you want to install missing dependencies automatically?")
+            print("This will use your system's package manager (apt/yum/pacman).")
+            choice = input("\nInstall missing dependencies? (y/N): ").lower()
+            
+            if choice != 'y':
+                print("\nSetup cancelled. Please install missing dependencies manually.")
+                print("\nSystem packages can be installed with:")
+                if os.path.exists("/usr/bin/apt-get"):
+                    print("  sudo apt-get install <package-name>")
+                elif os.path.exists("/usr/bin/yum"):
+                    print("  sudo yum install <package-name>")
+                elif os.path.exists("/usr/bin/pacman"):
+                    print("  sudo pacman -S <package-name>")
+                print("\nPython packages can be installed with:")
+                print("  pip3 install -r requirements.txt")
+                sys.exit(1)
+            
+            # Install system requirements
+            print("\nInstalling system packages...")
+            sysreq_file = "system-requirements.txt"
+            if os.path.exists(sysreq_file):
+                with open(sysreq_file) as f:
+                    pkgs = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                
+                # Detect package manager
+                if platform.system() == "Linux":
+                    if os.path.exists("/usr/bin/apt-get"):
+                        print("Using apt-get...")
+                        run_with_sudo(["apt-get", "update"])
+                        run_with_sudo(["apt-get", "install", "-y"] + pkgs)
+                    elif os.path.exists("/usr/bin/yum"):
+                        print("Using yum...")
+                        run_with_sudo(["yum", "install", "-y"] + pkgs)
+                    elif os.path.exists("/usr/bin/pacman"):
+                        print("Using pacman...")
+                        run_with_sudo(["pacman", "-Sy"])
+                        run_with_sudo(["pacman", "-S", "--noconfirm"] + pkgs)
+                    else:
+                        print("ERROR: No supported package manager found.")
+                        sys.exit(1)
+                elif platform.system() == "Windows":
+                    print("WARNING: System requirements must be installed manually on Windows.")
+            
+            print("\n✓ Dependencies installed successfully!")
+        else:
+            print("\n✓ All dependencies already satisfied, continuing with setup...")
+
+        # Continue with interactive setup
+        setup = SetupConfig()
         print("""
 Pi-hole Sentinel - High Availability Setup
 =========================================
@@ -482,44 +972,68 @@ Requirements:
 - Two working Pi-holes
 - Network information ready
 - Pi-hole web interface passwords
+
+SSH Authentication Options:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Option 1: SSH Keys (Recommended)
+  Setup BEFORE running this script:
+    ssh-keygen -t ed25519
+    ssh-copy-id root@<monitor-ip>
+    ssh-copy-id root@<primary-ip>
+    ssh-copy-id root@<secondary-ip>
+
+Option 2: Passwords (Simpler)
+  You'll be asked for each server's SSH password
+  Passwords are stored in memory only during setup
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """)
-        
-        # Collect configurations
+        # ...existing code...
         setup.collect_network_config()
         setup.collect_dhcp_config()
         setup.collect_monitor_config()
         setup.collect_pihole_config()
         setup.verify_configuration()
-        
+
         print("""
 
 Choose deployment mode:
-1. Generate configuration files only
-2. Deploy complete setup (recommended)
-3. Deploy monitor only
-4. Deploy primary node only
-5. Deploy secondary node only
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Generate configuration files only (manual deployment)
+2. Deploy complete setup via SSH (recommended - deploys to all servers)
+3. Deploy monitor only (local installation)
+4. Deploy primary node only (local installation)
+5. Deploy secondary node only (local installation)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """)
-        
+
         mode = input("Enter your choice (1-5): ").strip()
-        
+
         # Generate configurations
         setup.generate_configs()
 
         if mode == "1":
             setup.show_next_steps()
         elif mode == "2":
-            print("\nStarting complete deployment...")
-            if setup.deploy_monitor():
-                if setup.deploy_keepalived("primary"):
-                    if setup.deploy_keepalived("secondary"):
-                        print("\nComplete setup deployed successfully!")
-                    else:
-                        print("\nError deploying secondary node")
-                else:
-                    print("\nError deploying primary node")
+            print("\n=== Remote Deployment via SSH ===")
+            print("This will deploy to all configured servers via SSH.\n")
+            
+            # Deploy monitor
+            if setup.config['separate_monitor']:
+                print(f"\n[1/3] Deploying monitor to {setup.config['monitor_ip']}...")
+                setup.deploy_monitor_remote()
             else:
-                print("\nError deploying monitor")
+                print(f"\n[1/3] Deploying monitor locally on primary...")
+                setup.deploy_monitor()
+            
+            # Deploy primary
+            print(f"\n[2/3] Deploying primary keepalived to {setup.config['primary_ip']}...")
+            setup.deploy_keepalived_remote("primary")
+            
+            # Deploy secondary
+            print(f"\n[3/3] Deploying secondary keepalived to {setup.config['secondary_ip']}...")
+            setup.deploy_keepalived_remote("secondary")
+            
+            print("\n✓ Complete setup deployed to all servers!")
         elif mode == "3":
             setup.deploy_monitor()
         elif mode == "4":
