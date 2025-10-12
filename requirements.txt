@@ -4,6 +4,7 @@ iputils-ping
 arping
 keepalived
 sqlite3
+python3.11-venv
 
 # Python requirements
 fastapi==0.68.0
