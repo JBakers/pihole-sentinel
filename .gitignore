@@ -35,6 +35,12 @@ generated_configs/
 PROJECT-HISTORY.md
 chat.txt
 
+# Social preview generation outputs (not part of project, SVG sources are kept)
+.github/social-preview.png
+.github/social-preview.html
+.github/generate-preview.py
+.github/SETUP-SOCIAL-PREVIEW.md
+
 # System
 .DS_Store
 Thumbs.db
