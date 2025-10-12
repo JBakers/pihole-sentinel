@@ -1,0 +1,23 @@
+[Unit]
+Description=Pi-hole Sentinel Monitoring Service
+After=network.target
+
+[Service]
+Type=simple
+User=pihole-monitor
+Group=pihole-monitor
+WorkingDirectory=/opt/pihole-monitor
+EnvironmentFile=/opt/pihole-monitor/.env
+ExecStart=/opt/pihole-monitor/venv/bin/python3 /opt/pihole-monitor/monitor.py
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/pihole-monitor
+
+[Install]
+WantedBy=multi-user.target

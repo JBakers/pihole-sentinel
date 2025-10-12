@@ -1,0 +1,16 @@
+# Ensure shell scripts always use LF line endings (Unix)
+*.sh text eol=lf
+
+# Ensure Python files use LF line endings
+*.py text eol=lf
+
+# Default behavior: convert to OS line ending on checkout, LF on commit
+* text=auto
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary

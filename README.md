@@ -92,6 +92,17 @@
 - No special Pi-hole settings needed
 - Works with existing configuration
 
+**System Packages (auto-installed by setup.py):**
+- `build-essential` - Compiler toolchain for Python packages
+- `python3.11-dev` - Python 3.11 development headers (required for C extensions)
+- `python3-pip` - Python package manager (pip)
+- `iproute2` - Network configuration utilities
+- `iputils-ping` - Ping command for connectivity checks
+- `arping` - ARP ping utility
+- `keepalived` - VRRP implementation for failover
+- `sqlite3` - Database for monitoring
+- `python3.11-venv` - Python virtual environment support
+
 ### Monitor Server
 - Any Linux system (Debian/Ubuntu recommended)
 - Root/sudo access
@@ -99,6 +110,17 @@
 - 1GB free disk space
 - Network access to both Pi-holes
 - Python 3.8+ available
+
+**Python Packages (auto-installed by setup.py):**
+- `fastapi` - Web framework for monitoring API
+- `uvicorn` - ASGI server
+- `aiohttp` - Async HTTP client for Pi-hole communication
+- `aiosqlite` - Async SQLite database
+- `aiofiles` - Async file operations
+- `python-dotenv` - Environment variable management
+- `python-dateutil` - Date/time utilities
+- `setuptools` - Python package development tools
+- `wheel` - Python package build tool
 
 ## Quick Start
 
@@ -109,25 +131,80 @@
 
 ## Installation
 
-1. **Prepare Environment**
-   ```bash
-   git clone https://github.com/JBakers/pihole-sentinel.git
-   cd pihole-sentinel
-   ```
+> **✨ NEW:** The setup script can now deploy to all servers via SSH!
+> 
+> **Simple setup:** Run setup.py once on ANY machine with network access to your Pi-holes and monitor server.
 
-2. **Run Setup**
-   ```bash
-   python3 setup.py
-   ```
-   The setup will ask you about:
-   - Network details
-   - DHCP failover (if you want it)
-   - Monitor server location
-   - Pi-hole passwords
+### Quick Installation (Recommended)
+
+**One-Command Setup via SSH:**
+
+```bash
+git clone https://github.com/JBakers/pihole-sentinel.git
+cd pihole-sentinel
+sudo python3 setup.py
+```
+
+The setup script will:
+1. Ask for your network configuration
+2. Ask for SSH access details for each server
+3. **Choose SSH key (recommended) or password authentication**
+4. Generate all configurations
+5. **Choose option 2**: Deploy to all servers automatically via SSH!
+
+**Requirements:**
+- SSH access (with key or password) to all servers
+- Root/sudo privileges on target servers
+- All servers must be reachable from where you run setup.py
+- **For password auth**: Install `sshpass` on your local machine:
+  ```bash
+  # Debian/Ubuntu
+  sudo apt-get install sshpass
+  
+  # macOS
+  brew install hudochenkov/sshpass/sshpass
+  ```
+
+**Recommended**: Use SSH keys for passwordless authentication:
+```bash
+ssh-keygen -t ed25519  # Generate key if needed
+ssh-copy-id root@<monitor-ip>
+ssh-copy-id root@<primary-ip>
+ssh-copy-id root@<secondary-ip>
+```
+
+### Alternative: Manual Deployment
+
+If you prefer not to use SSH deployment:
+
+**Option 1: Generate configs, deploy manually**
+```bash
+sudo python3 setup.py
+# Choose option 1, then copy files to each server manually
+```
+
+**Option 2: Run setup on each server individually**
+- Clone repo on each server
+- Run setup.py with option 3, 4, or 5 on respective servers
+
+### What the Setup Does
+
+The setup script will:
+   - Check and install all system dependencies (with your approval)
+   - Ask about your network configuration
+   - Ask about DHCP failover (if needed)
+   - Ask about monitor server location
+   - Generate secure passwords
+   - Create all configuration files
+   - Deploy components based on your choice
+
+### Verification
 
 3. **Verify Installation**
-   - Check Keepalived: `http://<VIP>/admin/`
-   - Check Monitor: `http://<monitor-ip>:8080`
+   - Check keepalived on Pi-holes: `systemctl status keepalived`
+   - Check monitor service: `systemctl status pihole-monitor`
+   - Access VIP: `http://<VIP>/admin/`
+   - Access Monitor: `http://<monitor-ip>:8080`
 
 4. **Configure Notifications (Optional)**
    - Open settings: `http://<monitor-ip>:8080/settings.html`
