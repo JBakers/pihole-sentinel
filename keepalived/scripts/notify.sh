@@ -5,6 +5,12 @@
 # Configuration file (create this with your credentials)
 CONFIG_FILE="/etc/pihole-sentinel/notify.conf"
 
+# Default event settings (can be overridden in config)
+NOTIFY_FAILOVER="${NOTIFY_FAILOVER:-true}"
+NOTIFY_RECOVERY="${NOTIFY_RECOVERY:-true}"
+NOTIFY_FAULT="${NOTIFY_FAULT:-true}"
+NOTIFY_STARTUP="${NOTIFY_STARTUP:-false}"
+
 # Load configuration
 if [ -f "$CONFIG_FILE" ]; then
     source "$CONFIG_FILE"
@@ -112,36 +118,59 @@ notify() {
     local message=""
     local color=""
     local priority=""
+    local should_notify=false
     
     case $state in
         MASTER)
+            # Check if this is recovery (BACKUP->MASTER) or startup
+            if [ "$NOTIFY_RECOVERY" = "true" ]; then
+                should_notify=true
+            fi
             message="🟢 <b>${hostname}</b> is now MASTER\n⏰ ${timestamp}\n✅ DHCP server enabled\n🌐 Virtual IP active"
             color="65280"  # Green
             priority="high"
             ;;
         BACKUP)
+            # This means another node took over (failover event)
+            if [ "$NOTIFY_FAILOVER" = "true" ]; then
+                should_notify=true
+            fi
             message="🟡 <b>${hostname}</b> is now BACKUP\n⏰ ${timestamp}\n⏸️ DHCP server disabled\n👀 Monitoring MASTER"
             color="16776960"  # Yellow
             priority="default"
             ;;
         FAULT)
+            if [ "$NOTIFY_FAULT" = "true" ]; then
+                should_notify=true
+            fi
             message="🔴 <b>${hostname}</b> entered FAULT state\n⏰ ${timestamp}\n❌ DHCP server disabled\n⚠️ Service issues detected"
             color="16711680"  # Red
             priority="2"  # Emergency for Pushover
+            ;;
+        STARTUP)
+            if [ "$NOTIFY_STARTUP" = "true" ]; then
+                should_notify=true
+            fi
+            message="ℹ️ <b>${hostname}</b> monitoring started\n⏰ ${timestamp}\n🚀 Pi-hole Sentinel active"
+            color="3447003"  # Blue
+            priority="default"
             ;;
         *)
             message="ℹ️ <b>${hostname}</b> state changed to ${state}\n⏰ ${timestamp}"
             color="3447003"  # Blue
             priority="default"
+            should_notify=true
             ;;
     esac
     
-    # Send to all configured notification services
-    send_telegram "$message"
-    send_discord "$message" "$color"
-    send_pushover "$message" "$priority"
-    send_ntfy "$message" "$priority"
-    send_webhook "$message" "$state"
+    # Only send if event is enabled
+    if [ "$should_notify" = "true" ]; then
+        send_telegram "$message"
+        send_discord "$message" "$color"
+        send_pushover "$message" "$priority"
+        send_ntfy "$message" "$priority"
+        send_webhook "$message" "$state"
+    fi
 }
 
 # Execute if called directly with state parameter

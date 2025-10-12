@@ -8,12 +8,13 @@
 
 *Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
 
+[![Version](https://img.shields.io/badge/version-0.1.0--alpha-orange.svg)](VERSION)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
 [![Made by JBakers](https://img.shields.io/badge/Made%20by-JBakers-667eea)](https://github.com/JBakers)
 
-[Features](#what-does-it-do) • [Installation](#installation) • [Documentation](#setup-options) • [Contributing](#-done)
+[Features](#what-does-it-do) • [Installation](#installation) • [Notifications](#notifications) • [Documentation](#setup-options)
 
 </div>
 
@@ -33,6 +34,12 @@
    - Instant status and failover visibility
    - Works on desktop and mobile
 
+3. **Smart Notifications**
+   - Web-based configuration interface
+   - Multiple notification services supported
+   - Test notifications before saving
+   - Alerts for state changes (MASTER/BACKUP/FAULT)
+
 ## Setup Options
 
 ### Features
@@ -40,6 +47,7 @@
 - **DHCP Failover**: Optional, if you use DHCP on your Pi-holes
 - **Configuration Sync**: Built-in sync script (includes DHCP leases)
 - **Monitoring**: Choose between separate server or on primary Pi-hole
+- **Notifications**: Web-based setup for Telegram, Discord, Pushover, Ntfy, and webhooks
 - **Compatible**: Works alongside existing sync solutions (Nebula-sync, etc.)
 
 ### Prerequisites
@@ -96,6 +104,7 @@
 
 - **📋 Existing Pi-holes**: See [`EXISTING-SETUP.md`](EXISTING-SETUP.md) for adding HA to your current setup
 - **🔄 Configuration Sync**: See [`SYNC-SETUP.md`](SYNC-SETUP.md) for keeping Pi-holes in sync
+- **🔔 Notifications**: Configure alerts via web interface at `http://monitor-ip:8080/settings.html`
 - **⚙️ Automated Setup**: Use `setup.py` to generate all configurations automatically
 
 ## Installation
@@ -120,12 +129,19 @@
    - Check Keepalived: `http://<VIP>/admin/`
    - Check Monitor: `http://<monitor-ip>:8080`
 
+4. **Configure Notifications (Optional)**
+   - Open settings: `http://<monitor-ip>:8080/settings.html`
+   - Enable and configure your preferred notification service
+   - Test notifications before saving
+   - Supported: Telegram, Discord, Pushover, Ntfy, Custom Webhooks
+
 See `EXISTING-SETUP.md` for detailed steps
 
 ## Management
 
 ### Daily Operations
 - Monitor dashboard: `http://<monitor-ip>:8080`
+- Notification settings: `http://<monitor-ip>:8080/settings.html`
 - Check VIP status: `ping <vip-address>`
 - View Keepalived status: `systemctl status keepalived`
 
@@ -172,6 +188,34 @@ sudo systemctl stop pihole-FTL
 ip addr show
 ```
 
+## Notifications
+
+Pi-hole Sentinel can send notifications when failover events occur. Configure via the web interface:
+
+### Setup Notifications
+
+1. Open settings page: `http://<monitor-ip>:8080/settings.html`
+2. Choose your notification service(s)
+3. Fill in credentials/tokens
+4. Click "Send Test Message" to verify
+5. Save settings
+
+### Supported Services
+
+- **📱 Telegram**: Create a bot with [@BotFather](https://t.me/BotFather) and get your chat ID
+- **💬 Discord**: Create a webhook in your channel settings
+- **🔔 Pushover**: Sign up at [pushover.net](https://pushover.net/) and create an app
+- **🔕 Ntfy**: Choose a topic at [ntfy.sh](https://ntfy.sh) or use your own server
+- **🔗 Custom Webhook**: POST JSON to any endpoint
+
+### What Gets Notified
+
+- 🟢 **MASTER** - Node becomes active (VIP assigned, DHCP enabled)
+- 🟡 **BACKUP** - Node goes to standby (DHCP disabled)
+- 🔴 **FAULT** - Node has issues (service problems detected)
+
+All notifications include timestamp, hostname, and status details.
+
 ## Troubleshooting
 
 ### Monitor Issues
@@ -196,6 +240,11 @@ sudo keepalived -t -f /etc/keepalived/keepalived.conf
 ```bash
 sudo tcpdump -n -i any vrrp
 ```
+
+### Notification Issues
+1. Test notification from settings page
+2. Check notification config: `/etc/pihole-sentinel/notify.conf`
+3. Check keepalived logs: `tail -f /var/log/keepalived-notify.log`
 
 ## Security Considerations
 
