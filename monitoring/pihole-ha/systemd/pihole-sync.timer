@@ -1,0 +1,14 @@
+[Unit]
+Description=Pi-hole Configuration Sync Timer
+Requires=pihole-sync.service
+
+[Timer]
+# Run every 6 hours
+OnCalendar=*-*-* 00,06,12,18:00:00
+# Run 5 minutes after boot
+OnBootSec=5min
+# If system was offline during scheduled time, run immediately
+Persistent=true
+
+[Install]
+WantedBy=timers.target
