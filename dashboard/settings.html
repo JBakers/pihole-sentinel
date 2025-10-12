@@ -694,20 +694,25 @@
         }
         
         async function testNotification(service) {
-            const data = collectFormData();
-            
             try {
+                // Get unmasked settings from server for testing
+                const settingsResponse = await fetch(`${API_BASE}/api/notifications/test-settings`);
+                if (!settingsResponse.ok) {
+                    throw new Error('Could not load settings for testing');
+                }
+                const serverSettings = await settingsResponse.json();
+                
                 const response = await fetch(`${API_BASE}/api/notifications/test`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ service, settings: data[service] })
+                    body: JSON.stringify({ service, settings: serverSettings[service] })
                 });
                 
                 if (response.ok) {
                     alert(`✅ Test notification sent via ${service}!`);
                 } else {
                     const error = await response.json();
-                    alert(`❌ Failed: ${error.message}`);
+                    alert(`❌ Failed: ${error.detail || error.message || 'Unknown error'}`);
                 }
             } catch (error) {
                 alert(`❌ Error: ${error.message}`);

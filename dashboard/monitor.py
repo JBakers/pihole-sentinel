@@ -11,6 +11,7 @@ import aiohttp
 import aiosqlite
 import uvicorn
 import subprocess
+import copy
 from datetime import datetime
 from typing import Dict
 from fastapi import FastAPI, HTTPException
@@ -410,9 +411,35 @@ async def get_notification_settings():
         "webhook": {"enabled": False, "url": ""}
     }
 
+@app.get("/api/notifications/test-settings")
+async def get_test_settings():
+    """Get unmasked notification settings for testing purposes only"""
+    import json
+    
+    config_path = CONFIG["notify_config_path"]
+    
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                settings = json.load(f)
+                # Return unmasked settings for testing
+                return settings
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to load settings: {str(e)}")
+    
+    # Return default empty settings
+    return {
+        "events": {"failover": True, "recovery": True, "fault": True, "startup": False},
+        "telegram": {"enabled": False, "bot_token": "", "chat_id": ""},
+        "discord": {"enabled": False, "webhook_url": ""},
+        "pushover": {"enabled": False, "user_key": "", "app_token": ""},
+        "ntfy": {"enabled": False, "topic": "", "server": "https://ntfy.sh"},
+        "webhook": {"enabled": False, "url": ""}
+    }
+
 def mask_sensitive_data(settings):
     """Mask sensitive fields with *** but indicate if they're set"""
-    masked = settings.copy()
+    masked = copy.deepcopy(settings)
     
     # Telegram
     if masked.get("telegram", {}).get("bot_token"):
@@ -545,6 +572,10 @@ async def test_notification(data: dict):
             test_message = (
                 "🧪 <b>Pi-hole Sentinel Test Notification</b>\n\n"
                 "📋 <b>Example Event Messages:</b>\n\n"
+                "🔵 <b>STARTUP Event:</b>\n"
+                "Pi-hole Sentinel started\n"
+                "🚀 Keepalived initialized\n"
+                "📡 Monitoring active\n\n"
                 "🟢 <b>MASTER/Recovery Event:</b>\n"
                 "Pi-hole is now MASTER\n"
                 "✅ DHCP server enabled\n"
@@ -583,6 +614,11 @@ async def test_notification(data: dict):
                             'color': 3447003,
                             'fields': [
                                 {
+                                    'name': '🔵 STARTUP Event',
+                                    'value': 'Pi-hole Sentinel started\n🚀 Keepalived initialized\n📡 Monitoring active',
+                                    'inline': False
+                                },
+                                {
                                     'name': '🟢 MASTER/Recovery Event',
                                     'value': 'Pi-hole is now MASTER\n✅ DHCP enabled\n🌐 Virtual IP active',
                                     'inline': False
@@ -617,6 +653,8 @@ async def test_notification(data: dict):
             test_message = (
                 "🧪 Test Notification\n\n"
                 "Example Event Messages:\n\n"
+                "🔵 STARTUP:\n"
+                "🚀 Keepalived initialized, Monitoring active\n\n"
                 "🟢 MASTER/Recovery:\n"
                 "✅ DHCP enabled, Virtual IP active\n\n"
                 "🟡 BACKUP/Failover:\n"
@@ -646,6 +684,7 @@ async def test_notification(data: dict):
             test_message = (
                 "🧪 Test Notification\n\n"
                 "Example Event Messages:\n\n"
+                "🔵 STARTUP: Keepalived initialized, Monitoring active\n"
                 "🟢 MASTER/Recovery: DHCP enabled, Virtual IP active\n"
                 "🟡 BACKUP/Failover: DHCP disabled, Monitoring MASTER\n"
                 "🔴 FAULT: DHCP disabled, Service issues detected\n\n"
@@ -671,6 +710,7 @@ async def test_notification(data: dict):
                     'type': 'test',
                     'message': 'Test notification - Example events',
                     'examples': {
+                        'startup': 'Keepalived initialized, Monitoring active',
                         'master': 'DHCP enabled, Virtual IP active',
                         'backup': 'DHCP disabled, Monitoring MASTER',
                         'fault': 'DHCP disabled, Service issues detected'
