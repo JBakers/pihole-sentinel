@@ -185,4 +185,15 @@
       ⭐ Star on GitHub
     </text>
   </g>
+  
+  <!-- Version info -->
+  <text x="1230" y="625" 
+        text-anchor="end"
+        font-family="system-ui, -apple-system, sans-serif" 
+        font-size="16" 
+        font-weight="400" 
+        fill="white"
+        opacity="0.6">
+    v0.1.0-alpha
+  </text>
 </svg>

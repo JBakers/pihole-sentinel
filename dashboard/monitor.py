@@ -15,7 +15,8 @@ from datetime import datetime
 from typing import Dict
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -24,33 +25,19 @@ load_dotenv()
 # Configuration from environment
 CONFIG = {
     "primary": {
-<<<<<<< HEAD:monitoring/monitor.py
-        "ip": "IP.IP.IP.IP",
-        "name": "Primary (LXC)",
-        "password": "PASSPASS"
-    },
-    "secondary": {
-        "ip": "IP.IP.IP.IP",
-        "name": "Secondary (RPi 3B)",
-        "password": "PASSPASS"
-    },
-    "vip": "IP.IP.IP.IP",
-    "check_interval": 10,
-    "db_path": "/opt/pihole-monitor/monitor.db"
-=======
         "ip": os.getenv("PRIMARY_IP"),
-        "name": os.getenv("PRIMARY_NAME"),
+        "name": os.getenv("PRIMARY_NAME", "Primary Pi-hole"),
         "password": os.getenv("PRIMARY_PASSWORD")
     },
     "secondary": {
         "ip": os.getenv("SECONDARY_IP"),
-        "name": os.getenv("SECONDARY_NAME"),
+        "name": os.getenv("SECONDARY_NAME", "Secondary Pi-hole"),
         "password": os.getenv("SECONDARY_PASSWORD")
     },
     "vip": os.getenv("VIP_ADDRESS"),
     "check_interval": int(os.getenv("CHECK_INTERVAL", "10")),
-    "db_path": os.getenv("DB_PATH", "/opt/pihole-monitor/monitor.db")
->>>>>>> 7ddc47f (Herstructureer Pi-hole monitor naar volledige HA-oplossing):monitoring/pihole-ha/dashboard/monitor.py
+    "db_path": os.getenv("DB_PATH", "/opt/pihole-monitor/monitor.db"),
+    "notify_config_path": os.getenv("NOTIFY_CONFIG_PATH", "/opt/pihole-monitor/notify_settings.json")
 }
 
 # Verify required environment variables
@@ -69,6 +56,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve HTML files
+@app.get("/")
+async def serve_index():
+    return FileResponse("index.html")
+
+@app.get("/settings.html")
+async def serve_settings():
+    return FileResponse("settings.html")
 
 async def init_db():
     """Initialize SQLite database"""
@@ -386,6 +382,169 @@ async def root():
             return f.read()
     else:
         return HTMLResponse(content=f"<h1>Error: index.html not found</h1>", status_code=404)
+
+@app.get("/api/notifications/settings")
+async def get_notification_settings():
+    """Get current notification settings"""
+    import json
+    
+    config_path = CONFIG["notify_config_path"]
+    
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to load settings: {str(e)}")
+    
+    # Return default empty settings
+    return {
+        "telegram": {"enabled": False, "bot_token": "", "chat_id": ""},
+        "discord": {"enabled": False, "webhook_url": ""},
+        "pushover": {"enabled": False, "user_key": "", "app_token": ""},
+        "ntfy": {"enabled": False, "topic": "", "server": "https://ntfy.sh"},
+        "webhook": {"enabled": False, "url": ""}
+    }
+
+@app.post("/api/notifications/settings")
+async def save_notification_settings(settings: dict):
+    """Save notification settings"""
+    import json
+    
+    config_path = CONFIG["notify_config_path"]
+    config_dir = os.path.dirname(config_path)
+    
+    # Create directory if it doesn't exist
+    os.makedirs(config_dir, exist_ok=True)
+    
+    try:
+        with open(config_path, 'w') as f:
+            json.dump(settings, f, indent=2)
+        
+        # Also update the bash config file for keepalived scripts
+        bash_config = "/etc/pihole-sentinel/notify.conf"
+        os.makedirs(os.path.dirname(bash_config), exist_ok=True)
+        
+        with open(bash_config, 'w') as f:
+            f.write("# Pi-hole Sentinel Notification Configuration\n")
+            f.write("# Auto-generated from web interface\n\n")
+            
+            if settings.get('telegram', {}).get('enabled'):
+                f.write(f"TELEGRAM_BOT_TOKEN=\"{settings['telegram'].get('bot_token', '')}\"\n")
+                f.write(f"TELEGRAM_CHAT_ID=\"{settings['telegram'].get('chat_id', '')}\"\n\n")
+            
+            if settings.get('discord', {}).get('enabled'):
+                f.write(f"DISCORD_WEBHOOK_URL=\"{settings['discord'].get('webhook_url', '')}\"\n\n")
+            
+            if settings.get('pushover', {}).get('enabled'):
+                f.write(f"PUSHOVER_USER_KEY=\"{settings['pushover'].get('user_key', '')}\"\n")
+                f.write(f"PUSHOVER_APP_TOKEN=\"{settings['pushover'].get('app_token', '')}\"\n\n")
+            
+            if settings.get('ntfy', {}).get('enabled'):
+                f.write(f"NTFY_TOPIC=\"{settings['ntfy'].get('topic', '')}\"\n")
+                f.write(f"NTFY_SERVER=\"{settings['ntfy'].get('server', 'https://ntfy.sh')}\"\n\n")
+            
+            if settings.get('webhook', {}).get('enabled'):
+                f.write(f"CUSTOM_WEBHOOK_URL=\"{settings['webhook'].get('url', '')}\"\n\n")
+        
+        return {"status": "success", "message": "Settings saved successfully"}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save settings: {str(e)}")
+
+@app.post("/api/notifications/test")
+async def test_notification(data: dict):
+    """Test a notification service"""
+    service = data.get('service')
+    settings = data.get('settings', {})
+    
+    if not service:
+        raise HTTPException(status_code=400, detail="Service not specified")
+    
+    try:
+        if service == 'telegram':
+            if not settings.get('bot_token') or not settings.get('chat_id'):
+                raise HTTPException(status_code=400, detail="Bot token and chat ID required")
+            
+            async with aiohttp.ClientSession() as session:
+                url = f"https://api.telegram.org/bot{settings['bot_token']}/sendMessage"
+                async with session.post(url, json={
+                    'chat_id': settings['chat_id'],
+                    'text': '🧪 Test notification from Pi-hole Sentinel\n\nIf you see this, notifications are working!',
+                    'parse_mode': 'HTML'
+                }) as response:
+                    if response.status != 200:
+                        raise Exception(f"Telegram API returned {response.status}")
+        
+        elif service == 'discord':
+            if not settings.get('webhook_url'):
+                raise HTTPException(status_code=400, detail="Webhook URL required")
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(settings['webhook_url'], json={
+                    'embeds': [{
+                        'title': '🧪 Test Notification',
+                        'description': 'Test notification from Pi-hole Sentinel\n\nIf you see this, notifications are working!',
+                        'color': 3447003,
+                        'footer': {'text': 'Pi-hole Sentinel HA Monitor'}
+                    }]
+                }) as response:
+                    if response.status not in [200, 204]:
+                        raise Exception(f"Discord API returned {response.status}")
+        
+        elif service == 'pushover':
+            if not settings.get('user_key') or not settings.get('app_token'):
+                raise HTTPException(status_code=400, detail="User key and app token required")
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post('https://api.pushover.net/1/messages.json', data={
+                    'token': settings['app_token'],
+                    'user': settings['user_key'],
+                    'title': 'Pi-hole Sentinel Test',
+                    'message': '🧪 Test notification\n\nIf you see this, notifications are working!'
+                }) as response:
+                    if response.status != 200:
+                        raise Exception(f"Pushover API returned {response.status}")
+        
+        elif service == 'ntfy':
+            if not settings.get('topic'):
+                raise HTTPException(status_code=400, detail="Topic required")
+            
+            server = settings.get('server', 'https://ntfy.sh')
+            url = f"{server}/{settings['topic']}"
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, data='🧪 Test notification from Pi-hole Sentinel\n\nIf you see this, notifications are working!', headers={
+                    'Title': 'Pi-hole Sentinel Test',
+                    'Priority': 'default',
+                    'Tags': 'white_check_mark'
+                }) as response:
+                    if response.status != 200:
+                        raise Exception(f"Ntfy returned {response.status}")
+        
+        elif service == 'webhook':
+            if not settings.get('url'):
+                raise HTTPException(status_code=400, detail="Webhook URL required")
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(settings['url'], json={
+                    'service': 'pihole-sentinel',
+                    'type': 'test',
+                    'message': 'Test notification from Pi-hole Sentinel',
+                    'timestamp': datetime.now().isoformat()
+                }) as response:
+                    if response.status not in [200, 201, 202, 204]:
+                        raise Exception(f"Webhook returned {response.status}")
+        
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown service: {service}")
+        
+        return {"status": "success", "message": f"Test notification sent via {service}"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
 
 if __name__ == "__main__":
     if not os.path.exists(os.path.dirname(CONFIG["db_path"])):
