@@ -1,0 +1,63 @@
+# Pi-hole Sentinel Notification Configuration
+# Copy this file to /etc/pihole-sentinel/notify.conf and configure your services
+
+# ============================================================================
+# TELEGRAM CONFIGURATION
+# ============================================================================
+# 1. Create a bot: https://t.me/BotFather
+# 2. Get your chat ID: https://t.me/userinfobot
+TELEGRAM_BOT_TOKEN=""
+TELEGRAM_CHAT_ID=""
+
+# ============================================================================
+# DISCORD CONFIGURATION
+# ============================================================================
+# 1. Create a webhook in your Discord channel settings
+# 2. Copy the webhook URL
+DISCORD_WEBHOOK_URL=""
+
+# ============================================================================
+# PUSHOVER CONFIGURATION
+# ============================================================================
+# 1. Create an account: https://pushover.net/
+# 2. Create an application to get an API token
+# 3. Get your user key from the dashboard
+PUSHOVER_USER_KEY=""
+PUSHOVER_APP_TOKEN=""
+
+# ============================================================================
+# NTFY CONFIGURATION
+# ============================================================================
+# 1. Choose a unique topic name
+# 2. Subscribe to it in the ntfy app or at https://ntfy.sh
+# 3. Optionally self-host ntfy and set NTFY_SERVER
+NTFY_TOPIC=""
+NTFY_SERVER="https://ntfy.sh"  # Optional: use your own ntfy server
+
+# ============================================================================
+# CUSTOM WEBHOOK
+# ============================================================================
+# Send JSON payload to any custom endpoint
+CUSTOM_WEBHOOK_URL=""
+
+# ============================================================================
+# EXAMPLE CONFIGURATIONS
+# ============================================================================
+
+# Example Telegram:
+# TELEGRAM_BOT_TOKEN="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+# TELEGRAM_CHAT_ID="987654321"
+
+# Example Discord:
+# DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/123456789/abcdefghijklmnopqrstuvwxyz"
+
+# Example Pushover:
+# PUSHOVER_USER_KEY="uQiRzpo4DXghDmr9QzzfQu27cmVRsG"
+# PUSHOVER_APP_TOKEN="azGDORePK8gMaC0QOYAMyEEuzJnyUi"
+
+# Example Ntfy:
+# NTFY_TOPIC="pihole-sentinel-alerts"
+# NTFY_SERVER="https://ntfy.sh"
+
+# Example Custom Webhook:
+# CUSTOM_WEBHOOK_URL="https://your-server.com/api/alerts"

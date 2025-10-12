@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Pi-hole Sentinel</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' style='stop-color:%23667eea'/><stop offset='100%' style='stop-color:%23764ba2'/></linearGradient></defs><circle cx='50' cy='50' r='45' fill='url(%23g)'/><path d='M 50 -6 L -6 34 L 24 34 L 24 94 L -6 94 L 50 138 L 106 94 L 76 94 L 76 34 L 106 34 Z' fill='white' transform='translate(50 50) scale(0.1953125) translate(-256 -256)'/><circle cx='50' cy='50' r='40' fill='none' stroke='white' stroke-width='2' opacity='0.3'/></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        body.dark-mode {
+            background: #0f172a;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(102, 126, 234, 0.2) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(118, 75, 162, 0.2) 0px, transparent 50%);
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        body.dark-mode .header {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .header h1 {
+            color: #1e293b;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 0;
+        }
+        
+        body.dark-mode .header h1 {
+            color: #ffffff;
+        }
+        
+        .back-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: transform 0.2s;
+        }
+        
+        .back-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .settings-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        body.dark-mode .settings-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .settings-card h2 {
+            color: #1e293b;
+            font-size: 24px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        body.dark-mode .settings-card h2 {
+            color: #ffffff;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            color: #475569;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        body.dark-mode .form-group label {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            color: #1e293b;
+        }
+        
+        body.dark-mode .form-group input,
+        body.dark-mode .form-group select {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .form-group small {
+            display: block;
+            color: #64748b;
+            margin-top: 5px;
+            font-size: 13px;
+        }
+        
+        body.dark-mode .form-group small {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cbd5e1;
+            transition: .4s;
+            border-radius: 28px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+        
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .save-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .save-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .save-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .test-btn {
+            padding: 8px 16px;
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: 1px solid #667eea;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .test-btn:hover {
+            background: rgba(102, 126, 234, 0.2);
+        }
+        
+        body.dark-mode .test-btn {
+            background: rgba(102, 126, 234, 0.2);
+            color: #a5b4fc;
+            border-color: #a5b4fc;
+        }
+        
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .alert.success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        
+        .alert.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        
+        .alert.show {
+            display: block;
+        }
+        
+        .collapsible {
+            opacity: 0.5;
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .collapsible.active {
+            opacity: 1;
+            max-height: 1000px;
+        }
+        
+        .setup-instructions {
+            background: rgba(102, 126, 234, 0.05);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+        
+        body.dark-mode .setup-instructions {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        .setup-instructions ol {
+            margin-left: 20px;
+            color: #475569;
+        }
+        
+        body.dark-mode .setup-instructions ol {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .setup-instructions li {
+            margin: 8px 0;
+        }
+        
+        .setup-instructions code {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 13px;
+        }
+        
+        body.dark-mode .setup-instructions code {
+            background: rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>⚙️ Notification Settings</h1>
+                <p style="margin-top: 5px; opacity: 0.7; font-size: 14px;">Pi-hole Sentinel v0.1.0-alpha</p>
+            </div>
+            <a href="/" class="back-btn">← Back to Dashboard</a>
+        </div>
+        
+        <form id="settings-form">
+            <!-- Telegram -->
+            <div class="settings-card">
+                <div class="service-header">
+                    <h2>📱 Telegram</h2>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="telegram-enabled" onchange="toggleService('telegram')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div id="telegram-fields" class="collapsible">
+                    <div class="form-group">
+                        <label for="telegram-bot-token">Bot Token</label>
+                        <input type="text" id="telegram-bot-token" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz">
+                        <small>Get from <a href="https://t.me/BotFather" target="_blank">@BotFather</a></small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="telegram-chat-id">Chat ID</label>
+                        <input type="text" id="telegram-chat-id" placeholder="987654321">
+                        <small>Get from <a href="https://t.me/userinfobot" target="_blank">@userinfobot</a></small>
+                    </div>
+                    
+                    <button type="button" class="test-btn" onclick="testNotification('telegram')">Send Test Message</button>
+                </div>
+            </div>
+            
+            <!-- Discord -->
+            <div class="settings-card">
+                <div class="service-header">
+                    <h2>💬 Discord</h2>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="discord-enabled" onchange="toggleService('discord')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div id="discord-fields" class="collapsible">
+                    <div class="form-group">
+                        <label for="discord-webhook-url">Webhook URL</label>
+                        <input type="text" id="discord-webhook-url" placeholder="https://discord.com/api/webhooks/...">
+                        <small>Create in your Discord channel settings → Integrations → Webhooks</small>
+                    </div>
+                    
+                    <button type="button" class="test-btn" onclick="testNotification('discord')">Send Test Message</button>
+                </div>
+            </div>
+            
+            <!-- Pushover -->
+            <div class="settings-card">
+                <div class="service-header">
+                    <h2>🔔 Pushover</h2>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="pushover-enabled" onchange="toggleService('pushover')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div id="pushover-fields" class="collapsible">
+                    <div class="form-group">
+                        <label for="pushover-user-key">User Key</label>
+                        <input type="text" id="pushover-user-key" placeholder="uQiRzpo4DXghDmr9QzzfQu27cmVRsG">
+                        <small>From your <a href="https://pushover.net/" target="_blank">Pushover dashboard</a></small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="pushover-app-token">App Token</label>
+                        <input type="text" id="pushover-app-token" placeholder="azGDORePK8gMaC0QOYAMyEEuzJnyUi">
+                        <small>Create an application to get an API token</small>
+                    </div>
+                    
+                    <button type="button" class="test-btn" onclick="testNotification('pushover')">Send Test Message</button>
+                </div>
+            </div>
+            
+            <!-- Ntfy -->
+            <div class="settings-card">
+                <div class="service-header">
+                    <h2>🔕 Ntfy</h2>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="ntfy-enabled" onchange="toggleService('ntfy')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div id="ntfy-fields" class="collapsible">
+                    <div class="form-group">
+                        <label for="ntfy-topic">Topic Name</label>
+                        <input type="text" id="ntfy-topic" placeholder="pihole-sentinel-alerts">
+                        <small>Choose a unique topic name</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ntfy-server">Server URL (optional)</label>
+                        <input type="text" id="ntfy-server" placeholder="https://ntfy.sh" value="https://ntfy.sh">
+                        <small>Use https://ntfy.sh or your self-hosted server</small>
+                    </div>
+                    
+                    <button type="button" class="test-btn" onclick="testNotification('ntfy')">Send Test Message</button>
+                </div>
+            </div>
+            
+            <!-- Custom Webhook -->
+            <div class="settings-card">
+                <div class="service-header">
+                    <h2>🔗 Custom Webhook</h2>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="webhook-enabled" onchange="toggleService('webhook')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div id="webhook-fields" class="collapsible">
+                    <div class="form-group">
+                        <label for="webhook-url">Webhook URL</label>
+                        <input type="text" id="webhook-url" placeholder="https://your-server.com/api/alerts">
+                        <small>JSON payload will be POST'ed to this URL</small>
+                    </div>
+                    
+                    <button type="button" class="test-btn" onclick="testNotification('webhook')">Send Test Request</button>
+                </div>
+            </div>
+            
+            <div class="settings-card">
+                <button type="submit" class="save-btn" id="save-btn">💾 Save All Settings</button>
+                <div id="save-alert" class="alert"></div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        
+        // Load settings on page load
+        async function loadSettings() {
+            try {
+                const response = await fetch(`${API_BASE}/api/notifications/settings`);
+                if (response.ok) {
+                    const settings = await response.json();
+                    populateForm(settings);
+                }
+            } catch (error) {
+                console.error('Failed to load settings:', error);
+            }
+        }
+        
+        function populateForm(settings) {
+            // Telegram
+            if (settings.telegram) {
+                document.getElementById('telegram-enabled').checked = settings.telegram.enabled;
+                document.getElementById('telegram-bot-token').value = settings.telegram.bot_token || '';
+                document.getElementById('telegram-chat-id').value = settings.telegram.chat_id || '';
+                toggleService('telegram');
+            }
+            
+            // Discord
+            if (settings.discord) {
+                document.getElementById('discord-enabled').checked = settings.discord.enabled;
+                document.getElementById('discord-webhook-url').value = settings.discord.webhook_url || '';
+                toggleService('discord');
+            }
+            
+            // Pushover
+            if (settings.pushover) {
+                document.getElementById('pushover-enabled').checked = settings.pushover.enabled;
+                document.getElementById('pushover-user-key').value = settings.pushover.user_key || '';
+                document.getElementById('pushover-app-token').value = settings.pushover.app_token || '';
+                toggleService('pushover');
+            }
+            
+            // Ntfy
+            if (settings.ntfy) {
+                document.getElementById('ntfy-enabled').checked = settings.ntfy.enabled;
+                document.getElementById('ntfy-topic').value = settings.ntfy.topic || '';
+                document.getElementById('ntfy-server').value = settings.ntfy.server || 'https://ntfy.sh';
+                toggleService('ntfy');
+            }
+            
+            // Webhook
+            if (settings.webhook) {
+                document.getElementById('webhook-enabled').checked = settings.webhook.enabled;
+                document.getElementById('webhook-url').value = settings.webhook.url || '';
+                toggleService('webhook');
+            }
+        }
+        
+        function toggleService(service) {
+            const enabled = document.getElementById(`${service}-enabled`).checked;
+            const fields = document.getElementById(`${service}-fields`);
+            
+            if (enabled) {
+                fields.classList.add('active');
+            } else {
+                fields.classList.remove('active');
+            }
+        }
+        
+        async function testNotification(service) {
+            const data = collectFormData();
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/notifications/test`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ service, settings: data[service] })
+                });
+                
+                if (response.ok) {
+                    alert(`✅ Test notification sent via ${service}!`);
+                } else {
+                    const error = await response.json();
+                    alert(`❌ Failed: ${error.message}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        }
+        
+        function collectFormData() {
+            return {
+                telegram: {
+                    enabled: document.getElementById('telegram-enabled').checked,
+                    bot_token: document.getElementById('telegram-bot-token').value,
+                    chat_id: document.getElementById('telegram-chat-id').value
+                },
+                discord: {
+                    enabled: document.getElementById('discord-enabled').checked,
+                    webhook_url: document.getElementById('discord-webhook-url').value
+                },
+                pushover: {
+                    enabled: document.getElementById('pushover-enabled').checked,
+                    user_key: document.getElementById('pushover-user-key').value,
+                    app_token: document.getElementById('pushover-app-token').value
+                },
+                ntfy: {
+                    enabled: document.getElementById('ntfy-enabled').checked,
+                    topic: document.getElementById('ntfy-topic').value,
+                    server: document.getElementById('ntfy-server').value
+                },
+                webhook: {
+                    enabled: document.getElementById('webhook-enabled').checked,
+                    url: document.getElementById('webhook-url').value
+                }
+            };
+        }
+        
+        document.getElementById('settings-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const saveBtn = document.getElementById('save-btn');
+            const alert = document.getElementById('save-alert');
+            
+            saveBtn.disabled = true;
+            saveBtn.textContent = '💾 Saving...';
+            
+            const data = collectFormData();
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/notifications/settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    alert.textContent = '✅ Settings saved successfully!';
+                    alert.className = 'alert success show';
+                    setTimeout(() => alert.classList.remove('show'), 3000);
+                } else {
+                    throw new Error('Failed to save settings');
+                }
+            } catch (error) {
+                alert.textContent = '❌ Error saving settings: ' + error.message;
+                alert.className = 'alert error show';
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = '💾 Save All Settings';
+            }
+        });
+        
+        // Load dark mode preference
+        if (localStorage.getItem('darkMode') === 'enabled') {
+            document.body.classList.add('dark-mode');
+        }
+        
+        loadSettings();
+    </script>
+</body>
+</html>
