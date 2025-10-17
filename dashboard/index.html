@@ -107,13 +107,28 @@
         
         body.dark-mode .node-card {
             background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 4px solid rgba(255, 255, 255, 0.1);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
         
         .node-card.master {
-            border: 2px solid #10b981;
-            box-shadow: 0 8px 32px rgba(16, 185, 129, 0.3), 0 0 0 1px rgba(16, 185, 129, 0.1);
+            border: 4px solid #10b981;
+            box-shadow: 0 8px 32px rgba(16, 185, 129, 0.5), 0 0 0 2px rgba(16, 185, 129, 0.2), 0 0 40px rgba(16, 185, 129, 0.3);
+        }
+        
+        .node-card.backup {
+            border: 4px solid #64748b;
+            box-shadow: 0 8px 32px rgba(100, 116, 139, 0.3), 0 0 0 2px rgba(100, 116, 139, 0.1), 0 0 40px rgba(100, 116, 139, 0.2);
+        }
+        
+        body.dark-mode .node-card.master {
+            border: 4px solid #10b981;
+            box-shadow: 0 8px 32px rgba(16, 185, 129, 0.6), 0 0 0 2px rgba(16, 185, 129, 0.3), 0 0 40px rgba(16, 185, 129, 0.4);
+        }
+        
+        body.dark-mode .node-card.backup {
+            border: 4px solid #475569;
+            box-shadow: 0 8px 32px rgba(71, 85, 105, 0.4), 0 0 0 2px rgba(71, 85, 105, 0.2), 0 0 40px rgba(71, 85, 105, 0.3);
         }
         
         .node-card-header {
@@ -201,6 +216,11 @@
         .status-dot.offline {
             background: #ef4444;
             box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+        }
+        
+        .status-dot.warning {
+            background: #f59e0b;
+            box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
         }
         
         .chart-card {
@@ -730,12 +750,18 @@
             const card = document.getElementById(`${nodeType}-card`);
             const badge = document.getElementById(`${nodeType}-badge`);
             const status = document.getElementById(`${nodeType}-status`);
+            const ipElement = document.getElementById(`${nodeType}-ip`);
+            
+            // Update IP address
+            if (ipElement && nodeData.ip) {
+                ipElement.textContent = nodeData.ip;
+            }
             
             badge.textContent = nodeData.state;
             badge.className = `badge ${nodeData.state.toLowerCase()}`;
             
             // Remove all status classes first
-            card.classList.remove('master', 'error', 'warning');
+            card.classList.remove('master', 'backup', 'error', 'warning');
             
             // Determine card status
             if (!nodeData.online) {
@@ -744,52 +770,51 @@
                 card.classList.add('warning');
             } else if (nodeData.state === 'MASTER') {
                 card.classList.add('master');
+            } else if (nodeData.state === 'BACKUP') {
+                card.classList.add('backup');
+            }
+            
+            // Check for DHCP misconfiguration
+            const dhcpShouldBeOn = nodeData.state === 'MASTER';
+            const dhcpIsOn = nodeData.dhcp;
+            const dhcpCorrect = dhcpShouldBeOn === dhcpIsOn;
+            
+            // Generate DHCP status indicator
+            let dhcpIndicator = '';
+            if (dhcpCorrect) {
+                // Correct configuration - show checkmark
+                dhcpIndicator = dhcpIsOn 
+                    ? '<span style="color: #10b981; font-size: 16px;">✓</span>' 
+                    : '<span style="color: #64748b; font-size: 16px;">✓</span>';
+            } else {
+                // Misconfiguration - show warning
+                dhcpIndicator = '<div class="status-dot warning"></div>';
             }
             
             status.innerHTML = `
-                <div class="status-item">
+                <div class="status-item" title="Server is reachable on the network">
                     <div class="status-dot ${nodeData.online ? 'online' : 'offline'}"></div>
-                    <span>Online</span>
+                    <span>Server Online</span>
                 </div>
-                <div class="status-item">
+                <div class="status-item" title="Pi-hole FTL service is running">
                     <div class="status-dot ${nodeData.pihole ? 'online' : 'offline'}"></div>
-                    <span>Pi-hole</span>
+                    <span>Pi-hole Service</span>
                 </div>
-                <div class="status-item">
+                <div class="status-item" title="This server has the Virtual IP address">
                     <div class="status-dot ${nodeData.has_vip ? 'online' : 'offline'}"></div>
-                    <span>Has VIP</span>
+                    <span>Virtual IP Active</span>
                 </div>
-                <div class="status-item">
-                    <div class="status-dot ${nodeData.online ? 'online' : 'offline'}"></div>
-                    <span>DNS</span>
+                <div class="status-item" title="DNS resolution is working">
+                    <div class="status-dot ${nodeData.dns ? 'online' : 'offline'}"></div>
+                    <span>DNS Resolver</span>
+                </div>
+                <div class="status-item" title="${dhcpCorrect ? (dhcpIsOn ? 'DHCP server is active (correct for MASTER)' : 'DHCP server is disabled (correct for BACKUP)') : 'DHCP configuration mismatch! Should be ' + (dhcpShouldBeOn ? 'enabled' : 'disabled')}">
+                    ${dhcpIndicator}
+                    <span>DHCP Server ${dhcpCorrect ? '' : '⚠️'}</span>
                 </div>
             `;
         }
         
-		function updateChart(data) {
-            const ctx = document.getElementById('historyChart');
-            
-            if (chart) {
-                chart.destroy();
-            }
-            
-            // Smart sampling: adjust max points based on time range
-            let maxPoints = 500;
-            if (currentHours <= 1) maxPoints = 360;      // 15/30min: show all (every 10s)
-            else if (currentHours <= 24) maxPoints = 500; // 24h: ~3min intervals
-            else if (currentHours <= 168) maxPoints = 800; // 7d: ~15min intervals  
-            else maxPoints = 1000; // 30d: ~45min intervals
-            
-            // Sample data evenly across the time range
-            let limitedData;
-            if (data.length > maxPoints) {
-                const step = Math.ceil(data.length / maxPoints);
-                limitedData = data.filter((_, index) => index % step === 0);
-            } else {
-                limitedData = data;
-            }
-		}
-		
         async function loadHistory(hours, minutes) {
             try {
                 let timeParam;

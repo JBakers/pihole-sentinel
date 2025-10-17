@@ -11,6 +11,7 @@ import aiohttp
 import aiosqlite
 import uvicorn
 import subprocess
+import socket
 import copy
 from datetime import datetime
 from typing import Dict
@@ -82,7 +83,11 @@ async def init_db():
                 secondary_online BOOLEAN,
                 primary_pihole BOOLEAN,
                 secondary_pihole BOOLEAN,
-                dhcp_leases INTEGER
+                primary_dns BOOLEAN,
+                secondary_dns BOOLEAN,
+                dhcp_leases INTEGER,
+                primary_dhcp BOOLEAN,
+                secondary_dhcp BOOLEAN
             )
         """)
         
@@ -105,14 +110,18 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
         "queries": 0,
         "blocked": 0,
         "clients": 0,
-        "dhcp_leases": 0
+        "dhcp_leases": 0,
+        "dhcp_enabled": False
     }
     
+    # Use TCP socket connection test instead of ping to avoid capability issues
     try:
-        ping = subprocess.run(["/usr/bin/ping", "-c", "1", "-W", "2", ip], capture_output=True, timeout=3)
-        result["online"] = ping.returncode == 0
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        result["online"] = sock.connect_ex((ip, 80)) == 0
+        sock.close()
     except Exception as e:
-        print(f"Ping error for {ip}: {e}")
+        print(f"Connection check error for {ip}: {e}")
         return result
     
     if not result["online"]:
@@ -126,7 +135,9 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
                 async with session.post(f"http://{ip}/api/auth", json={"password": password}, timeout=aiohttp.ClientTimeout(total=5)) as auth_resp:
                     if auth_resp.status == 200:
                         auth_data = await auth_resp.json()
-                        sid = auth_data.get("sid")
+                        # Pi-hole v6 returns sid within a session object
+                        session_data = auth_data.get("session", {})
+                        sid = session_data.get("sid")
             except Exception as e:
                 print(f"FTL Auth exception for {ip}: {e}")
                 return result
@@ -149,13 +160,31 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
                 result["pihole"] = False
             
             if result["pihole"]:
+                # Check DHCP configuration via config API
+                try:
+                    async with session.get(f"http://{ip}/api/config/dhcp", headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as dhcp_resp:
+                        if dhcp_resp.status == 200:
+                            dhcp_config = await dhcp_resp.json()
+                            result["dhcp_enabled"] = dhcp_config.get("config", {}).get("dhcp", {}).get("active", False)
+                            print(f"DEBUG: DHCP for {ip}: active={result['dhcp_enabled']}")
+                        else:
+                            result["dhcp_enabled"] = False
+                            print(f"DEBUG: DHCP config API returned status {dhcp_resp.status} for {ip}")
+                except Exception as e:
+                    print(f"DHCP config check exception for {ip}: {e}")
+                    result["dhcp_enabled"] = False
+                
+                # Check DHCP leases count
                 try:
                     async with session.get(f"http://{ip}/api/dhcp/leases", headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as leases_resp:
                         if leases_resp.status == 200:
-                            leases = await leases_resp.json()
-                            result["dhcp_leases"] = len(leases)
+                            leases_data = await leases_resp.json()
+                            leases = leases_data.get("leases", [])
+                            result["dhcp_leases"] = len(leases) if isinstance(leases, list) else 0
+                        else:
+                            result["dhcp_leases"] = 0
                 except Exception as e:
-                    print(f"DHCP check exception for {ip}: {e}")
+                    print(f"DHCP leases check exception for {ip}: {e}")
                     result["dhcp_leases"] = 0
 
             try:
@@ -176,16 +205,37 @@ async def check_dns(ip: str) -> bool:
         return False
 
 async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str) -> tuple:
+    """
+    Check which Pi-hole has the VIP by comparing MAC addresses.
+    Connect to VIP and both servers, then compare which server's MAC matches the VIP's MAC.
+    """
     try:
+        # Get MAC address by checking ARP table after making connections
+        # First connect to each IP to ensure ARP entries exist
+        for ip in [vip, primary_ip, secondary_ip]:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            try:
+                sock.connect_ex((ip, 80))
+            except:
+                pass
+            finally:
+                sock.close()
+        
+        # Small delay for ARP table to populate
+        await asyncio.sleep(0.2)
+        
+        # Read ARP table entries
         vip_result = subprocess.run(["/usr/sbin/ip", "neigh", "show", vip], capture_output=True, text=True, timeout=2)
         primary_result = subprocess.run(["/usr/sbin/ip", "neigh", "show", primary_ip], capture_output=True, text=True, timeout=2)
         secondary_result = subprocess.run(["/usr/sbin/ip", "neigh", "show", secondary_ip], capture_output=True, text=True, timeout=2)
         
         def extract_mac(output):
+            """Extract MAC address from 'ip neigh show' output"""
             parts = output.split()
             try:
                 lladdr_idx = parts.index('lladdr')
-                return parts[lladdr_idx + 1]
+                return parts[lladdr_idx + 1].upper()
             except (ValueError, IndexError):
                 return None
         
@@ -193,15 +243,21 @@ async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str) -> tup
         primary_mac = extract_mac(primary_result.stdout)
         secondary_mac = extract_mac(secondary_result.stdout)
         
+        print(f"VIP check: VIP_MAC={vip_mac}, Primary_MAC={primary_mac}, Secondary_MAC={secondary_mac}")
+        
         if vip_mac and primary_mac and vip_mac == primary_mac:
             return True, False
         elif vip_mac and secondary_mac and vip_mac == secondary_mac:
             return False, True
         else:
-            return True, False
+            # If VIP MAC not found, likely no MASTER (both BACKUP)
+            if not vip_mac:
+                print(f"WARNING: VIP {vip} has no ARP entry - possible keepalived failure")
+            return False, False
+        
     except Exception as e:
-        print(f"Error checking VIP via ARP: {e}")
-        return True, False
+        print(f"Error checking VIP: {e}")
+        return False, False
 
 async def log_event(event_type: str, message: str):
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
@@ -222,6 +278,10 @@ async def monitor_loop():
         try:
             primary_data = await check_pihole_simple(CONFIG["primary"]["ip"], CONFIG["primary"]["password"])
             secondary_data = await check_pihole_simple(CONFIG["secondary"]["ip"], CONFIG["secondary"]["password"])
+            
+            # Check DNS functionality separately
+            primary_dns = await check_dns(CONFIG["primary"]["ip"]) if primary_data["online"] else False
+            secondary_dns = await check_dns(CONFIG["secondary"]["ip"]) if secondary_data["online"] else False
             
             primary_has_vip, secondary_has_vip = await check_who_has_vip(CONFIG["vip"], CONFIG["primary"]["ip"], CONFIG["secondary"]["ip"])
             
@@ -286,9 +346,9 @@ async def monitor_loop():
             
             async with aiosqlite.connect(CONFIG["db_path"]) as db:
                 await db.execute("""
-                    INSERT INTO status_history (primary_state, secondary_state, primary_has_vip, secondary_has_vip, primary_online, secondary_online, primary_pihole, secondary_pihole, dhcp_leases) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (primary_state, secondary_state, primary_has_vip, secondary_has_vip, primary_data["online"], secondary_data["online"], primary_data["pihole"], secondary_data["pihole"], dhcp_leases))
+                    INSERT INTO status_history (primary_state, secondary_state, primary_has_vip, secondary_has_vip, primary_online, secondary_online, primary_pihole, secondary_pihole, primary_dns, secondary_dns, dhcp_leases, primary_dhcp, secondary_dhcp) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (primary_state, secondary_state, primary_has_vip, secondary_has_vip, primary_data["online"], secondary_data["online"], primary_data["pihole"], secondary_data["pihole"], primary_dns, secondary_dns, dhcp_leases, primary_data.get("dhcp_enabled", False), secondary_data.get("dhcp_enabled", False)))
                 await db.commit()
             
             # Detect failover
@@ -318,6 +378,25 @@ async def monitor_loop():
             previous_primary_has_vip = primary_has_vip
             previous_secondary_has_vip = secondary_has_vip
             
+            # Check DHCP misconfiguration
+            primary_dhcp = primary_data.get("dhcp_enabled", False)
+            secondary_dhcp = secondary_data.get("dhcp_enabled", False)
+            
+            # MASTER should have DHCP enabled, BACKUP should have it disabled
+            if primary_state == "MASTER" and not primary_dhcp:
+                await log_event("warning", "⚠️ DHCP misconfiguration: Primary is MASTER but DHCP is DISABLED")
+                print(f"⚠️  WARNING: Primary is MASTER but DHCP is DISABLED")
+            elif primary_state == "BACKUP" and primary_dhcp:
+                await log_event("warning", "⚠️ DHCP misconfiguration: Primary is BACKUP but DHCP is ENABLED")
+                print(f"⚠️  WARNING: Primary is BACKUP but DHCP is ENABLED")
+            
+            if secondary_state == "MASTER" and not secondary_dhcp:
+                await log_event("warning", "⚠️ DHCP misconfiguration: Secondary is MASTER but DHCP is DISABLED")
+                print(f"⚠️  WARNING: Secondary is MASTER but DHCP is DISABLED")
+            elif secondary_state == "BACKUP" and secondary_dhcp:
+                await log_event("warning", "⚠️ DHCP misconfiguration: Secondary is BACKUP but DHCP is ENABLED")
+                print(f"⚠️  WARNING: Secondary is BACKUP but DHCP is ENABLED")
+            
             print(f"[{datetime.now()}] Primary: {primary_state}, Secondary: {secondary_state}, Leases: {dhcp_leases}")
             
         except Exception as e:
@@ -346,7 +425,9 @@ async def get_status():
                     "state": row[2],
                     "has_vip": bool(row[4]),
                     "online": bool(row[6]),
-                    "pihole": bool(row[8])
+                    "pihole": bool(row[8]),
+                    "dns": bool(row[10]) if len(row) > 10 else bool(row[6]),  # Fallback to online for backward compatibility
+                    "dhcp": bool(row[13]) if len(row) > 13 else False  # New DHCP status
                 },
                 "secondary": {
                     "ip": CONFIG["secondary"]["ip"],
@@ -354,10 +435,12 @@ async def get_status():
                     "state": row[3],
                     "has_vip": bool(row[5]),
                     "online": bool(row[7]),
-                    "pihole": bool(row[9])
+                    "pihole": bool(row[9]),
+                    "dns": bool(row[11]) if len(row) > 11 else bool(row[7]),  # Fallback to online for backward compatibility
+                    "dhcp": bool(row[14]) if len(row) > 14 else False  # New DHCP status
                 },
                 "vip": CONFIG["vip"],
-                "dhcp_leases": row[10]
+                "dhcp_leases": row[12] if len(row) > 12 else row[10]  # Adjust for new column
             }
 
 @app.get("/api/history")
