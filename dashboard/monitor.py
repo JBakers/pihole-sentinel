@@ -303,12 +303,39 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
                 async with session.get(f"http://{ip}/api/dhcp/leases", headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as leases_resp:
                     if leases_resp.status == 200:
                         leases_data = await leases_resp.json()
-                        leases = leases_data.get("leases", [])
-                        result["dhcp_leases"] = len(leases) if isinstance(leases, list) else 0
+                        logger.debug(f"DHCP leases response for {ip}: {leases_data}")
+
+                        # Pi-hole v6 might use different structure
+                        # Try multiple possible locations for leases data
+                        leases = None
+                        if isinstance(leases_data, dict):
+                            # Try "leases" key
+                            leases = leases_data.get("leases")
+                            # Try "dhcp" -> "leases" nested structure
+                            if not leases:
+                                leases = leases_data.get("dhcp", {}).get("leases")
+                            # Try direct list in response
+                            if not leases and isinstance(leases_data.get("data"), list):
+                                leases = leases_data.get("data")
+                        elif isinstance(leases_data, list):
+                            # Response is directly a list
+                            leases = leases_data
+
+                        if isinstance(leases, list):
+                            result["dhcp_leases"] = len(leases)
+                            logger.debug(f"DHCP leases count for {ip}: {result['dhcp_leases']}")
+                        elif isinstance(leases, dict):
+                            # If leases is a dict, count the keys
+                            result["dhcp_leases"] = len(leases)
+                            logger.debug(f"DHCP leases count (dict) for {ip}: {result['dhcp_leases']}")
+                        else:
+                            result["dhcp_leases"] = 0
+                            logger.warning(f"DHCP leases data type unexpected for {ip}: {type(leases)}")
                     else:
+                        logger.warning(f"DHCP leases API returned status {leases_resp.status} for {ip}")
                         result["dhcp_leases"] = 0
             except Exception as e:
-                logger.debug(f"DHCP leases check exception for {ip}: {e}")
+                logger.warning(f"DHCP leases check exception for {ip}: {e}")
                 result["dhcp_leases"] = 0
 
         # Logout from Pi-hole API
