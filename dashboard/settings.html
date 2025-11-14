@@ -700,23 +700,21 @@
         
         async function testNotification(service) {
             try {
-                // Collect current form values for testing
-                const formData = collectFormData();
-                const serviceSettings = formData[service];
-
-                // Validate that service is configured
-                if (!serviceSettings || !serviceSettings.enabled) {
-                    alert(`❌ Please enable and configure ${service} first`);
+                // Check if service is enabled in the form
+                const enabled = document.getElementById(`${service}-enabled`).checked;
+                if (!enabled) {
+                    alert(`❌ Please enable ${service} first`);
                     return;
                 }
 
+                // Backend will load saved settings (unmasked) from server
                 const response = await fetch(`${API_BASE}/api/notifications/test`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-API-Key': API_KEY
                     },
-                    body: JSON.stringify({ service, settings: serviceSettings })
+                    body: JSON.stringify({ service })
                 });
                 
                 if (response.ok) {
