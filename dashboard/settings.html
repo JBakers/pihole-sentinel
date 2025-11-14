@@ -590,6 +590,9 @@
 
         // Store masked values to detect if user changed them
         const maskedValues = {};
+
+        // Store loaded settings to detect unsaved changes
+        let loadedSettings = {};
         
         // Toggle password visibility
         function toggleVisibility(fieldId) {
@@ -620,6 +623,7 @@
                 });
                 if (response.ok) {
                     const settings = await response.json();
+                    loadedSettings = settings; // Store for comparison
                     populateForm(settings);
                 }
             } catch (error) {
@@ -705,6 +709,18 @@
                 if (!enabled) {
                     alert(`❌ Please enable ${service} first`);
                     return;
+                }
+
+                // Check if enabled status matches saved settings
+                const savedEnabled = loadedSettings[service]?.enabled || false;
+                if (enabled && !savedEnabled) {
+                    const shouldSave = confirm(`⚠️ ${service.charAt(0).toUpperCase() + service.slice(1)} is enabled in the form but not saved yet.\n\nWould you like to save settings first before testing?`);
+                    if (shouldSave) {
+                        alert('Please click "Save All Settings" first, then test.');
+                        return;
+                    }
+                    // User wants to test anyway, but warn it will fail
+                    alert(`Note: Test will use saved settings where ${service} is disabled. It will likely fail.`);
                 }
 
                 // Backend will load saved settings (unmasked) from server
