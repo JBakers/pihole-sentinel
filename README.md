@@ -8,7 +8,7 @@
 
 *Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
 
-[![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.8.0-blue.svg)](VERSION)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
@@ -337,9 +337,9 @@ See `EXISTING-SETUP.md` for detailed steps
 
 ### Upgrading
 
-**From v0.1.0 to v0.1.1+:**
+**Upgrading to latest version:**
 
-The upgrade includes updated Python dependencies and improved logging. Follow these steps:
+Follow these steps to upgrade your installation:
 
 1. **Backup your current setup:**
    ```bash
@@ -381,9 +381,11 @@ The upgrade includes updated Python dependencies and improved logging. Follow th
    ```
 
 **Notes:**
-- No database schema changes in v0.1.1
-- Configuration files (.env) remain compatible
-- Keepalived configs don't need updates (interface variable was added but backward compatible)
+**Notes:**
+- Configuration files (.env) remain compatible across versions
+- Keepalived configs are backward compatible
+- Check CHANGELOG.md for version-specific changes
+- Check CHANGELOG.md for version-specific changes
 
 ### Maintenance
 - Check for updates: `git pull origin main` and review `CHANGELOG.md`

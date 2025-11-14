@@ -5,7 +5,7 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.1] - 2025-11-14
+## [0.8.0] - 2025-11-14
 
 ### 🔧 Improved
 
@@ -69,65 +69,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated dependencies address known CVEs in older versions
 - Better error logging improves security incident detection
 - No changes to existing security features
-
----
-
-## [0.1.0] - 2025-11-13
-
-### 🎉 Initial Release
-
-#### Features
-- **Automatic Failover**
-  - Virtual IP (VIP) management with keepalived
-  - Seamless DNS service during outages
-  - Optional DHCP failover with automatic activation/deactivation
-  - DHCP misconfiguration detection and warnings
-
-- **Real-time Monitoring Dashboard**
-  - Beautiful web interface with live updates
-  - Real-time status indicators for all services
-  - Historical data and event timeline
-  - Dark mode support
-  - Mobile responsive design
-
-- **Smart Notifications**
-  - Web-based configuration interface
-  - Support for Telegram, Discord, Pushover, Ntfy, and custom webhooks
-  - Test notifications before saving
-  - Configurable event types
-
-- **Automated Setup**
-  - One-command installation with `setup.py`
-  - Automatic SSH key generation and distribution
-  - Remote deployment via SSH
-  - Automatic dependency installation
-  - Secure cleanup of sensitive files
-
-- **Configuration Sync**
-  - Built-in sync script for Pi-hole configurations
-  - DHCP lease synchronization
-  - Preserves local DHCP active state
-  - Automatic backup before sync
-
-#### Components
-- FastAPI-based monitoring service
-- SQLite database for history tracking
-- Keepalived for VRRP failover
-- Health check scripts for Pi-hole and DHCP
-- Systemd service integration
-
-#### Security
-- SSH key-based authentication
-- Automatic cleanup of generated configs
-- Proper file permissions (600 for .env files)
-- Password masking in web interface
-- Secure random password generation
-
-#### Documentation
-- Comprehensive README.md
-- Setup guide for existing Pi-holes (EXISTING-SETUP.md)
-- Configuration sync documentation (SYNC-SETUP.md)
-- MIT License
 
 ---
 

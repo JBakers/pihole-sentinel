@@ -168,7 +168,7 @@ pihole-sentinel/
 
 ## Version Information
 
-- **Current Version:** 0.1.1
+- **Current Version:** 0.8.0
 - **Python:** 3.8+ (tested with 3.13)
 - **OS:** Debian 11+/Ubuntu 20.04+
 
