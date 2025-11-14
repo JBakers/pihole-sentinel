@@ -668,6 +668,8 @@
     </button>
 
     <script>
+        // API Configuration - CHANGE THIS TO YOUR API KEY
+        const API_KEY = 'YOUR_API_KEY_HERE';
         const API_BASE = window.location.origin;
         let chart = null;
         let currentHours = 24;
@@ -729,7 +731,11 @@
         
         async function fetchStatus() {
             try {
-                const response = await fetch(`${API_BASE}/api/status`);
+                const response = await fetch(`${API_BASE}/api/status`, {
+                    headers: {
+                        'X-API-Key': API_KEY
+                    }
+                });
                 const data = await response.json();
                 updateStatus(data);
             } catch (error) {
@@ -836,7 +842,11 @@
                     }
                 });
                 
-                const response = await fetch(`${API_BASE}/api/history?${timeParam}`);
+                const response = await fetch(`${API_BASE}/api/history?${timeParam}`, {
+                    headers: {
+                        'X-API-Key': API_KEY
+                    }
+                });
                 const data = await response.json();
                 
                 updateChart(data);
@@ -933,7 +943,11 @@
         
         async function loadEvents() {
             try {
-                const response = await fetch(`${API_BASE}/api/events`);
+                const response = await fetch(`${API_BASE}/api/events`, {
+                    headers: {
+                        'X-API-Key': API_KEY
+                    }
+                });
                 const data = await response.json();
                 
                 const failoverEvents = data.filter(e => e.type === 'failover');
