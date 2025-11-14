@@ -711,19 +711,26 @@
                     return;
                 }
 
-                // Check if enabled status matches saved settings
-                const savedEnabled = loadedSettings[service]?.enabled || false;
-                if (enabled && !savedEnabled) {
-                    const shouldSave = confirm(`⚠️ ${service.charAt(0).toUpperCase() + service.slice(1)} is enabled in the form but not saved yet.\n\nWould you like to save settings first before testing?`);
-                    if (shouldSave) {
-                        alert('Please click "Save All Settings" first, then test.');
-                        return;
-                    }
-                    // User wants to test anyway, but warn it will fail
-                    alert(`Note: Test will use saved settings where ${service} is disabled. It will likely fail.`);
+                // Auto-save this service's settings before testing
+                const formData = collectFormData();
+                const saveResponse = await fetch(`${API_BASE}/api/notifications/settings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!saveResponse.ok) {
+                    alert(`❌ Failed to save settings before testing`);
+                    return;
                 }
 
-                // Backend will load saved settings (unmasked) from server
+                // Update loaded settings after save
+                loadedSettings = formData;
+
+                // Now test with the freshly saved settings
                 const response = await fetch(`${API_BASE}/api/notifications/test`, {
                     method: 'POST',
                     headers: {
