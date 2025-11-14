@@ -833,13 +833,29 @@ async def test_notification(
     api_key: str = Depends(verify_api_key),
     _rate_limit: bool = Depends(rate_limit_check)
 ):
-    """Test a notification service"""
+    """Test a notification service - loads settings from server to avoid masked values"""
+    import json
+
     service = data.get('service')
-    settings = data.get('settings', {})
-    
+
     if not service:
         raise HTTPException(status_code=400, detail="Service not specified")
-    
+
+    # Load REAL (unmasked) settings from server
+    config_path = CONFIG["notify_config_path"]
+    if not os.path.exists(config_path):
+        raise HTTPException(status_code=400, detail="No notification settings configured yet. Please save settings first.")
+
+    try:
+        with open(config_path, 'r') as f:
+            all_settings = json.load(f)
+            settings = all_settings.get(service, {})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load settings: {str(e)}")
+
+    if not settings.get('enabled'):
+        raise HTTPException(status_code=400, detail=f"{service.capitalize()} is not enabled")
+
     try:
         if service == 'telegram':
             if not settings.get('bot_token') or not settings.get('chat_id'):
