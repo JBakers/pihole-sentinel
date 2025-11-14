@@ -7,10 +7,12 @@ Dit document helpt je om alle security en performance fixes te testen na deploym
 Voordat je begint met testen:
 
 - [ ] Backup gemaakt van bestaande configuratie
-- [ ] Git pull uitgevoerd om laatste changes te krijgen
+- [ ] Nieuwe versie files beschikbaar (via setup.py of handmatige copy)
 - [ ] Dependencies geüpdatet (`pip install --upgrade -r requirements.txt`)
 - [ ] `.env` file geconfigureerd met API_KEY
 - [ ] Services herstart
+
+**⚠️ BELANGRIJK:** Gebruik NOOIT `git pull` op productie servers! Deploy altijd via `setup.py` of kopieer de specifieke bestanden handmatig.
 
 ## 🔧 Deployment Stappen
 
