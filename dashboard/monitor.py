@@ -299,82 +299,23 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
                 result["dhcp_enabled"] = False
 
             # Check DHCP leases count
-            # Try new API first, then fallback to legacy PHP API
-            leases_found = False
-
+            # Pi-hole v6 API - use content_type=None to accept any content-type header
             try:
                 async with session.get(f"http://{ip}/api/dhcp/leases", headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as leases_resp:
                     if leases_resp.status == 200:
-                        leases_data = await leases_resp.json()
-                        logger.info(f"DHCP leases RAW response for {ip}: {leases_data}")
-
-                        # Pi-hole v6 might use different structure
-                        # Try multiple possible locations for leases data
-                        leases = None
-                        if isinstance(leases_data, dict):
-                            logger.info(f"DHCP response is dict, keys: {list(leases_data.keys())}")
-                            # Try "leases" key (check with 'in' to handle None vs missing key)
-                            if "leases" in leases_data:
-                                leases = leases_data["leases"]
-                                logger.info(f"Found 'leases' key, type: {type(leases)}, value: {leases}")
-                            # Try "dhcp" -> "leases" nested structure
-                            elif "dhcp" in leases_data and isinstance(leases_data["dhcp"], dict) and "leases" in leases_data["dhcp"]:
-                                leases = leases_data["dhcp"]["leases"]
-                                logger.info(f"Found 'dhcp.leases' key, type: {type(leases)}, value: {leases}")
-                            # Try direct "data" key
-                            elif "data" in leases_data:
-                                leases = leases_data["data"]
-                                logger.info(f"Found 'data' key, type: {type(leases)}, value: {leases}")
-                        elif isinstance(leases_data, list):
-                            # Response is directly a list
-                            leases = leases_data
-                            logger.info(f"DHCP response is direct list, length: {len(leases)}")
-
-                        if isinstance(leases, list):
-                            result["dhcp_leases"] = len(leases)
-                            logger.info(f"✅ DHCP leases count for {ip}: {result['dhcp_leases']}")
-                            leases_found = True
-                        elif isinstance(leases, dict):
-                            # If leases is a dict, count the keys
-                            result["dhcp_leases"] = len(leases)
-                            logger.info(f"✅ DHCP leases count (dict) for {ip}: {result['dhcp_leases']}")
-                            leases_found = True
-                        else:
-                            logger.warning(f"New API returned None/unexpected type for {ip}, will try legacy API")
+                        leases_data = await leases_resp.json(content_type=None)
+                        # Get leases list, default to empty list if None or missing
+                        all_leases = leases_data.get("leases", [])
+                        if all_leases is None:
+                            all_leases = []
+                        result["dhcp_leases"] = len(all_leases)
+                        logger.debug(f"DHCP leases count for {ip}: {result['dhcp_leases']}")
                     else:
-                        logger.warning(f"DHCP leases API returned status {leases_resp.status} for {ip}, will try legacy API")
+                        logger.warning(f"DHCP leases API returned status {leases_resp.status} for {ip}")
+                        result["dhcp_leases"] = 0
             except Exception as e:
-                logger.warning(f"DHCP leases new API exception for {ip}: {e}, will try legacy API")
-
-            # Fallback to legacy PHP API if new API didn't work
-            if not leases_found:
-                try:
-                    logger.info(f"Trying legacy PHP API for DHCP leases on {ip}...")
-                    # Legacy API doesn't use FTL session, uses web password auth
-                    async with session.get(f"http://{ip}/admin/api.php?summaryRaw", timeout=aiohttp.ClientTimeout(total=5)) as legacy_resp:
-                        if legacy_resp.status == 200:
-                            legacy_data = await legacy_resp.json()
-                            logger.info(f"Legacy API response keys: {list(legacy_data.keys()) if isinstance(legacy_data, dict) else 'not a dict'}")
-
-                            # Legacy API might have "dhcp_leases" or similar field
-                            if isinstance(legacy_data, dict):
-                                if "dhcp_leases" in legacy_data:
-                                    result["dhcp_leases"] = int(legacy_data["dhcp_leases"])
-                                    logger.info(f"✅ DHCP leases from legacy API for {ip}: {result['dhcp_leases']}")
-                                    leases_found = True
-                                elif "leases" in legacy_data:
-                                    result["dhcp_leases"] = int(legacy_data["leases"])
-                                    logger.info(f"✅ DHCP leases from legacy API for {ip}: {result['dhcp_leases']}")
-                                    leases_found = True
-                        else:
-                            logger.debug(f"Legacy API returned status {legacy_resp.status} for {ip}")
-                except Exception as e:
-                    logger.debug(f"Legacy API exception for {ip}: {e}")
-
-            # If still not found, set to 0
-            if not leases_found:
+                logger.debug(f"DHCP leases check exception for {ip}: {e}")
                 result["dhcp_leases"] = 0
-                logger.warning(f"Could not determine DHCP leases count for {ip}, defaulting to 0")
 
         # Logout from Pi-hole API
         try:
