@@ -8,7 +8,7 @@
 
 *Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
 
-[![Version](https://img.shields.io/badge/version-0.1.0--alpha-orange.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)](VERSION)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
@@ -314,15 +314,82 @@ See `EXISTING-SETUP.md` for detailed steps
 - Check VIP status: `ping <vip-address>`
 - View Keepalived status: `systemctl status keepalived`
 
+### Logs
+- **Monitor logs:** `journalctl -u pihole-monitor -f` or `/var/log/pihole-monitor.log`
+- **Keepalived events:** `/var/log/keepalived-notify.log`
+- **System logs:** `journalctl -u keepalived`
+
 ### Troubleshooting
-- Keepalived logs: `tail -f /var/log/keepalived-notify.log`
-- Monitor logs: `journalctl -u pihole-monitor`
-- Pi-hole service: `systemctl status pihole-FTL`
+- **Monitor issues:**
+  - Check service: `systemctl status pihole-monitor`
+  - View logs: `journalctl -u pihole-monitor -f`
+  - Check connectivity: `curl http://<pihole-ip>/api/stats/summary`
+
+- **Keepalived issues:**
+  - Check config: `keepalived -t -f /etc/keepalived/keepalived.conf`
+  - View VRRP traffic: `tcpdump -n -i any vrrp`
+  - Check VIP assignment: `ip addr show | grep <vip>`
+
+- **Sync issues:**
+  - Test SSH: `ssh root@<other-pihole> echo OK`
+  - Manual sync: `/usr/local/bin/sync-pihole-config.sh`
+  - Check logs in sync output
+
+### Upgrading
+
+**From v0.1.0 to v0.1.1+:**
+
+The upgrade includes updated Python dependencies and improved logging. Follow these steps:
+
+1. **Backup your current setup:**
+   ```bash
+   # On monitor server
+   sudo systemctl stop pihole-monitor
+   sudo cp -r /opt/pihole-monitor /opt/pihole-monitor.backup
+   ```
+
+2. **Pull latest code:**
+   ```bash
+   cd pihole-sentinel
+   git pull origin main
+   ```
+
+3. **Update dependencies on monitor server:**
+   ```bash
+   # Via SSH or directly on monitor
+   cd /opt/pihole-monitor
+   source venv/bin/activate
+   pip install --upgrade -r /path/to/pihole-sentinel/requirements.txt
+   deactivate
+   ```
+
+4. **Update monitor.py:**
+   ```bash
+   sudo cp /path/to/pihole-sentinel/dashboard/monitor.py /opt/pihole-monitor/monitor.py
+   sudo chown pihole-monitor:pihole-monitor /opt/pihole-monitor/monitor.py
+   ```
+
+5. **Restart services:**
+   ```bash
+   sudo systemctl restart pihole-monitor
+   ```
+
+6. **Verify:**
+   ```bash
+   sudo systemctl status pihole-monitor
+   sudo tail -f /var/log/pihole-monitor.log
+   ```
+
+**Notes:**
+- No database schema changes in v0.1.1
+- Configuration files (.env) remain compatible
+- Keepalived configs don't need updates (interface variable was added but backward compatible)
 
 ### Maintenance
-- Updates available through your package manager
-- No special steps needed when updating Pi-hole
-- Failover automatically handles maintenance reboots
+- Check for updates: `git pull origin main` and review `CHANGELOG.md`
+- Update Pi-hole normally - failover handles it automatically
+- Keep system packages updated: `apt update && apt upgrade`
+- Review logs weekly for any warnings or errors
 
 ## Monitoring & Maintenance
 
