@@ -1129,22 +1129,39 @@
                 }
             });
         });
-        
-        fetchStatus();
-        loadHistory(24, null);
-        loadEvents();
-        initCollapseState();
-        
-        let statusInterval = setInterval(fetchStatus, 10000);
-        let historyInterval = setInterval(() => loadHistory(currentHours, null), 60000);
-        let eventsInterval = setInterval(loadEvents, 30000);
-        
-        window.addEventListener('beforeunload', () => {
-            clearInterval(statusInterval);
-            clearInterval(historyInterval);
-            clearInterval(eventsInterval);
-            if (chart) chart.destroy();
-        });
+
+        // Wait for Chart.js to load before initializing
+        function initializeApp() {
+            if (typeof Chart !== 'undefined') {
+                console.log('Chart.js loaded, initializing app...');
+                fetchStatus();
+                loadHistory(24, null);
+                loadEvents();
+                initCollapseState();
+
+                let statusInterval = setInterval(fetchStatus, 10000);
+                let historyInterval = setInterval(() => loadHistory(currentHours, null), 60000);
+                let eventsInterval = setInterval(loadEvents, 30000);
+
+                window.addEventListener('beforeunload', () => {
+                    clearInterval(statusInterval);
+                    clearInterval(historyInterval);
+                    clearInterval(eventsInterval);
+                    if (chart) chart.destroy();
+                });
+            } else {
+                console.log('Waiting for Chart.js to load...');
+                setTimeout(initializeApp, 100); // Check again in 100ms
+            }
+        }
+
+        // Start initialization when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeApp);
+        } else {
+            // DOM already loaded
+            initializeApp();
+        }
     </script>
 </body>
 </html>
