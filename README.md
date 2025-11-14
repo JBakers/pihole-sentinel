@@ -8,7 +8,7 @@
 
 *Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
 
-[![Version](https://img.shields.io/badge/version-0.8.0-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-0.9.0--beta.1-blue.svg)](VERSION)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
@@ -170,13 +170,15 @@ The setup script will:
 7. ✅ **Distribute keys to all servers** (passwordless access!)
 8. ✅ Generate secure passwords for keepalived
 9. ✅ Create all configuration files
-10. ✅ **Deploy to all servers via SSH** (choose option 2)
-11. ✅ Auto-detect and configure timezone with NTP on all servers
-12. ✅ **Securely cleanup sensitive files** after deployment
+10. ✅ **Automatically inject Pi-hole API keys into dashboard** (v0.9.0+)
+11. ✅ **Deploy to all servers via SSH** (choose option 2)
+12. ✅ Auto-detect and configure timezone with NTP on all servers
+13. ✅ **Securely cleanup sensitive files** after deployment
 
 **Features:**
 - 🔐 Automatic SSH key generation and distribution
 - 🚀 One-click deployment to all servers
+- 🔑 Automatic API key injection into dashboard (v0.9.0+)
 - 🔒 Automatic cleanup of sensitive configuration files
 - 🎨 Beautiful colored output with ASCII art logo
 - 📊 Progress indicators for all operations
