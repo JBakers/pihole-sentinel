@@ -5,7 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pi-hole Sentinel</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' style='stop-color:%23667eea'/><stop offset='100%' style='stop-color:%23764ba2'/></linearGradient></defs><circle cx='50' cy='50' r='45' fill='url(%23g)'/><path d='M 50 -6 L -6 34 L 24 34 L 24 94 L -6 94 L 50 138 L 106 94 L 76 94 L 76 34 L 106 34 Z' fill='white' transform='translate(50 50) scale(0.1953125) translate(-256 -256)'/><circle cx='50' cy='50' r='40' fill='none' stroke='white' stroke-width='2' opacity='0.3'/></svg>"
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script>
+        // Fallback CDN if primary fails
+        window.addEventListener('DOMContentLoaded', function() {
+            if (typeof Chart === 'undefined') {
+                console.warn('Chart.js not loaded from primary CDN, trying fallback...');
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js';
+                script.onerror = function() {
+                    console.error('Chart.js failed to load from both CDNs. Chart will not work.');
+                };
+                document.head.appendChild(script);
+            } else {
+                console.log('Chart.js loaded successfully from primary CDN');
+            }
+        });
+    </script>
     <style>
         * {
             margin: 0;
@@ -884,6 +900,22 @@
         function updateChart(data) {
             console.log('updateChart called with data:', data);
             console.log('Data length:', data ? data.length : 'undefined');
+
+            // Check if Chart.js is loaded
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js library not loaded! Cannot create chart.');
+                console.error('Make sure the monitor server has internet access to load Chart.js from CDN');
+                const ctx = document.getElementById('historyChart');
+                if (ctx && ctx.getContext) {
+                    const context = ctx.getContext('2d');
+                    context.font = '16px Arial';
+                    context.fillStyle = '#ef4444';
+                    context.textAlign = 'center';
+                    context.fillText('Chart.js library failed to load', ctx.width / 2, ctx.height / 2 - 10);
+                    context.fillText('Check internet connection', ctx.width / 2, ctx.height / 2 + 10);
+                }
+                return;
+            }
 
             const ctx = document.getElementById('historyChart');
             if (!ctx) {
