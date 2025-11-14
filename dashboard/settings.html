@@ -586,7 +586,8 @@
 
     <script>
         const API_BASE = window.location.origin;
-        
+        const API_KEY = 'YOUR_API_KEY_HERE';
+
         // Store masked values to detect if user changed them
         const maskedValues = {};
         
@@ -612,7 +613,11 @@
         // Load settings on page load
         async function loadSettings() {
             try {
-                const response = await fetch(`${API_BASE}/api/notifications/settings`);
+                const response = await fetch(`${API_BASE}/api/notifications/settings`, {
+                    headers: {
+                        'X-API-Key': API_KEY
+                    }
+                });
                 if (response.ok) {
                     const settings = await response.json();
                     populateForm(settings);
@@ -695,17 +700,23 @@
         
         async function testNotification(service) {
             try {
-                // Get unmasked settings from server for testing
-                const settingsResponse = await fetch(`${API_BASE}/api/notifications/test-settings`);
-                if (!settingsResponse.ok) {
-                    throw new Error('Could not load settings for testing');
+                // Collect current form values for testing
+                const formData = collectFormData();
+                const serviceSettings = formData[service];
+
+                // Validate that service is configured
+                if (!serviceSettings || !serviceSettings.enabled) {
+                    alert(`❌ Please enable and configure ${service} first`);
+                    return;
                 }
-                const serverSettings = await settingsResponse.json();
-                
+
                 const response = await fetch(`${API_BASE}/api/notifications/test`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ service, settings: serverSettings[service] })
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
+                    body: JSON.stringify({ service, settings: serviceSettings })
                 });
                 
                 if (response.ok) {
@@ -773,11 +784,14 @@
             saveBtn.textContent = '💾 Saving...';
             
             const data = collectFormData();
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/notifications/settings`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
                     body: JSON.stringify(data)
                 });
                 
