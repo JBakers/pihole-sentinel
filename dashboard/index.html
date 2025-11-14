@@ -746,8 +746,15 @@
         function updateStatus(data) {
             document.getElementById('vip-ip').textContent = data.vip;
             document.getElementById('dhcp-leases').textContent = data.dhcp_leases;
-            document.getElementById('last-update').textContent = new Date(data.timestamp).toLocaleTimeString('nl-NL');
-            
+
+            // Handle timestamp with explicit timezone - server timestamp is in local time
+            const timestamp = new Date(data.timestamp);
+            document.getElementById('last-update').textContent = timestamp.toLocaleString('nl-NL', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+
             updateNode('primary', data.primary);
             updateNode('secondary', data.secondary);
         }
@@ -875,18 +882,30 @@
         }
         
         function updateChart(data) {
+            console.log('updateChart called with data:', data);
+            console.log('Data length:', data ? data.length : 'undefined');
+
             const ctx = document.getElementById('historyChart');
-            
+            if (!ctx) {
+                console.error('historyChart canvas element not found!');
+                return;
+            }
+
             if (chart) {
                 chart.destroy();
             }
-            
+
+            if (!data || data.length === 0) {
+                console.warn('No history data available to display');
+                return;
+            }
+
             let maxPoints = 500;
             if (currentHours <= 1) maxPoints = 360;      // 15/30min: show all (every 10s)
             else if (currentHours <= 24) maxPoints = 500; // 24h: ~3min intervals
-            else if (currentHours <= 168) maxPoints = 800; // 7d: ~15min intervals  
+            else if (currentHours <= 168) maxPoints = 800; // 7d: ~15min intervals
             else maxPoints = 1000; // 30d: ~45min intervals
-            
+
             // Sample data evenly across the time range
             let limitedData;
             if (data.length > maxPoints) {
