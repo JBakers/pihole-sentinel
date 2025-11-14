@@ -723,21 +723,35 @@ def mask_sensitive_data(settings):
     return masked
 
 def merge_settings(existing, new):
-    """Merge new settings with existing, preserving values where new is None"""
+    """Merge new settings with existing, preserving values where new is None or masked"""
     merged = existing.copy()
-    
+
+    def is_masked_value(value):
+        """Check if a value appears to be masked (starts with bullets)"""
+        if not isinstance(value, str):
+            return False
+        return value.startswith('••••') or value.startswith('****')
+
     for service, config in new.items():
         if service not in merged:
             merged[service] = {}
-        
+
         for key, value in config.items():
-            # Only update if new value is not None (None means "keep existing")
-            if value is not None:
+            # Skip if value is None (means "keep existing")
+            if value is None:
+                if key in existing.get(service, {}):
+                    merged[service][key] = existing[service][key]
+            # Skip if value appears to be masked (security protection)
+            elif is_masked_value(value):
+                logger.warning(f"Rejecting masked value for {service}.{key} - keeping existing value")
+                if key in existing.get(service, {}):
+                    merged[service][key] = existing[service][key]
+                else:
+                    merged[service][key] = ""
+            # Use new value
+            else:
                 merged[service][key] = value
-            elif key in existing.get(service, {}):
-                # Keep existing value
-                merged[service][key] = existing[service][key]
-    
+
     return merged
 
 @app.post("/api/notifications/settings")
