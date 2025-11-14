@@ -789,14 +789,33 @@
             let dhcpIndicator = '';
             if (dhcpCorrect) {
                 // Correct configuration - show checkmark
-                dhcpIndicator = dhcpIsOn 
-                    ? '<span style="color: #10b981; font-size: 16px;">✓</span>' 
+                dhcpIndicator = dhcpIsOn
+                    ? '<span style="color: #10b981; font-size: 16px;">✓</span>'
                     : '<span style="color: #64748b; font-size: 16px;">✓</span>';
             } else {
                 // Misconfiguration - show warning
                 dhcpIndicator = '<div class="status-dot warning"></div>';
             }
-            
+
+            // VIP status logic: Green when correct, Red when conflict
+            // Correct: (MASTER && has_vip) OR (BACKUP && !has_vip)
+            // Conflict: (MASTER && !has_vip) OR (BACKUP && has_vip)
+            const vipCorrect = (nodeData.state === 'MASTER' && nodeData.has_vip) ||
+                               (nodeData.state === 'BACKUP' && !nodeData.has_vip);
+            const vipStatus = vipCorrect ? 'online' : 'offline';
+
+            // VIP label based on state
+            let vipLabel = '';
+            if (nodeData.state === 'MASTER' && nodeData.has_vip) {
+                vipLabel = 'VIP Active (Master)';
+            } else if (nodeData.state === 'BACKUP' && !nodeData.has_vip) {
+                vipLabel = 'VIP Inactive (Backup)';
+            } else if (nodeData.state === 'MASTER' && !nodeData.has_vip) {
+                vipLabel = 'VIP CONFLICT - Should be Master!';
+            } else {
+                vipLabel = 'VIP CONFLICT - Should be Backup!';
+            }
+
             status.innerHTML = `
                 <div class="status-item" title="Server is reachable on the network">
                     <div class="status-dot ${nodeData.online ? 'online' : 'offline'}"></div>
@@ -806,9 +825,9 @@
                     <div class="status-dot ${nodeData.pihole ? 'online' : 'offline'}"></div>
                     <span>Pi-hole Service</span>
                 </div>
-                <div class="status-item" title="This server has the Virtual IP address">
-                    <div class="status-dot ${nodeData.has_vip ? 'online' : 'offline'}"></div>
-                    <span>Virtual IP Active</span>
+                <div class="status-item" title="${vipCorrect ? 'VIP status is correct' : 'VIP CONFLICT detected!'}">
+                    <div class="status-dot ${vipStatus}"></div>
+                    <span>${vipLabel}</span>
                 </div>
                 <div class="status-item" title="DNS resolution is working">
                     <div class="status-dot ${nodeData.dns ? 'online' : 'offline'}"></div>
