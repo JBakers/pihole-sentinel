@@ -16,11 +16,13 @@ import copy
 import logging
 from datetime import datetime
 from typing import Dict
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Security, Depends
+from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
+import secrets
 
 # Configure logging
 handlers: list[logging.Handler] = [logging.StreamHandler()]
@@ -55,8 +57,19 @@ CONFIG = {
     "vip": os.getenv("VIP_ADDRESS"),
     "check_interval": int(os.getenv("CHECK_INTERVAL", "10")),
     "db_path": os.getenv("DB_PATH", "/opt/pihole-monitor/monitor.db"),
-    "notify_config_path": os.getenv("NOTIFY_CONFIG_PATH", "/opt/pihole-monitor/notify_settings.json")
+    "notify_config_path": os.getenv("NOTIFY_CONFIG_PATH", "/opt/pihole-monitor/notify_settings.json"),
+    "api_key": os.getenv("API_KEY")
 }
+
+# Generate API key if not set (for backward compatibility during transition)
+if not CONFIG["api_key"]:
+    # Generate a secure random API key
+    CONFIG["api_key"] = secrets.token_urlsafe(32)
+    logger.warning("=" * 80)
+    logger.warning("NO API_KEY FOUND - GENERATED TEMPORARY KEY FOR THIS SESSION")
+    logger.warning(f"API Key: {CONFIG['api_key']}")
+    logger.warning("Add this to your .env file: API_KEY=" + CONFIG['api_key'])
+    logger.warning("=" * 80)
 
 # Verify required environment variables
 required_vars = ["PRIMARY_IP", "PRIMARY_PASSWORD", "SECONDARY_IP", "SECONDARY_PASSWORD", "VIP_ADDRESS"]
@@ -67,12 +80,32 @@ if missing_vars:
 
 app = FastAPI(title="Pi-hole Keepalived Monitor")
 
+# Security: API Key authentication
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
+
+async def verify_api_key(api_key: str = Security(api_key_header)):
+    """Verify API key for protected endpoints."""
+    if api_key != CONFIG["api_key"]:
+        logger.warning(f"Invalid API key attempt from client")
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid API key"
+        )
+    return api_key
+
+# CORS middleware - restricted to localhost for security
+# If you need remote access, add specific origins here
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        # Add your monitor server IP here if accessing remotely
+        # "http://your-monitor-ip:8080"
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["X-API-Key", "Content-Type"],
 )
 
 # Serve HTML files
@@ -131,11 +164,11 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
     }
     
     # Use TCP socket connection test instead of ping to avoid capability issues
+    # Use context manager to prevent file descriptor leaks
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2)
-        result["online"] = sock.connect_ex((ip, 80)) == 0
-        sock.close()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(2)
+            result["online"] = sock.connect_ex((ip, 80)) == 0
     except Exception as e:
         logger.warning(f"Connection check error for {ip}: {e}")
         return result
@@ -230,15 +263,14 @@ async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str, max_re
         try:
             # Get MAC address by checking ARP table after making connections
             # First connect to each IP to ensure ARP entries exist
+            # Use context manager to prevent file descriptor leaks
             for ip in [vip, primary_ip, secondary_ip]:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(1)
                 try:
-                    sock.connect_ex((ip, 80))
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                        sock.settimeout(1)
+                        sock.connect_ex((ip, 80))
                 except:
                     pass
-                finally:
-                    sock.close()
             
             # Small delay for ARP table to populate
             await asyncio.sleep(0.2)
@@ -437,7 +469,7 @@ async def startup_event():
     asyncio.create_task(monitor_loop())
 
 @app.get("/api/status")
-async def get_status():
+async def get_status(api_key: str = Depends(verify_api_key)):
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
         async with db.execute("SELECT * FROM status_history ORDER BY timestamp DESC LIMIT 1") as cursor:
             row = await cursor.fetchone()
@@ -470,14 +502,14 @@ async def get_status():
             }
 
 @app.get("/api/history")
-async def get_history(hours: float = 24):
+async def get_history(hours: float = 24, api_key: str = Depends(verify_api_key)):
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
         async with db.execute("SELECT timestamp, primary_state, secondary_state FROM status_history WHERE timestamp > datetime('now', '-' || ? || ' hours') ORDER BY timestamp ASC", (hours,)) as cursor:
             rows = await cursor.fetchall()
             return [{"time": row[0], "primary": 1 if row[1] == "MASTER" else 0, "secondary": 1 if row[2] == "MASTER" else 0} for row in rows]
 
 @app.get("/api/events")
-async def get_events(limit: int = 50):
+async def get_events(limit: int = 50, api_key: str = Depends(verify_api_key)):
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
         async with db.execute("SELECT timestamp, event_type, message FROM events ORDER BY timestamp DESC LIMIT ?", (limit,)) as cursor:
             rows = await cursor.fetchall()
@@ -494,7 +526,7 @@ async def root():
         return HTMLResponse(content=f"<h1>Error: index.html not found</h1>", status_code=404)
 
 @app.get("/api/notifications/settings")
-async def get_notification_settings():
+async def get_notification_settings(api_key: str = Depends(verify_api_key)):
     """Get current notification settings (with masked sensitive data)"""
     import json
     
@@ -520,31 +552,8 @@ async def get_notification_settings():
         "webhook": {"enabled": False, "url": ""}
     }
 
-@app.get("/api/notifications/test-settings")
-async def get_test_settings():
-    """Get unmasked notification settings for testing purposes only"""
-    import json
-    
-    config_path = CONFIG["notify_config_path"]
-    
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, 'r') as f:
-                settings = json.load(f)
-                # Return unmasked settings for testing
-                return settings
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to load settings: {str(e)}")
-    
-    # Return default empty settings
-    return {
-        "events": {"failover": True, "recovery": True, "fault": True, "startup": False},
-        "telegram": {"enabled": False, "bot_token": "", "chat_id": ""},
-        "discord": {"enabled": False, "webhook_url": ""},
-        "pushover": {"enabled": False, "user_key": "", "app_token": ""},
-        "ntfy": {"enabled": False, "topic": "", "server": "https://ntfy.sh"},
-        "webhook": {"enabled": False, "url": ""}
-    }
+# SECURITY: Removed insecure test-settings endpoint that exposed credentials
+# The /api/notifications/settings endpoint now properly masks sensitive data
 
 def mask_sensitive_data(settings):
     """Mask sensitive fields with *** but indicate if they're set"""
@@ -593,7 +602,7 @@ def merge_settings(existing, new):
     return merged
 
 @app.post("/api/notifications/settings")
-async def save_notification_settings(settings: dict):
+async def save_notification_settings(settings: dict, api_key: str = Depends(verify_api_key)):
     """Save notification settings (preserving masked values)"""
     import json
     
@@ -665,7 +674,7 @@ async def save_notification_settings(settings: dict):
         raise HTTPException(status_code=500, detail=f"Failed to save settings: {str(e)}")
 
 @app.post("/api/notifications/test")
-async def test_notification(data: dict):
+async def test_notification(data: dict, api_key: str = Depends(verify_api_key)):
     """Test a notification service"""
     service = data.get('service')
     settings = data.get('settings', {})

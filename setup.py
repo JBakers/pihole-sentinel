@@ -85,7 +85,52 @@ class SetupConfig:
             return True
         except ValueError:
             return False
-    
+
+    def validate_interface_name(self, interface):
+        """Validate network interface name to prevent command injection.
+
+        Only allows alphanumeric characters, hyphens, underscores, and dots.
+        """
+        if not interface:
+            return False
+        # Interface names should be alphanumeric with limited special chars
+        pattern = r'^[a-zA-Z0-9._-]{1,15}$'
+        return bool(re.match(pattern, interface))
+
+    def validate_port(self, port):
+        """Validate port number is within valid range."""
+        try:
+            port_num = int(port)
+            return 1 <= port_num <= 65535
+        except (ValueError, TypeError):
+            return False
+
+    def validate_username(self, username):
+        """Validate username to prevent injection attacks.
+
+        Only allows alphanumeric characters, hyphens, underscores, and dots.
+        """
+        if not username:
+            return False
+        # Usernames should be alphanumeric with limited special chars
+        pattern = r'^[a-zA-Z0-9._-]{1,32}$'
+        return bool(re.match(pattern, username))
+
+    def sanitize_input(self, input_str):
+        """Sanitize user input by removing potentially dangerous characters.
+
+        Returns sanitized string or None if input is invalid.
+        """
+        if not input_str:
+            return None
+        # Remove any shell metacharacters
+        dangerous_chars = ['`', '$', ';', '|', '&', '>', '<', '(', ')', '{', '}', '[', ']', '\\', '"', "'", '\n', '\r']
+        sanitized = input_str
+        for char in dangerous_chars:
+            if char in sanitized:
+                return None
+        return sanitized
+
     def check_host_reachable(self, ip):
         """Check if host is reachable."""
         try:
@@ -103,32 +148,42 @@ class SetupConfig:
         return ''.join(secrets.choice(alphabet) for _ in range(length))
     
     def remote_exec(self, host, user, port, command, password=None):
-        """Execute command on remote host via SSH."""
+        """Execute command on remote host via SSH.
+
+        Uses environment variable for password to avoid exposure in process lists.
+        """
         # Use SSH key if available
         if self.config.get('ssh_key_path') and not password:
             cmd = ["ssh", "-i", self.config['ssh_key_path'], "-p", port, "-o", "StrictHostKeyChecking=no"]
+            return subprocess.run(cmd + [f"{user}@{host}", command], check=True)
         elif password:
-            cmd = ["sshpass", "-p", password, "ssh", "-p", port, "-o", "StrictHostKeyChecking=no"]
+            # Use environment variable instead of CLI argument for security
+            cmd = ["sshpass", "-e", "ssh", "-p", port, "-o", "StrictHostKeyChecking=no"]
+            env = os.environ.copy()
+            env['SSHPASS'] = password
+            return subprocess.run(cmd + [f"{user}@{host}", command], check=True, env=env)
         else:
             cmd = ["ssh", "-p", port, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes"]
-        
-        cmd = cmd + [f"{user}@{host}", command]
-        
-        return subprocess.run(cmd, check=True)
+            return subprocess.run(cmd + [f"{user}@{host}", command], check=True)
     
     def remote_copy(self, local_file, host, user, port, remote_path, password=None):
-        """Copy file to remote host via SCP."""
+        """Copy file to remote host via SCP.
+
+        Uses environment variable for password to avoid exposure in process lists.
+        """
         # Use SSH key if available
         if self.config.get('ssh_key_path') and not password:
             cmd = ["scp", "-i", self.config['ssh_key_path'], "-P", port, "-o", "StrictHostKeyChecking=no"]
+            return subprocess.run(cmd + [local_file, f"{user}@{host}:{remote_path}"], check=True)
         elif password:
-            cmd = ["sshpass", "-p", password, "scp", "-P", port, "-o", "StrictHostKeyChecking=no"]
+            # Use environment variable instead of CLI argument for security
+            cmd = ["sshpass", "-e", "scp", "-P", port, "-o", "StrictHostKeyChecking=no"]
+            env = os.environ.copy()
+            env['SSHPASS'] = password
+            return subprocess.run(cmd + [local_file, f"{user}@{host}:{remote_path}"], check=True, env=env)
         else:
             cmd = ["scp", "-P", port, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes"]
-        
-        cmd = cmd + [local_file, f"{user}@{host}:{remote_path}"]
-        
-        return subprocess.run(cmd, check=True)
+            return subprocess.run(cmd + [local_file, f"{user}@{host}:{remote_path}"], check=True)
     
     def configure_timezone_and_ntp(self, host, user, port, password=None, timezone=None):
         """Configure timezone and enable NTP synchronization on remote host."""
@@ -243,10 +298,18 @@ class SetupConfig:
             interface = input(f"Enter network interface name [{interfaces[0]}]: ").strip()
             if not interface:
                 interface = interfaces[0]
+            # Validate interface name to prevent command injection
+            if not self.validate_interface_name(interface):
+                print(f"Error: Invalid interface name! Only alphanumeric characters, dots, hyphens, and underscores allowed.")
+                continue
             if interface in interfaces:
                 self.config['interface'] = interface
                 break
-            print("Invalid interface name!")
+            print(f"Warning: '{interface}' not in detected interfaces. Are you sure? (y/n): ", end='')
+            confirm = input().strip().lower()
+            if confirm == 'y':
+                self.config['interface'] = interface
+                break
 
         # Get IP addresses
         print("\nNOTE: All IP addresses must be in the same subnet!")
@@ -336,17 +399,19 @@ class SetupConfig:
             # Copy key to remote host
             print(f"  Copying SSH key to {user}@{host}...", end=' ')
             
-            # Use sshpass to authenticate and add key
+            # Use sshpass with environment variable to authenticate and add key (secure)
             cmd = [
-                "sshpass", "-p", password,
+                "sshpass", "-e",
                 "ssh", "-p", port,
                 "-o", "StrictHostKeyChecking=no",
                 "-o", "ConnectTimeout=10",
                 f"{user}@{host}",
                 f"mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '{pub_key}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
             ]
-            
-            result = subprocess.run(cmd, capture_output=True, timeout=15)
+
+            env = os.environ.copy()
+            env['SSHPASS'] = password
+            result = subprocess.run(cmd, capture_output=True, timeout=15, env=env)
             
             if result.returncode == 0:
                 # Test the key
@@ -390,8 +455,22 @@ class SetupConfig:
                 monitor_ip = input(f"\n{Colors.BOLD}Monitor server IP:{Colors.END} ")
                 if self.validate_ip(monitor_ip):
                     self.config['monitor_ip'] = monitor_ip
-                    self.config['monitor_ssh_user'] = input(f"SSH user [{Colors.CYAN}root{Colors.END}]: ").strip() or "root"
-                    self.config['monitor_ssh_port'] = input(f"SSH port [{Colors.CYAN}22{Colors.END}]: ").strip() or "22"
+
+                    # Validate SSH user
+                    while True:
+                        ssh_user = input(f"SSH user [{Colors.CYAN}root{Colors.END}]: ").strip() or "root"
+                        if self.validate_username(ssh_user):
+                            self.config['monitor_ssh_user'] = ssh_user
+                            break
+                        print(f"{Colors.RED}Error: Invalid username!{Colors.END}")
+
+                    # Validate SSH port
+                    while True:
+                        ssh_port = input(f"SSH port [{Colors.CYAN}22{Colors.END}]: ").strip() or "22"
+                        if self.validate_port(ssh_port):
+                            self.config['monitor_ssh_port'] = ssh_port
+                            break
+                        print(f"{Colors.RED}Error: Invalid port! Must be between 1-65535.{Colors.END}")
                     
                     if self.check_host_reachable(monitor_ip):
                         print(f"{Colors.GREEN}✓ Monitor server is reachable{Colors.END}")
@@ -413,9 +492,21 @@ class SetupConfig:
         
         # Set defaults for all servers
         print(f"\nSSH access configuration (same for all servers):")
-        ssh_user = input(f"SSH user [{Colors.CYAN}root{Colors.END}]: ").strip() or "root"
-        ssh_port = input(f"SSH port [{Colors.CYAN}22{Colors.END}]: ").strip() or "22"
-        
+
+        # Validate SSH user
+        while True:
+            ssh_user = input(f"SSH user [{Colors.CYAN}root{Colors.END}]: ").strip() or "root"
+            if self.validate_username(ssh_user):
+                break
+            print(f"{Colors.RED}Error: Invalid username! Only alphanumeric, dots, hyphens, and underscores allowed.{Colors.END}")
+
+        # Validate SSH port
+        while True:
+            ssh_port = input(f"SSH port [{Colors.CYAN}22{Colors.END}]: ").strip() or "22"
+            if self.validate_port(ssh_port):
+                break
+            print(f"{Colors.RED}Error: Invalid port! Must be between 1-65535.{Colors.END}")
+
         # Apply to all servers
         self.config['primary_ssh_user'] = ssh_user
         self.config['primary_ssh_port'] = ssh_port
@@ -1036,15 +1127,17 @@ NODE_STATE=MASTER
                 
                 if self.config.get('ssh_key_path') and not password:
                     result = subprocess.run(
-                        ["ssh", "-i", self.config['ssh_key_path'], "-p", port, "-o", "StrictHostKeyChecking=no", 
+                        ["ssh", "-i", self.config['ssh_key_path'], "-p", port, "-o", "StrictHostKeyChecking=no",
                          f"{user}@{host}", check_cmd],
                         capture_output=True, text=True, timeout=10
                     )
                 elif password:
+                    env = os.environ.copy()
+                    env['SSHPASS'] = password
                     result = subprocess.run(
-                        ["sshpass", "-p", password, "ssh", "-p", port, "-o", "StrictHostKeyChecking=no", 
+                        ["sshpass", "-e", "ssh", "-p", port, "-o", "StrictHostKeyChecking=no",
                          f"{user}@{host}", check_cmd],
-                        capture_output=True, text=True, timeout=10
+                        capture_output=True, text=True, timeout=10, env=env
                     )
                 else:
                     result = subprocess.run(
