@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🔧 Improved
 
 #### Dependencies
+
 - **Updated Python dependencies to newer, more secure versions:**
   - `fastapi`: 0.68.0 → ≥0.104.0
   - `uvicorn`: 0.15.0 → ≥0.24.0 (with standard extras)
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added version constraints to root `requirements.txt`
 
 #### Logging & Monitoring
+
 - **Replaced all `print()` statements with proper logging in `monitor.py`:**
   - Added Python `logging` module with configurable levels
   - Logs now written to `/var/log/pihole-monitor.log` (when directory exists)
@@ -28,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Console output remains available via StreamHandler
 
 #### Error Handling
+
 - **Improved error handling in `sync-pihole-config.sh`:**
   - Now distinguishes between "file doesn't exist" vs "sync failed" errors
   - Checks if remote file exists before attempting rsync
@@ -35,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Exits with error on critical sync failures instead of continuing
 
 #### VIP Detection
+
 - **Added retry logic to VIP detection (`check_who_has_vip`):**
   - 3 retry attempts with 1-second delays between failures
   - Better logging of MAC address detection attempts
@@ -42,12 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Clearer warnings when VIP has no ARP entry
 
 #### Network Configuration
+
 - **Fixed hardcoded network interface in keepalived scripts:**
   - `keepalived_notify.sh` now uses `${INTERFACE}` variable instead of hardcoded `eth0`
   - Reads interface from environment with fallback to `eth0`
   - Supports all network interface types (ens18, enp3s0, etc.)
 
 #### Timezone Configuration
+
 - **Made timezone auto-detection in `setup.py`:**
   - Automatically detects system timezone using `timedatectl`
   - Falls back to `Europe/Amsterdam` if detection fails
@@ -55,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Better logging of configured timezone
 
 ### 🐛 Fixed
+
 - Network interface no longer hardcoded in arping command
 - VIP detection more reliable with retry mechanism
 - Sync errors now properly reported instead of silently ignored
@@ -62,10 +69,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All exceptions now properly logged with context
 
 ### 📚 Documentation
+
 - Added this CHANGELOG.md file
 - All changes documented with rationale
 
 ### 🔒 Security
+
 - Updated dependencies address known CVEs in older versions
 - Better error logging improves security incident detection
 - No changes to existing security features
@@ -73,6 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## Legend
+
 - 🎉 New feature
 - 🔧 Improvement/Enhancement
 - 🐛 Bug fix
