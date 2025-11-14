@@ -8,7 +8,7 @@ Since Debian 13/Python 3.13+, the system Python is externally managed and doesn'
 
 ### Development Setup
 
-**Voor development/testing gebruik een virtual environment:**
+**For development/testing, use a virtual environment:**
 
 ```bash
 # Create virtual environment
@@ -25,75 +25,75 @@ pip install -r dashboard/requirements.txt
 deactivate
 ```
 
-**Belangrijke commando's:**
+**Important commands:**
 
 ```bash
-# Activeer altijd de venv voor development:
+# Always activate venv for development:
 source venv/bin/activate
 
-# Test de monitor service:
+# Test the monitor service:
 cd dashboard
 python monitor.py
 
-# Run setup.py (alleen voor testen van setup flow):
+# Run setup.py (for testing setup flow only):
 python ../setup.py --help
 ```
 
 ### Production Deployment
 
-**Voor production gebruik het setup.py script:**
+**For production, use the setup.py script:**
 
-Het setup.py script maakt automatisch een isolated virtual environment aan in `/opt/pihole-monitor/venv/` en installeert alle dependencies daarin. Je hoeft NIETS handmatig te installeren.
+The setup.py script automatically creates an isolated virtual environment in `/opt/pihole-monitor/venv/` and installs all dependencies there. You don't need to install anything manually.
 
 ```bash
 # Production setup (creates venv automatically)
 sudo python3 setup.py
 ```
 
-Het setup script:
+The setup script:
 
-- Maakt `/opt/pihole-monitor/venv/` aan
-- Installeert alle dependencies in die venv
-- Configureert systemd services om de venv te gebruiken
-- Installeert system packages (keepalived, arping, etc.)
+- Creates `/opt/pihole-monitor/venv/`
+- Installs all dependencies in that venv
+- Configures systemd services to use the venv
+- Installs system packages (keepalived, arping, etc.)
 
 ## Common Issues
 
 ### ❌ Error: externally-managed-environment
 
-**Probleem:**
+**Problem:**
 
 ```text
 error: externally-managed-environment
 × This environment is externally managed
 ```
 
-**Oplossing:**
+**Solution:**
 
 ```bash
-# Gebruik NOOIT --break-system-packages
-# Maak in plaats daarvan een venv:
+# NEVER use --break-system-packages
+# Instead, create a venv:
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### ❌ Import errors tijdens development
+### ❌ Import errors during development
 
-**Probleem:**
+**Problem:**
 
 ```python
 ModuleNotFoundError: No module named 'fastapi'
 ```
 
-**Oplossing:**
+**Solution:**
 
 ```bash
-# Check of venv actief is:
+# Check if venv is active:
 which python
-# Should show: /home/jochem/pihole-sentinel/venv/bin/python
+# Should show: /path/to/pihole-sentinel/venv/bin/python
 
-# Zo niet, activeer:
+# If not, activate it:
 source venv/bin/activate
 ```
 
@@ -168,7 +168,7 @@ pihole-sentinel/
 
 ## Version Information
 
-- **Current Version:** 0.8.0
+- **Current Version:** 0.9.0-beta.1
 - **Python:** 3.8+ (tested with 3.13)
 - **OS:** Debian 11+/Ubuntu 20.04+
 
