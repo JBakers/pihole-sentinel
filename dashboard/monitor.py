@@ -14,9 +14,10 @@ import subprocess
 import socket
 import copy
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict
-from fastapi import FastAPI, HTTPException, Security, Depends
+from collections import defaultdict
+from fastapi import FastAPI, HTTPException, Security, Depends, Request
 from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
@@ -24,11 +25,19 @@ from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 import secrets
 
-# Configure logging
+# Configure logging with rotation
+from logging.handlers import RotatingFileHandler
+
 handlers: list[logging.Handler] = [logging.StreamHandler()]
 try:
     if os.path.exists('/var/log'):
-        handlers.append(logging.FileHandler('/var/log/pihole-monitor.log'))
+        # Rotating file handler: 10MB per file, keep 5 backup files
+        rotating_handler = RotatingFileHandler(
+            '/var/log/pihole-monitor.log',
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5
+        )
+        handlers.append(rotating_handler)
 except (PermissionError, OSError):
     pass  # Fall back to console-only logging
 
@@ -93,6 +102,55 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
         )
     return api_key
 
+# Rate limiting for notification test endpoint
+# Stores {ip_address: [timestamp1, timestamp2, ...]}
+rate_limit_store = defaultdict(list)
+RATE_LIMIT_REQUESTS = 3  # Max 3 requests
+RATE_LIMIT_WINDOW = 60  # Per 60 seconds
+
+async def rate_limit_check(request: Request):
+    """Rate limiting: max 3 requests per 60 seconds per IP."""
+    client_ip = request.client.host if request.client else "unknown"
+    now = datetime.now()
+
+    # Clean old entries
+    rate_limit_store[client_ip] = [
+        ts for ts in rate_limit_store[client_ip]
+        if now - ts < timedelta(seconds=RATE_LIMIT_WINDOW)
+    ]
+
+    # Check rate limit
+    if len(rate_limit_store[client_ip]) >= RATE_LIMIT_REQUESTS:
+        logger.warning(f"Rate limit exceeded for {client_ip}")
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Max {RATE_LIMIT_REQUESTS} requests per {RATE_LIMIT_WINDOW} seconds."
+        )
+
+    # Add current request
+    rate_limit_store[client_ip].append(now)
+    return True
+
+# Global aiohttp ClientSession for connection pooling
+# Reusing sessions improves performance and prevents connection exhaustion
+http_session: aiohttp.ClientSession = None
+
+async def get_http_session() -> aiohttp.ClientSession:
+    """Get or create global HTTP session for connection pooling."""
+    global http_session
+    if http_session is None or http_session.closed:
+        # Create session with connection pooling and timeouts
+        timeout = aiohttp.ClientTimeout(total=10)
+        connector = aiohttp.TCPConnector(limit=100, limit_per_host=10)
+        http_session = aiohttp.ClientSession(timeout=timeout, connector=connector)
+    return http_session
+
+async def close_http_session():
+    """Close global HTTP session on shutdown."""
+    global http_session
+    if http_session and not http_session.closed:
+        await http_session.close()
+
 # CORS middleware - restricted to localhost for security
 # If you need remote access, add specific origins here
 app.add_middleware(
@@ -148,11 +206,27 @@ async def init_db():
                 message TEXT
             )
         """)
-        
+
+        # Create indexes for better query performance
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_status_timestamp
+            ON status_history(timestamp DESC)
+        """)
+
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_events_timestamp
+            ON events(timestamp DESC)
+        """)
+
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_events_type
+            ON events(event_type, timestamp DESC)
+        """)
+
         await db.commit()
 
 async def check_pihole_simple(ip: str, password: str) -> Dict:
-    """Simple Pi-hole check - creates and closes session each time"""
+    """Simple Pi-hole check - uses global session pool for better performance."""
     result = {
         "online": False,
         "pihole": False,
@@ -162,7 +236,7 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
         "dhcp_leases": 0,
         "dhcp_enabled": False
     }
-    
+
     # Use TCP socket connection test instead of ping to avoid capability issues
     # Use context manager to prevent file descriptor leaks
     try:
@@ -172,83 +246,97 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
     except Exception as e:
         logger.warning(f"Connection check error for {ip}: {e}")
         return result
-    
+
     if not result["online"]:
         return result
-    
+
     try:
-        async with aiohttp.ClientSession() as session:
-            sid = None
-            
+        # Use global session pool instead of creating new session each time
+        session = await get_http_session()
+        sid = None
+
+        try:
+            async with session.post(f"http://{ip}/api/auth", json={"password": password}, timeout=aiohttp.ClientTimeout(total=5)) as auth_resp:
+                if auth_resp.status == 200:
+                    auth_data = await auth_resp.json()
+                    # Pi-hole v6 returns sid within a session object
+                    session_data = auth_data.get("session", {})
+                    sid = session_data.get("sid")
+        except Exception as e:
+            logger.debug(f"FTL Auth exception for {ip}: {e}")
+            return result
+
+        if not sid:
+            logger.warning(f"Could not get session ID for {ip}. Check password.")
+            return result
+
+        headers = {"X-FTL-SID": sid}
+
+        try:
+            async with session.get(f"http://{ip}/api/stats/summary", headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as stats_resp:
+                if stats_resp.status == 200:
+                    stats = await stats_resp.json()
+                    result["pihole"] = True
+                    result["queries"] = stats.get("dns_queries_today", 0)
+                    result["blocked"] = stats.get("ads_blocked_today", 0)
+                    result["clients"] = stats.get("unique_clients", 0)
+        except Exception:
+            result["pihole"] = False
+
+        if result["pihole"]:
+            # Check DHCP configuration via config API
             try:
-                async with session.post(f"http://{ip}/api/auth", json={"password": password}, timeout=aiohttp.ClientTimeout(total=5)) as auth_resp:
-                    if auth_resp.status == 200:
-                        auth_data = await auth_resp.json()
-                        # Pi-hole v6 returns sid within a session object
-                        session_data = auth_data.get("session", {})
-                        sid = session_data.get("sid")
+                async with session.get(f"http://{ip}/api/config/dhcp", headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as dhcp_resp:
+                    if dhcp_resp.status == 200:
+                        dhcp_config = await dhcp_resp.json()
+                        result["dhcp_enabled"] = dhcp_config.get("config", {}).get("dhcp", {}).get("active", False)
+                        logger.debug(f"DHCP for {ip}: active={result['dhcp_enabled']}")
+                    else:
+                        result["dhcp_enabled"] = False
+                        logger.debug(f"DHCP config API returned status {dhcp_resp.status} for {ip}")
             except Exception as e:
-                logger.debug(f"FTL Auth exception for {ip}: {e}")
-                return result
+                logger.debug(f"DHCP config check exception for {ip}: {e}")
+                result["dhcp_enabled"] = False
 
-            if not sid:
-                logger.warning(f"Could not get session ID for {ip}. Check password.")
-                return result
-
-            headers = {"X-FTL-SID": sid}
-
+            # Check DHCP leases count
             try:
-                async with session.get(f"http://{ip}/api/stats/summary", headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as stats_resp:
-                    if stats_resp.status == 200:
-                        stats = await stats_resp.json()
-                        result["pihole"] = True
-                        result["queries"] = stats.get("dns_queries_today", 0)
-                        result["blocked"] = stats.get("ads_blocked_today", 0)
-                        result["clients"] = stats.get("unique_clients", 0)
-            except Exception:
-                result["pihole"] = False
-            
-            if result["pihole"]:
-                # Check DHCP configuration via config API
-                try:
-                    async with session.get(f"http://{ip}/api/config/dhcp", headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as dhcp_resp:
-                        if dhcp_resp.status == 200:
-                            dhcp_config = await dhcp_resp.json()
-                            result["dhcp_enabled"] = dhcp_config.get("config", {}).get("dhcp", {}).get("active", False)
-                            logger.debug(f"DHCP for {ip}: active={result['dhcp_enabled']}")
-                        else:
-                            result["dhcp_enabled"] = False
-                            logger.debug(f"DHCP config API returned status {dhcp_resp.status} for {ip}")
-                except Exception as e:
-                    logger.debug(f"DHCP config check exception for {ip}: {e}")
-                    result["dhcp_enabled"] = False
-                
-                # Check DHCP leases count
-                try:
-                    async with session.get(f"http://{ip}/api/dhcp/leases", headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as leases_resp:
-                        if leases_resp.status == 200:
-                            leases_data = await leases_resp.json()
-                            leases = leases_data.get("leases", [])
-                            result["dhcp_leases"] = len(leases) if isinstance(leases, list) else 0
-                        else:
-                            result["dhcp_leases"] = 0
-                except Exception as e:
-                    logger.debug(f"DHCP leases check exception for {ip}: {e}")
-                    result["dhcp_leases"] = 0
+                async with session.get(f"http://{ip}/api/dhcp/leases", headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as leases_resp:
+                    if leases_resp.status == 200:
+                        leases_data = await leases_resp.json()
+                        leases = leases_data.get("leases", [])
+                        result["dhcp_leases"] = len(leases) if isinstance(leases, list) else 0
+                    else:
+                        result["dhcp_leases"] = 0
+            except Exception as e:
+                logger.debug(f"DHCP leases check exception for {ip}: {e}")
+                result["dhcp_leases"] = 0
 
-            try:
-                await session.delete(f"http://{ip}/api/auth", headers=headers, timeout=aiohttp.ClientTimeout(total=2))
-            except:
-                pass
+        # Logout from Pi-hole API
+        try:
+            await session.delete(f"http://{ip}/api/auth", headers=headers, timeout=aiohttp.ClientTimeout(total=2))
+        except:
+            pass
     except Exception as e:
         logger.warning(f"Main session exception for {ip}: {e}")
     
     return result
 
 async def check_dns(ip: str) -> bool:
+    """Check if DNS resolver is working by doing actual query.
+
+    Uses asyncio subprocess to avoid blocking the event loop.
+    """
     try:
-        result = subprocess.run(["/usr/bin/dig", "+short", "+time=2", f"@{ip}", "google.com"], capture_output=True, text=True, timeout=5)
-        return bool(result.stdout.strip())
+        proc = await asyncio.create_subprocess_exec(
+            "/usr/bin/dig", "+short", "+time=2", f"@{ip}", "google.com",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+        return proc.returncode == 0 and len(stdout.decode().strip()) > 0
+    except asyncio.TimeoutError:
+        logger.debug(f"DNS check timeout for {ip}")
+        return False
     except Exception as e:
         logger.debug(f"DNS check error for {ip}: {e}")
         return False
@@ -275,11 +363,27 @@ async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str, max_re
             # Small delay for ARP table to populate
             await asyncio.sleep(0.2)
             
-            # Read ARP table entries
-            vip_result = subprocess.run(["/usr/sbin/ip", "neigh", "show", vip], capture_output=True, text=True, timeout=2)
-            primary_result = subprocess.run(["/usr/sbin/ip", "neigh", "show", primary_ip], capture_output=True, text=True, timeout=2)
-            secondary_result = subprocess.run(["/usr/sbin/ip", "neigh", "show", secondary_ip], capture_output=True, text=True, timeout=2)
-            
+            # Read ARP table entries using async subprocess
+            async def get_arp_entry(ip_addr: str) -> str:
+                """Get ARP entry for IP address using async subprocess."""
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        "/usr/sbin/ip", "neigh", "show", ip_addr,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=2)
+                    return stdout.decode()
+                except Exception:
+                    return ""
+
+            # Run ARP lookups concurrently for better performance
+            vip_output, primary_output, secondary_output = await asyncio.gather(
+                get_arp_entry(vip),
+                get_arp_entry(primary_ip),
+                get_arp_entry(secondary_ip)
+            )
+
             def extract_mac(output):
                 """Extract MAC address from 'ip neigh show' output"""
                 parts = output.split()
@@ -288,10 +392,10 @@ async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str, max_re
                     return parts[lladdr_idx + 1].upper()
                 except (ValueError, IndexError):
                     return None
-            
-            vip_mac = extract_mac(vip_result.stdout)
-            primary_mac = extract_mac(primary_result.stdout)
-            secondary_mac = extract_mac(secondary_result.stdout)
+
+            vip_mac = extract_mac(vip_output)
+            primary_mac = extract_mac(primary_output)
+            secondary_mac = extract_mac(secondary_output)
             
             logger.debug(f"VIP check (attempt {attempt + 1}/{max_retries}): VIP_MAC={vip_mac}, Primary_MAC={primary_mac}, Secondary_MAC={secondary_mac}")
             
@@ -465,8 +569,16 @@ async def monitor_loop():
 @app.on_event("startup")
 async def startup_event():
     await init_db()
+    # Initialize HTTP session pool on startup
+    await get_http_session()
     await log_event("info", "Monitor started")
     asyncio.create_task(monitor_loop())
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    # Clean up HTTP session on shutdown
+    await close_http_session()
+    logger.info("Monitor stopped, HTTP session closed")
 
 @app.get("/api/status")
 async def get_status(api_key: str = Depends(verify_api_key)):
@@ -674,7 +786,12 @@ async def save_notification_settings(settings: dict, api_key: str = Depends(veri
         raise HTTPException(status_code=500, detail=f"Failed to save settings: {str(e)}")
 
 @app.post("/api/notifications/test")
-async def test_notification(data: dict, api_key: str = Depends(verify_api_key)):
+async def test_notification(
+    request: Request,
+    data: dict,
+    api_key: str = Depends(verify_api_key),
+    _rate_limit: bool = Depends(rate_limit_check)
+):
     """Test a notification service"""
     service = data.get('service')
     settings = data.get('settings', {})
