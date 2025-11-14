@@ -130,9 +130,18 @@ class SetupConfig:
         
         return subprocess.run(cmd, check=True)
     
-    def configure_timezone_and_ntp(self, host, user, port, password=None, timezone="Europe/Amsterdam"):
+    def configure_timezone_and_ntp(self, host, user, port, password=None, timezone=None):
         """Configure timezone and enable NTP synchronization on remote host."""
-        print(f"{Colors.CYAN}├─ Configuring timezone and NTP...{Colors.END}")
+        # Auto-detect timezone if not specified
+        if timezone is None:
+            try:
+                result = subprocess.run(['timedatectl', 'show', '--property=Timezone', '--value'], 
+                                      capture_output=True, text=True, timeout=5)
+                timezone = result.stdout.strip() or "Europe/Amsterdam"
+            except Exception:
+                timezone = "Europe/Amsterdam"  # Fallback
+        
+        print(f"{Colors.CYAN}├─ Configuring timezone ({timezone}) and NTP...{Colors.END}")
         try:
             # Set timezone
             self.remote_exec(host, user, port, f"timedatectl set-timezone {timezone}", password)

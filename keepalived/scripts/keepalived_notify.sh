@@ -12,7 +12,9 @@ case $STATE in
         echo "$(timestamp) - Transitioning to MASTER state. Enabling DHCP." >> "$LOGFILE"
         /usr/local/bin/dhcp_control.sh enable >> "$LOGFILE" 2>&1
         # Send gratuitous ARP to update network quickly
-        arping -c 3 -I eth0 -s ${VIP_ADDRESS} ${NETWORK_GATEWAY} &>/dev/null  # Update with your VIP and gateway
+        # Load interface from environment, fallback to eth0 if not set
+        INTERFACE=${INTERFACE:-eth0}
+        arping -c 3 -I ${INTERFACE} -s ${VIP_ADDRESS} ${NETWORK_GATEWAY} &>/dev/null || true
         # Send notification
         [ -x "$NOTIFY_SCRIPT" ] && "$NOTIFY_SCRIPT" "MASTER" &
         ;;

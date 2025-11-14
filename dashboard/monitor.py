@@ -13,6 +13,7 @@ import uvicorn
 import subprocess
 import socket
 import copy
+import logging
 from datetime import datetime
 from typing import Dict
 from fastapi import FastAPI, HTTPException
@@ -20,6 +21,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
+
+# Configure logging
+handlers: list[logging.Handler] = [logging.StreamHandler()]
+try:
+    if os.path.exists('/var/log'):
+        handlers.append(logging.FileHandler('/var/log/pihole-monitor.log'))
+except (PermissionError, OSError):
+    pass  # Fall back to console-only logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=handlers
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -46,7 +62,7 @@ CONFIG = {
 required_vars = ["PRIMARY_IP", "PRIMARY_PASSWORD", "SECONDARY_IP", "SECONDARY_PASSWORD", "VIP_ADDRESS"]
 missing_vars = [var for var in required_vars if not os.getenv(var)]
 if missing_vars:
-    print(f"Error: Missing required environment variables: {', '.join(missing_vars)}")
+    logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
     sys.exit(1)
 
 app = FastAPI(title="Pi-hole Keepalived Monitor")
@@ -121,7 +137,7 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
         result["online"] = sock.connect_ex((ip, 80)) == 0
         sock.close()
     except Exception as e:
-        print(f"Connection check error for {ip}: {e}")
+        logger.warning(f"Connection check error for {ip}: {e}")
         return result
     
     if not result["online"]:
@@ -139,11 +155,11 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
                         session_data = auth_data.get("session", {})
                         sid = session_data.get("sid")
             except Exception as e:
-                print(f"FTL Auth exception for {ip}: {e}")
+                logger.debug(f"FTL Auth exception for {ip}: {e}")
                 return result
 
             if not sid:
-                print(f"Could not get session ID for {ip}. Check password.")
+                logger.warning(f"Could not get session ID for {ip}. Check password.")
                 return result
 
             headers = {"X-FTL-SID": sid}
@@ -166,12 +182,12 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
                         if dhcp_resp.status == 200:
                             dhcp_config = await dhcp_resp.json()
                             result["dhcp_enabled"] = dhcp_config.get("config", {}).get("dhcp", {}).get("active", False)
-                            print(f"DEBUG: DHCP for {ip}: active={result['dhcp_enabled']}")
+                            logger.debug(f"DHCP for {ip}: active={result['dhcp_enabled']}")
                         else:
                             result["dhcp_enabled"] = False
-                            print(f"DEBUG: DHCP config API returned status {dhcp_resp.status} for {ip}")
+                            logger.debug(f"DHCP config API returned status {dhcp_resp.status} for {ip}")
                 except Exception as e:
-                    print(f"DHCP config check exception for {ip}: {e}")
+                    logger.debug(f"DHCP config check exception for {ip}: {e}")
                     result["dhcp_enabled"] = False
                 
                 # Check DHCP leases count
@@ -184,7 +200,7 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
                         else:
                             result["dhcp_leases"] = 0
                 except Exception as e:
-                    print(f"DHCP leases check exception for {ip}: {e}")
+                    logger.debug(f"DHCP leases check exception for {ip}: {e}")
                     result["dhcp_leases"] = 0
 
             try:
@@ -192,7 +208,7 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
             except:
                 pass
     except Exception as e:
-        print(f"Main session exception for {ip}: {e}")
+        logger.warning(f"Main session exception for {ip}: {e}")
     
     return result
 
@@ -201,63 +217,73 @@ async def check_dns(ip: str) -> bool:
         result = subprocess.run(["/usr/bin/dig", "+short", "+time=2", f"@{ip}", "google.com"], capture_output=True, text=True, timeout=5)
         return bool(result.stdout.strip())
     except Exception as e:
-        print(f"DNS check error for {ip}: {e}")
+        logger.debug(f"DNS check error for {ip}: {e}")
         return False
 
-async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str) -> tuple:
+async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str, max_retries: int = 3) -> tuple:
     """
     Check which Pi-hole has the VIP by comparing MAC addresses.
     Connect to VIP and both servers, then compare which server's MAC matches the VIP's MAC.
+    Includes retry logic for reliability.
     """
-    try:
-        # Get MAC address by checking ARP table after making connections
-        # First connect to each IP to ensure ARP entries exist
-        for ip in [vip, primary_ip, secondary_ip]:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(1)
-            try:
-                sock.connect_ex((ip, 80))
-            except:
-                pass
-            finally:
-                sock.close()
-        
-        # Small delay for ARP table to populate
-        await asyncio.sleep(0.2)
-        
-        # Read ARP table entries
-        vip_result = subprocess.run(["/usr/sbin/ip", "neigh", "show", vip], capture_output=True, text=True, timeout=2)
-        primary_result = subprocess.run(["/usr/sbin/ip", "neigh", "show", primary_ip], capture_output=True, text=True, timeout=2)
-        secondary_result = subprocess.run(["/usr/sbin/ip", "neigh", "show", secondary_ip], capture_output=True, text=True, timeout=2)
-        
-        def extract_mac(output):
-            """Extract MAC address from 'ip neigh show' output"""
-            parts = output.split()
-            try:
-                lladdr_idx = parts.index('lladdr')
-                return parts[lladdr_idx + 1].upper()
-            except (ValueError, IndexError):
-                return None
-        
-        vip_mac = extract_mac(vip_result.stdout)
-        primary_mac = extract_mac(primary_result.stdout)
-        secondary_mac = extract_mac(secondary_result.stdout)
-        
-        print(f"VIP check: VIP_MAC={vip_mac}, Primary_MAC={primary_mac}, Secondary_MAC={secondary_mac}")
-        
-        if vip_mac and primary_mac and vip_mac == primary_mac:
-            return True, False
-        elif vip_mac and secondary_mac and vip_mac == secondary_mac:
-            return False, True
-        else:
-            # If VIP MAC not found, likely no MASTER (both BACKUP)
-            if not vip_mac:
-                print(f"WARNING: VIP {vip} has no ARP entry - possible keepalived failure")
-            return False, False
-        
-    except Exception as e:
-        print(f"Error checking VIP: {e}")
-        return False, False
+    for attempt in range(max_retries):
+        try:
+            # Get MAC address by checking ARP table after making connections
+            # First connect to each IP to ensure ARP entries exist
+            for ip in [vip, primary_ip, secondary_ip]:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1)
+                try:
+                    sock.connect_ex((ip, 80))
+                except:
+                    pass
+                finally:
+                    sock.close()
+            
+            # Small delay for ARP table to populate
+            await asyncio.sleep(0.2)
+            
+            # Read ARP table entries
+            vip_result = subprocess.run(["/usr/sbin/ip", "neigh", "show", vip], capture_output=True, text=True, timeout=2)
+            primary_result = subprocess.run(["/usr/sbin/ip", "neigh", "show", primary_ip], capture_output=True, text=True, timeout=2)
+            secondary_result = subprocess.run(["/usr/sbin/ip", "neigh", "show", secondary_ip], capture_output=True, text=True, timeout=2)
+            
+            def extract_mac(output):
+                """Extract MAC address from 'ip neigh show' output"""
+                parts = output.split()
+                try:
+                    lladdr_idx = parts.index('lladdr')
+                    return parts[lladdr_idx + 1].upper()
+                except (ValueError, IndexError):
+                    return None
+            
+            vip_mac = extract_mac(vip_result.stdout)
+            primary_mac = extract_mac(primary_result.stdout)
+            secondary_mac = extract_mac(secondary_result.stdout)
+            
+            logger.debug(f"VIP check (attempt {attempt + 1}/{max_retries}): VIP_MAC={vip_mac}, Primary_MAC={primary_mac}, Secondary_MAC={secondary_mac}")
+            
+            if vip_mac and primary_mac and vip_mac == primary_mac:
+                return True, False
+            elif vip_mac and secondary_mac and vip_mac == secondary_mac:
+                return False, True
+            else:
+                # If VIP MAC not found, likely no MASTER (both BACKUP)
+                if not vip_mac:
+                    logger.warning(f"VIP {vip} has no ARP entry (attempt {attempt + 1}/{max_retries}) - possible keepalived failure")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(1)  # Wait before retry
+                        continue
+                return False, False
+            
+        except Exception as e:
+            logger.error(f"Error checking VIP (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(1)  # Wait before retry
+            else:
+                return False, False
+    
+    return False, False
 
 async def log_event(event_type: str, message: str):
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
@@ -300,35 +326,35 @@ async def monitor_loop():
             if previous_primary_online is not None:
                 if previous_primary_online and not primary_data["online"]:
                     await log_event("warning", "Primary went OFFLINE")
-                    print("⚠️  Primary went OFFLINE")
+                    logger.warning("Primary went OFFLINE")
                 elif not previous_primary_online and primary_data["online"]:
                     await log_event("success", "Primary is back ONLINE")
-                    print("✅ Primary is back ONLINE")
+                    logger.info("Primary is back ONLINE")
             
             if previous_secondary_online is not None:
                 if previous_secondary_online and not secondary_data["online"]:
                     await log_event("warning", "Secondary went OFFLINE")
-                    print("⚠️  Secondary went OFFLINE")
+                    logger.warning("Secondary went OFFLINE")
                 elif not previous_secondary_online and secondary_data["online"]:
                     await log_event("success", "Secondary is back ONLINE")
-                    print("✅ Secondary is back ONLINE")
+                    logger.info("Secondary is back ONLINE")
             
             # Detect Pi-hole service changes
             if previous_primary_pihole is not None:
                 if previous_primary_pihole and not primary_data["pihole"] and primary_data["online"]:
                     await log_event("warning", "Pi-hole service on Primary is DOWN")
-                    print("⚠️  Primary Pi-hole service is DOWN")
+                    logger.warning("Primary Pi-hole service is DOWN")
                 elif not previous_primary_pihole and primary_data["pihole"]:
                     await log_event("success", "Pi-hole service on Primary is back UP")
-                    print("✅ Primary Pi-hole service is back UP")
+                    logger.info("Primary Pi-hole service is back UP")
             
             if previous_secondary_pihole is not None:
                 if previous_secondary_pihole and not secondary_data["pihole"] and secondary_data["online"]:
                     await log_event("warning", "Pi-hole service on Secondary is DOWN")
-                    print("⚠️  Secondary Pi-hole service is DOWN")
+                    logger.warning("Secondary Pi-hole service is DOWN")
                 elif not previous_secondary_pihole and secondary_data["pihole"]:
                     await log_event("success", "Pi-hole service on Secondary is back UP")
-                    print("✅ Secondary Pi-hole service is back UP")
+                    logger.info("Secondary Pi-hole service is back UP")
             
             # Detect VIP changes (not during failover)
             if previous_primary_has_vip is not None and previous_secondary_has_vip is not None:
@@ -336,7 +362,7 @@ async def monitor_loop():
                     current = "Primary" if primary_has_vip else "Secondary"
                     previous = "Primary" if previous_primary_has_vip else "Secondary"
                     await log_event("warning", f"VIP switched from {previous} to {current}")
-                    print(f"⚠️  VIP switched from {previous} to {current}")
+                    logger.warning(f"VIP switched from {previous} to {current}")
             
             dhcp_leases = 0
             if primary_state == "MASTER":
@@ -356,7 +382,7 @@ async def monitor_loop():
             if previous_state and previous_state != current_master:
                 master_name = "Primary" if current_master == "primary" else "Secondary"
                 await log_event("failover", f"{master_name} became MASTER")
-                print(f"⚠️  FAILOVER: {master_name} is now MASTER")
+                logger.warning(f"FAILOVER: {master_name} is now MASTER")
                 
                 # Log reason for failover
                 if current_master == "secondary":
@@ -385,22 +411,22 @@ async def monitor_loop():
             # MASTER should have DHCP enabled, BACKUP should have it disabled
             if primary_state == "MASTER" and not primary_dhcp:
                 await log_event("warning", "⚠️ DHCP misconfiguration: Primary is MASTER but DHCP is DISABLED")
-                print(f"⚠️  WARNING: Primary is MASTER but DHCP is DISABLED")
+                logger.warning("DHCP misconfiguration: Primary is MASTER but DHCP is DISABLED")
             elif primary_state == "BACKUP" and primary_dhcp:
                 await log_event("warning", "⚠️ DHCP misconfiguration: Primary is BACKUP but DHCP is ENABLED")
-                print(f"⚠️  WARNING: Primary is BACKUP but DHCP is ENABLED")
+                logger.warning("DHCP misconfiguration: Primary is BACKUP but DHCP is ENABLED")
             
             if secondary_state == "MASTER" and not secondary_dhcp:
                 await log_event("warning", "⚠️ DHCP misconfiguration: Secondary is MASTER but DHCP is DISABLED")
-                print(f"⚠️  WARNING: Secondary is MASTER but DHCP is DISABLED")
+                logger.warning("DHCP misconfiguration: Secondary is MASTER but DHCP is DISABLED")
             elif secondary_state == "BACKUP" and secondary_dhcp:
                 await log_event("warning", "⚠️ DHCP misconfiguration: Secondary is BACKUP but DHCP is ENABLED")
-                print(f"⚠️  WARNING: Secondary is BACKUP but DHCP is ENABLED")
+                logger.warning("DHCP misconfiguration: Secondary is BACKUP but DHCP is ENABLED")
             
-            print(f"[{datetime.now()}] Primary: {primary_state}, Secondary: {secondary_state}, Leases: {dhcp_leases}")
+            logger.debug(f"[{datetime.now()}] Primary: {primary_state}, Secondary: {secondary_state}, Leases: {dhcp_leases}")
             
         except Exception as e:
-            print(f"Error in monitor loop: {e}")
+            logger.error(f"Error in monitor loop: {e}", exc_info=True)
             await log_event("error", f"Monitor error: {str(e)}")
         await asyncio.sleep(CONFIG["check_interval"])
 

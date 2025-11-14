@@ -90,25 +90,45 @@ sync_from_primary() {
     # Stop Pi-hole temporarily
     log_info "Stopping Pi-hole..."
     systemctl stop pihole-FTL
+    local ftl_was_stopped=true
     
     # Sync gravity database (contains all lists, groups, clients, etc.)
     log_info "Syncing gravity database..."
     rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/gravity.db" "${PIHOLE_DIR}/" || {
         log_error "Failed to sync gravity.db"
-        systemctl start pihole-FTL
+        if [ "$ftl_was_stopped" = "true" ]; then
+            systemctl start pihole-FTL
+        fi
         exit 1
     }
     
     # Sync custom DNS records
     log_info "Syncing custom DNS records..."
-    rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/custom.list" "${PIHOLE_DIR}/" || {
-        log_warn "Failed to sync custom.list (may not exist)"
-    }
+    # Check if file exists on remote before syncing
+    if ssh "root@${PRIMARY_IP}" "[ -f ${PIHOLE_DIR}/custom.list ]"; then
+        rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/custom.list" "${PIHOLE_DIR}/" || {
+            log_error "Failed to sync custom.list - network or permission issue"
+            if [ "$ftl_was_stopped" = "true" ]; then
+                systemctl start pihole-FTL
+            fi
+            exit 1
+        }
+    else
+        log_warn "custom.list does not exist on primary (skipping)"
+    fi
     
     # Sync CNAME records
-    rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/05-pihole-custom-cname.conf" "${PIHOLE_DIR}/" 2>/dev/null || {
-        log_warn "No custom CNAME records to sync"
-    }
+    if ssh "root@${PRIMARY_IP}" "[ -f ${PIHOLE_DIR}/05-pihole-custom-cname.conf ]"; then
+        rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/05-pihole-custom-cname.conf" "${PIHOLE_DIR}/" || {
+            log_error "Failed to sync CNAME records - network or permission issue"
+            if [ "$ftl_was_stopped" = "true" ]; then
+                systemctl start pihole-FTL
+            fi
+            exit 1
+        }
+    else
+        log_warn "No custom CNAME records on primary (skipping)"
+    fi
     
     # Sync DHCP static leases (maar niet dynamische leases)
     log_info "Syncing DHCP static leases..."
