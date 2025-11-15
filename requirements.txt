@@ -1,10 +1,11 @@
 # Python requirements
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-aiohttp>=3.9.0
-aiosqlite>=0.19.0
-aiofiles>=23.2.0
+# Updated to latest versions with security patches (2024)
+fastapi>=0.115.0  # Updated from 0.104.0 - includes CVE fixes
+uvicorn[standard]>=0.30.0  # Updated from 0.24.0 - security updates
+aiohttp>=3.10.0  # Updated from 3.9.0 - fixes CVE-2024-23334
+aiosqlite>=0.20.0  # Updated from 0.19.0
+aiofiles>=24.1.0  # Updated from 23.2.0
 python-dotenv>=1.0.0
-python-dateutil>=2.8.2
-setuptools>=65.0.0
-wheel>=0.38.0
+python-dateutil>=2.9.0  # Updated from 2.8.2
+setuptools>=75.0.0  # Updated from 65.0.0
+wheel>=0.44.0  # Updated from 0.38.0

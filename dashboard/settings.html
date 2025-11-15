@@ -390,7 +390,7 @@
         <div class="header">
             <div>
                 <h1>⚙️ Notification Settings</h1>
-                <p style="margin-top: 5px; opacity: 0.7; font-size: 14px;">Pi-hole Sentinel v0.8.0</p>
+                <p style="margin-top: 5px; opacity: 0.7; font-size: 14px;">Pi-hole Sentinel v0.9.0-beta.1</p>
             </div>
             <a href="/" class="back-btn">← Back to Dashboard</a>
         </div>
@@ -586,9 +586,13 @@
 
     <script>
         const API_BASE = window.location.origin;
-        
+        const API_KEY = 'YOUR_API_KEY_HERE';
+
         // Store masked values to detect if user changed them
         const maskedValues = {};
+
+        // Store loaded settings to detect unsaved changes
+        let loadedSettings = {};
         
         // Toggle password visibility
         function toggleVisibility(fieldId) {
@@ -612,9 +616,14 @@
         // Load settings on page load
         async function loadSettings() {
             try {
-                const response = await fetch(`${API_BASE}/api/notifications/settings`);
+                const response = await fetch(`${API_BASE}/api/notifications/settings`, {
+                    headers: {
+                        'X-API-Key': API_KEY
+                    }
+                });
                 if (response.ok) {
                     const settings = await response.json();
+                    loadedSettings = settings; // Store for comparison
                     populateForm(settings);
                 }
             } catch (error) {
@@ -695,17 +704,40 @@
         
         async function testNotification(service) {
             try {
-                // Get unmasked settings from server for testing
-                const settingsResponse = await fetch(`${API_BASE}/api/notifications/test-settings`);
-                if (!settingsResponse.ok) {
-                    throw new Error('Could not load settings for testing');
+                // Check if service is enabled in the form
+                const enabled = document.getElementById(`${service}-enabled`).checked;
+                if (!enabled) {
+                    alert(`❌ Please enable ${service} first`);
+                    return;
                 }
-                const serverSettings = await settingsResponse.json();
-                
+
+                // Auto-save this service's settings before testing
+                const formData = collectFormData();
+                const saveResponse = await fetch(`${API_BASE}/api/notifications/settings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!saveResponse.ok) {
+                    alert(`❌ Failed to save settings before testing`);
+                    return;
+                }
+
+                // Update loaded settings after save
+                loadedSettings = formData;
+
+                // Now test with the freshly saved settings
                 const response = await fetch(`${API_BASE}/api/notifications/test`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ service, settings: serverSettings[service] })
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
+                    body: JSON.stringify({ service })
                 });
                 
                 if (response.ok) {
@@ -773,11 +805,14 @@
             saveBtn.textContent = '💾 Saving...';
             
             const data = collectFormData();
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/notifications/settings`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
                     body: JSON.stringify(data)
                 });
                 

@@ -35,6 +35,10 @@ generated_configs/
 PROJECT-HISTORY.md
 chat.txt
 
+# Temporary files and test scripts
+tmp/
+test_colors.py
+
 # Social preview generation outputs (not part of project, SVG sources are kept)
 .github/social-preview.png
 .github/social-preview.html

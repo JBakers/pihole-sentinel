@@ -5,6 +5,63 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0-beta.1] - 2025-11-14
+
+### 🎉 New Features
+
+#### Automatic API Key Injection
+- **Automatic API key configuration during deployment:**
+  - Setup script now automatically injects Pi-hole API keys into `index.html`
+  - No manual configuration required after deployment
+  - Seamless dashboard experience out-of-the-box
+  - Secure handling of API credentials during deployment
+
+#### Enhanced Dashboard Features
+- **Improved Settings Management:**
+  - Settings button repositioned to right side of header for better UX
+  - Auto-save notification settings when clicking Test button
+  - Better user warnings for unsaved notification settings
+  - Fixed masked notification values not being saved correctly
+  - Test notifications now use saved settings instead of form values
+
+#### Chart & Visualization Improvements
+- **Enhanced Historical Data Display:**
+  - Chart.js CDN fallback for better reliability
+  - Improved error handling for chart initialization
+  - Fixed timestamp timezone issues in charts
+  - Better debugging for chart rendering
+
+### 🔧 Improved
+
+#### API Compatibility
+- **Enhanced Pi-hole v6 API Support:**
+  - Fixed DHCP leases API call with proper `content_type=None`
+  - Added fallback to legacy PHP API for DHCP leases count
+  - Better handling of API response variations
+
+#### VIP Detection
+- **Improved Virtual IP Status:**
+  - Enhanced VIP status indicator with conflict detection
+  - Better visual feedback for VIP assignment
+  - Clearer indication of which node holds the VIP
+
+### 🐛 Fixed
+
+- API key injection now works automatically during deployment
+- Masked notification values are properly saved
+- Chart.js loads correctly with CDN fallback
+- DHCP leases count works with both v6 and legacy APIs
+- Settings button placement improved
+- Unsaved notification settings warnings work correctly
+
+### 📚 Documentation
+
+- Updated version badges and references
+- Documented automatic API key injection feature
+- Added deployment notes for new features
+
+---
+
 ## [0.8.0] - 2025-11-14
 
 ### 🔧 Improved
