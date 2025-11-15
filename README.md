@@ -20,6 +20,14 @@
 
 ---
 
+## Introduction
+
+Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS infrastructure. If you rely on Pi-hole for network-wide ad blocking and DNS filtering, you know the frustration when your Pi-hole goes down - suddenly your entire network loses DNS resolution.
+
+Pi-hole Sentinel solves this with automatic failover using a Virtual IP (VIP) that seamlessly switches between your primary and backup Pi-hole servers. When your primary Pi-hole fails, the backup takes over instantly without any manual intervention or DNS changes on your devices. Optional DHCP failover ensures uninterrupted network services.
+
+Built for home networks and small businesses that need reliability without complexity. Works with your existing Pi-hole setup - no special configuration required.
+
 ## What does it do?
 
 1. **Automatic Failover** 
@@ -170,13 +178,15 @@ The setup script will:
 7. ✅ **Distribute keys to all servers** (passwordless access!)
 8. ✅ Generate secure passwords for keepalived
 9. ✅ Create all configuration files
-10. ✅ **Deploy to all servers via SSH** (choose option 2)
-11. ✅ Auto-detect and configure timezone with NTP on all servers
-12. ✅ **Securely cleanup sensitive files** after deployment
+10. ✅ **Automatically inject Pi-hole API keys into dashboard** (v0.9.0+)
+11. ✅ **Deploy to all servers via SSH** (choose option 2)
+12. ✅ Auto-detect and configure timezone with NTP on all servers
+13. ✅ **Securely cleanup sensitive files** after deployment
 
 **Features:**
 - 🔐 Automatic SSH key generation and distribution
 - 🚀 One-click deployment to all servers
+- 🔑 Automatic API key injection into dashboard (v0.9.0+)
 - 🔒 Automatic cleanup of sensitive configuration files
 - 🎨 Beautiful colored output with ASCII art logo
 - 📊 Progress indicators for all operations
