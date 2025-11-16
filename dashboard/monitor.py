@@ -320,7 +320,8 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
         # Logout from Pi-hole API
         try:
             await session.delete(f"http://{ip}/api/auth", headers=headers, timeout=aiohttp.ClientTimeout(total=2))
-        except:
+        except Exception:
+            # Logout is non-critical, ignore failures
             pass
     except Exception as e:
         logger.warning(f"Main session exception for {ip}: {e}")
@@ -363,7 +364,8 @@ async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str, max_re
                     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                         sock.settimeout(1)
                         sock.connect_ex((ip, 80))
-                except:
+                except (OSError, socket.error):
+                    # Socket errors are expected for unreachable hosts
                     pass
             
             # Small delay for ARP table to populate
@@ -750,7 +752,8 @@ async def save_notification_settings(settings: dict, api_key: str = Depends(veri
         try:
             with open(config_path, 'r') as f:
                 existing_settings = json.load(f)
-        except:
+        except (json.JSONDecodeError, IOError, OSError):
+            # Config file corrupted or unreadable, use defaults
             pass
     
     # Merge settings, keeping existing values where new value is None

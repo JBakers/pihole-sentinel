@@ -131,6 +131,24 @@ class SetupConfig:
                 return None
         return sanitized
 
+    def escape_for_sed(self, text):
+        """Escape special characters for safe use in sed replacement string.
+
+        Escapes: / \ & newline
+        Uses # as delimiter to avoid issues with / in the text.
+        """
+        if not text:
+            return text
+        # Escape backslashes first (must be done before other escapes)
+        escaped = text.replace('\\', '\\\\')
+        # Escape & (special meaning in sed replacement)
+        escaped = escaped.replace('&', '\\&')
+        # Escape # (our delimiter)
+        escaped = escaped.replace('#', '\\#')
+        # Escape newlines
+        escaped = escaped.replace('\n', '\\n')
+        return escaped
+
     def check_host_reachable(self, ip):
         """Check if host is reachable."""
         try:
@@ -914,11 +932,14 @@ NODE_STATE=MASTER
             print("├─ Configuring API authentication...")
             api_key = self.config.get('api_key')
             if api_key:
+                # Escape API key for safe use in sed (prevents injection if key contains special chars)
+                escaped_key = self.escape_for_sed(api_key)
+                # Use # as delimiter to avoid issues with / in the key
                 self.remote_exec(host, user, port,
-                    f"sed -i 's/YOUR_API_KEY_HERE/{api_key}/g' /opt/pihole-monitor/index.html",
+                    f"sed -i 's#YOUR_API_KEY_HERE#{escaped_key}#g' /opt/pihole-monitor/index.html",
                     password)
                 self.remote_exec(host, user, port,
-                    f"sed -i 's/YOUR_API_KEY_HERE/{api_key}/g' /opt/pihole-monitor/settings.html",
+                    f"sed -i 's#YOUR_API_KEY_HERE#{escaped_key}#g' /opt/pihole-monitor/settings.html",
                     password)
                 print("│  → API key configured successfully")
 
