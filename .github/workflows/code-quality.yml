@@ -1,0 +1,154 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ develop, testing, main ]
+  pull_request:
+    branches: [ develop, testing, main ]
+
+jobs:
+  python-checks:
+    name: Python Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r dashboard/requirements.txt
+          pip install pylint flake8 black
+
+      - name: Check code formatting with Black
+        run: |
+          black --check dashboard/monitor.py setup.py || true
+
+      - name: Run Flake8
+        run: |
+          flake8 dashboard/monitor.py setup.py --max-line-length=120 --ignore=E501,W503 || true
+
+      - name: Run Pylint
+        run: |
+          pylint dashboard/monitor.py --max-line-length=120 --disable=C0301,C0103,R0913,R0914,R0915 || true
+
+      - name: Syntax check Python files
+        run: |
+          python -m py_compile dashboard/monitor.py
+          python -m py_compile setup.py
+
+  shell-checks:
+    name: Shell Script Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck on all scripts
+        run: |
+          find . -name "*.sh" -type f -exec shellcheck --severity=warning {} + || true
+
+      - name: Bash syntax check
+        run: |
+          find . -name "*.sh" -type f -exec bash -n {} \;
+
+  markdown-checks:
+    name: Markdown Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install markdownlint
+        run: npm install -g markdownlint-cli
+
+      - name: Run markdownlint
+        run: |
+          markdownlint '**/*.md' --config .markdownlint.json || true
+
+  security-checks:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r dashboard/requirements.txt
+          pip install bandit safety
+
+      - name: Run Bandit security checks
+        run: |
+          bandit -r dashboard/monitor.py setup.py || true
+
+      - name: Check for known vulnerabilities
+        run: |
+          safety check --json || true
+
+  file-checks:
+    name: File and Structure Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for secrets in code
+        run: |
+          # Check for common secret patterns
+          ! grep -r -i "password.*=.*['\"].*['\"]" --include="*.py" --include="*.sh" . || echo "Warning: Potential hardcoded password found"
+          ! grep -r "api[_-]?key.*=.*['\"].*['\"]" --include="*.py" --include="*.sh" . || echo "Warning: Potential hardcoded API key found"
+
+      - name: Check CRLF line endings
+        run: |
+          # Ensure shell scripts use LF, not CRLF
+          if find . -name "*.sh" -exec file {} \; | grep -q CRLF; then
+            echo "Error: Shell scripts with CRLF line endings found"
+            exit 1
+          fi
+
+      - name: Verify required files exist
+        run: |
+          test -f README.md
+          test -f CHANGELOG.md
+          test -f LICENSE
+          test -f VERSION
+          test -f CLAUDE.md
+          test -f dashboard/monitor.py
+          test -f setup.py
+
+      - name: Check version consistency
+        run: |
+          VERSION=$(cat VERSION)
+          echo "VERSION file: $VERSION"
+          grep -q "$VERSION" CHANGELOG.md || echo "Warning: VERSION not found in CHANGELOG.md"
+          grep -q "$VERSION" README.md || echo "Warning: VERSION not found in README.md"
