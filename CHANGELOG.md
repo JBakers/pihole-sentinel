@@ -5,6 +5,29 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.4] - 2025-11-16
+
+### 📚 Documentation
+
+#### Development Environment Clarity
+- **Added "Critical: Development Environment Awareness" mandatory rule to CLAUDE.md:**
+  - Explicitly defines AI sandbox environment (`/home/user/pihole-sentinel/`)
+  - Explicitly defines user's local environment (`~/Workspace/pihole-sentinel/`)
+  - Clarifies GitHub as the only connection/sync point between environments
+  - Provides clear communication rules: AI should never instruct user to work in `/home/user/pihole-sentinel/`
+  - Defines workflow protocol: AI makes changes and commits, user pulls and reviews locally
+  - Includes examples of correct vs incorrect communication
+  - **Addresses recurring miscommunication issue** where AI forgets we work in separate environments
+
+### 🔧 Improved
+
+#### Communication Protocol
+- AI assistants now have explicit guidelines to avoid confusing path references
+- Clear separation of responsibilities: AI does file operations, user does git pull/review
+- Better workflow clarity prevents back-and-forth about "where to run commands"
+
+---
+
 ## [0.10.0-beta.3] - 2025-11-16
 
 ### 🎉 New Features
