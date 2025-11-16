@@ -15,6 +15,30 @@ To maintain code quality and prevent accidental changes, we protect the followin
 - **`testing`** - QA and integration testing, controlled
 - **`develop`** - Active development, basic protection
 
+### GitHub Plan and Repository Type Requirements
+
+**Important:** Branch protection features depend on your GitHub plan AND repository type:
+
+| Feature | Personal Repo (Free) | Personal Repo (Pro) | Organization Repo (Team/Enterprise) |
+|---------|---------------------|---------------------|-------------------------------------|
+| Require PR before merging | ✓ | ✓ | ✓ |
+| Required approvals | ✗ (0 only) | ✓ (1+) | ✓ (1+) |
+| **Restrict who can push** | ✗ | **✗** | **✓** |
+| Require status checks | ✓ | ✓ | ✓ |
+| CODEOWNERS | ✓ | ✓ | ✓ |
+| Bypass list | ✗ | ✗ | ✓ |
+
+**Key Limitation for Personal Repositories:**
+- **Even with GitHub Pro**, you CANNOT restrict who can push to branches
+- This feature ONLY works for Organization-owned repositories
+- For personal repos, protection relies on "Require pull request before merging"
+
+**For solo developers on personal repositories:**
+- You can require PRs and approvals (with Pro)
+- You can require status checks
+- You CANNOT restrict push access (organization feature only)
+- Protection relies on workflow discipline
+
 ---
 
 ## Setup Instructions
@@ -58,10 +82,18 @@ To maintain code quality and prevent accidental changes, we protect the followin
 
 6. **Include administrators** ✓ (even you must follow these rules)
 
-7. **Restrict who can push to matching branches** ✓
-   - **Restrict pushes that create matching branches**
-   - Add: Your GitHub username (only you can merge to main)
-   - Leave empty to allow no direct pushes (force PR workflow)
+7. **Restrict who can push to matching branches** **[ORGANIZATION REPOSITORIES ONLY]**
+   - **Important:** This option only appears for Organization-owned repositories
+   - **Personal repositories:** You will NOT see this option (even with GitHub Pro)
+   - If you see this option (organization repo):
+     - Enable "Restrict pushes that create matching branches"
+     - Add specific users/teams who can push
+     - Or leave empty to allow no direct pushes (force PR workflow)
+   - If you DON'T see this option (personal repo):
+     - **This is normal and expected**
+     - Skip this setting entirely
+     - Your protection relies on "Require PR before merging" (step 1)
+     - You can still approve and merge your own PRs
 
 8. **Allow force pushes** ✗ (disabled - prevent history rewriting)
 
@@ -98,8 +130,9 @@ To maintain code quality and prevent accidental changes, we protect the followin
 
 5. **Include administrators** ✓
 
-6. **Restrict who can push to matching branches** ✓
-   - Add: Your GitHub username (only you can merge to testing)
+6. **Restrict who can push to matching branches** **[ORGANIZATION REPOSITORIES ONLY]**
+   - Personal repos: You will NOT see this option - skip it
+   - Organization repos: Add specific users/teams who can push
 
 7. **Allow force pushes** ✗ (disabled)
 
@@ -154,28 +187,43 @@ This automatically requests your review on all pull requests.
 
 ## Restricting Merge Access
 
-To ensure **only you** can merge to `main` and `testing`:
+### For Personal Repositories (like JBakers/pihole-sentinel)
 
-### Option 1: Using Branch Protection Rules (Recommended)
+**You CANNOT restrict who can push** even with GitHub Pro. Instead, use these protections:
+
+1. **Require pull request before merging** (step 1 in protection rules)
+   - This forces you to create a PR instead of pushing directly
+   - You can approve and merge your own PRs
+
+2. **Include administrators** (step 6 in protection rules)
+   - Even as admin, you must follow the PR workflow
+   - Prevents accidental direct pushes
+
+3. **Repository access control:**
+   - Go to **Settings** → **Collaborators**
+   - Don't add any collaborators (if solo project)
+   - If you have collaborators, give them "Read" access only
+
+**Recommendation for Solo Developers:**
+- Enable "Require PR before merging" with 1 required approval
+- Enable "Include administrators"
+- This creates a good workflow without needing organization features
+
+### For Organization Repositories
+
+If you transfer your repo to a GitHub Organization (Team/Enterprise plan):
 
 1. Go to branch protection rule for `main`
 2. Enable "Restrict who can push to matching branches"
-3. Add only your GitHub username to the allowed list
-4. Repeat for `testing` branch
+3. Add only specific users/teams to the allowed list
+4. Create a "Maintainers" team for better control
+5. Repeat for `testing` branch
 
-### Option 2: Using Repository Settings
-
-1. Go to **Settings** → **Manage access**
-2. Ensure you are the only one with "Write" or "Admin" access
-3. Other collaborators should have "Read" access only (if any)
-
-### Option 3: Using Teams (For Organizations)
-
-If this is an organization repository:
-
-1. Create a team called "Maintainers"
-2. Add yourself to this team
-3. In branch protection rules, restrict push access to "Maintainers" team
+**To transfer to organization:**
+1. Create a GitHub Organization (requires Team plan)
+2. Go to repo **Settings** → **General**
+3. Scroll to "Danger Zone"
+4. Click "Transfer ownership"
 
 ---
 
@@ -343,18 +391,57 @@ git push origin --delete main
 
 ---
 
+## Quick Configuration Guide
+
+### For Personal Repositories (Most Common)
+
+**Settings you WILL see and should enable:**
+1. ✓ Require a pull request before merging (with 1 approval if you have Pro)
+2. ✓ Require status checks to pass before merging
+3. ✓ Require conversation resolution before merging
+4. ✓ Require linear history
+5. ✓ Include administrators
+6. ✗ Allow force pushes (disabled)
+7. ✗ Allow deletions (disabled)
+
+**Settings you will NOT see (organization only):**
+- ✗ Restrict who can push to matching branches
+- ✗ Bypass list
+
+**This is completely normal!** Your protection still works through the PR requirement.
+
+### For Organization Repositories
+
+All of the above, PLUS:
+- ✓ Restrict who can push to matching branches
+- ✓ Bypass list (for CI/CD or specific users)
+
+---
+
 ## Summary Checklist
 
 After following this guide, you should have:
 
+**Essential (All Repository Types):**
 - [ ] Branch protection rule for `main` configured
 - [ ] Branch protection rule for `testing` configured
 - [ ] Branch protection rule for `develop` configured
-- [ ] Only you can merge to `main` and `testing`
+- [ ] "Require pull request before merging" enabled on `main` and `testing`
+- [ ] "Include administrators" enabled (forces you to use PRs)
 - [ ] Force pushes disabled on all protected branches
 - [ ] Branch deletions disabled on all protected branches
-- [ ] (Optional) CODEOWNERS file created
-- [ ] (Optional) GitHub Actions CI/CD set up
+
+**If You Have GitHub Pro (Personal Repo):**
+- [ ] Required approvals set to 1 (you can approve your own PRs)
+
+**If You Have Organization Repository:**
+- [ ] "Restrict who can push to matching branches" configured
+- [ ] Only specific users/teams can merge to `main` and `testing`
+
+**Optional (All Repository Types):**
+- [ ] CODEOWNERS file created (if applicable)
+- [ ] GitHub Actions CI/CD set up
+- [ ] Status checks configured and required
 - [ ] Tested protection rules work correctly
 
 ---
