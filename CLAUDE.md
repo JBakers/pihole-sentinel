@@ -1,15 +1,75 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
 **Last Updated:** 2025-11-16
-**Version:** 0.9.0-beta.1
+**Version:** 0.9.0-beta.2
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 
 This document provides comprehensive guidance for AI assistants working with the Pi-hole Sentinel codebase. It covers architecture, structure, conventions, and development workflows.
 
 ---
 
+## ⚠️ MANDATORY RULES - READ FIRST
+
+### Critical: Version Management (MUST FOLLOW FOR EVERY COMMIT)
+
+**🚨 THESE RULES ARE NON-NEGOTIABLE AND MUST BE FOLLOWED FOR EVERY CODE CHANGE 🚨**
+
+#### Version Update Requirements
+
+**BEFORE making ANY commit, you MUST:**
+
+1. ✅ **Update `VERSION` file** with new semantic version
+   - Bug fixes → Patch version (0.9.0 → 0.9.1)
+   - New features → Minor version (0.9.0 → 0.10.0)
+   - Breaking changes → Major version (0.9.0 → 1.0.0)
+
+2. ✅ **Update `CHANGELOG.md`** with detailed entry
+   - Add entry under appropriate version section
+   - Use categories: New, Improved, Fixed, Security, Documentation
+   - Include specific details of what changed
+
+3. ✅ **Update `CLAUDE.md` header** (lines 3-4) with new version and date
+
+#### Pre-Commit Verification Checklist
+
+**AI Assistant: You MUST verify ALL items before executing `git commit`:**
+
+- [ ] `VERSION` file updated
+- [ ] `CHANGELOG.md` has new entry for this version
+- [ ] `CLAUDE.md` header updated (line 4)
+- [ ] No `print()` statements in Python code (use `logger.*()`)
+- [ ] No hardcoded credentials or secrets
+- [ ] All bash scripts use LF line endings (not CRLF)
+- [ ] Commit message follows format: `type: description`
+
+#### Commit Message Format (REQUIRED)
+
+```
+type: brief description (50 chars max)
+
+Longer explanation if needed.
+What changed and why.
+
+Version: X.Y.Z
+```
+
+**Valid types:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `security`
+
+#### AI Assistant Failure Protocol
+
+**If you (AI assistant) make a commit without updating VERSION and CHANGELOG.md:**
+- ❌ You have FAILED this task
+- ❌ The commit is INVALID
+- ✅ You must immediately create a follow-up commit fixing the version
+- ✅ Apologize to the user and explain what was missed
+
+**No exceptions. No shortcuts. These rules apply to EVERY commit.**
+
+---
+
 ## Table of Contents
 
+- [Mandatory Rules](#️-mandatory-rules---read-first)
 - [Project Overview](#project-overview)
 - [Architecture](#architecture)
 - [Codebase Structure](#codebase-structure)
@@ -478,6 +538,42 @@ systemctl enable pihole-sync.timer
 ---
 
 ## Development Workflows
+
+### Initial Development Setup (REQUIRED)
+
+**Before making any commits, install the git pre-commit hook:**
+
+```bash
+# Option 1: Copy hook to .git/hooks (Recommended)
+cp .githooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+
+# Option 2: Configure git to use .githooks directory
+git config core.hooksPath .githooks
+```
+
+**What the pre-commit hook does:**
+- ✅ Enforces VERSION file updates for code changes
+- ✅ Enforces CHANGELOG.md updates for code changes
+- ✅ Checks for `print()` statements in Python files
+- ✅ Checks for CRLF line endings in bash scripts
+- ✅ Allows documentation-only changes without version updates
+
+**Testing the hook:**
+```bash
+# Make a test change
+echo "# test" >> dashboard/monitor.py
+git add dashboard/monitor.py
+
+# Try to commit without updating VERSION (should fail)
+git commit -m "test: should fail"
+
+# Expected output:
+# ✗ ERROR: VERSION file not updated!
+# ✗ ERROR: CHANGELOG.md not updated!
+```
+
+See `.githooks/README.md` for more details.
 
 ### Making Changes to Monitor Service
 
