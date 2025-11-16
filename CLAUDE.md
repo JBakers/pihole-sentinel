@@ -1,7 +1,7 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
-**Last Updated:** 2025-11-14
-**Version:** 0.8.0
+**Last Updated:** 2025-11-16
+**Version:** 0.9.0-beta.1
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 
 This document provides comprehensive guidance for AI assistants working with the Pi-hole Sentinel codebase. It covers architecture, structure, conventions, and development workflows.
@@ -981,11 +981,14 @@ cat /opt/pihole-monitor/.env         # View monitor config (sensitive!)
 
 ## Version History
 
-- **v0.8.0** (2025-11-14)
+- **v0.9.0-beta.1** (2025-11-14)
+  - Automatic API key injection during deployment
+  - Enhanced notification reliability with retry logic
+  - Improved VIP detection with ARP table population delay
+  - Added comprehensive testing guide (TESTING-GUIDE.md)
   - Updated dependencies to latest secure versions
   - Replaced print() with proper logging in monitor.py
   - Fixed hardcoded network interface in scripts
-  - Added retry logic to VIP detection
   - Auto-detect timezone in setup.py
   - Improved error handling in sync script
 
@@ -1003,7 +1006,7 @@ cat /opt/pihole-monitor/.env         # View monitor config (sensitive!)
 
 ---
 
-**Last Updated:** 2025-11-14
+**Last Updated:** 2025-11-16
 **Maintainer:** JBakers
 **Repository:** https://github.com/JBakers/pihole-sentinel
 
