@@ -5,6 +5,116 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.3] - 2025-11-16
+
+### 🎉 New Features
+
+#### Version Management Enforcement
+- **Git Pre-Commit Hook for Version Management:**
+  - Added automated pre-commit hook to enforce version management rules
+  - Checks that VERSION file is updated for all code changes
+  - Checks that CHANGELOG.md is updated for all code changes
+  - Validates code quality (no print() statements, no CRLF line endings)
+  - Allows documentation-only changes without version updates
+  - Template hook available in `.githooks/` directory for easy installation
+  - Comprehensive installation guide in `.githooks/README.md`
+
+#### Enhanced AI Assistant Guidelines
+- **Mandatory Rules Section in CLAUDE.md:**
+  - Added prominent "MANDATORY RULES - READ FIRST" section
+  - Explicit version management requirements for every commit
+  - Pre-commit verification checklist for AI assistants
+  - Clear failure protocol for non-compliance
+  - Mandatory commit message format with version reference
+
+### 🔧 Improved
+
+#### Documentation
+- **Development Workflows:**
+  - Added "Initial Development Setup" section with git hook installation
+  - Clear instructions for testing the pre-commit hook
+  - Updated Table of Contents to reference mandatory rules
+
+#### Code Quality
+- **Automated Quality Gates:**
+  - Prevents commits without proper versioning
+  - Enforces logging best practices (no print() in production code)
+  - Ensures Unix line endings (LF) in bash scripts
+  - Provides clear error messages and remediation steps
+
+### 📚 Documentation
+
+- Added `.githooks/README.md` with hook installation and usage guide
+- Updated CLAUDE.md with mandatory version management rules
+- Added Development Workflows setup instructions
+- Documented commit message format requirements
+
+---
+
+## [0.10.0-beta.2] - 2025-11-16
+
+### 🐛 Fixed
+
+#### Code Quality & Security
+- **Critical Code Quality Improvements:**
+  - Addressed security vulnerabilities identified in audit
+  - Fixed potential code injection risks
+  - Improved input validation and sanitization
+  - Enhanced error handling across codebase
+
+### 📚 Documentation
+
+- **Branch Protection & Workflow:**
+  - Added comprehensive branch protection setup guide
+  - Created CODEOWNERS file for repository governance
+  - Documented branching strategy (main/develop/testing)
+  - Clarified branch protection settings for personal vs organization repos
+  - Added todo lists and workflow guidance
+
+---
+
+## [0.10.0-beta.1] - 2025-11-15
+
+### ⚠️ Important Changes
+
+#### License Change
+- **Changed License from MIT to GPL v3.0:**
+  - More appropriate for infrastructure/systems software
+  - Ensures contributions remain open source
+  - Protects against proprietary forks
+  - Aligns with project philosophy
+
+### 📚 Documentation
+
+- **Release Readiness & Repository Setup:**
+  - Added comprehensive release readiness audit report
+  - Documented GitHub About section configuration
+  - Improved repository metadata and discoverability
+  - Enhanced project presentation on GitHub
+
+---
+
+## [0.9.0-beta.2] - 2025-11-15
+
+### 🐛 Fixed
+
+#### Documentation Safety
+- **Removed Dangerous Production Advice:**
+  - Removed 'git pull on production' recommendation from TESTING-GUIDE.md
+  - Prevents accidental production system corruption
+  - Promotes safer deployment practices
+
+### 🔧 Improved
+
+#### Documentation
+- **README Enhancements:**
+  - Added comprehensive introduction section
+  - Updated version badges to v0.9.0-beta.1
+  - Fixed badge version format for consistency
+  - Improved project description and value proposition
+
+---
+
 ## [0.9.0-beta.1] - 2025-11-14
 
 ### 🎉 New Features
