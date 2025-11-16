@@ -1,7 +1,7 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
 **Last Updated:** 2025-11-16
-**Version:** 0.9.0-beta.2
+**Version:** 0.10.0-beta.3
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 
 This document provides comprehensive guidance for AI assistants working with the Pi-hole Sentinel codebase. It covers architecture, structure, conventions, and development workflows.
@@ -19,16 +19,67 @@ This document provides comprehensive guidance for AI assistants working with the
 **BEFORE making ANY commit, you MUST:**
 
 1. ✅ **Update `VERSION` file** with new semantic version
-   - Bug fixes → Patch version (0.9.0 → 0.9.1)
-   - New features → Minor version (0.9.0 → 0.10.0)
-   - Breaking changes → Major version (0.9.0 → 1.0.0)
-
 2. ✅ **Update `CHANGELOG.md`** with detailed entry
    - Add entry under appropriate version section
    - Use categories: New, Improved, Fixed, Security, Documentation
    - Include specific details of what changed
-
 3. ✅ **Update `CLAUDE.md` header** (lines 3-4) with new version and date
+
+#### Semantic Versioning Rules (SemVer 2.0.0)
+
+**This project STRICTLY adheres to [Semantic Versioning 2.0.0](https://semver.org/).**
+
+Given a version number **MAJOR.MINOR.PATCH-PRERELEASE**, increment:
+
+1. **MAJOR** version (X.0.0) when you make incompatible API changes or breaking changes
+   - Example: Changing configuration file format without backward compatibility
+   - Example: Removing or renaming required environment variables
+   - Example: Changing CLI arguments or options
+
+2. **MINOR** version (0.X.0) when you add functionality in a backward compatible manner
+   - Example: Adding new features
+   - Example: Adding new optional configuration options
+   - Example: Significant changes like license changes (in beta context)
+
+3. **PATCH** version (0.0.X) when you make backward compatible bug fixes
+   - Example: Fixing bugs without changing functionality
+   - Example: Performance improvements
+   - Example: Security patches that don't change behavior
+
+**Pre-Release Versioning (Beta Phase):**
+
+We are currently in **beta** phase (0.x.x-beta.y). Version format: `MAJOR.MINOR.PATCH-beta.INCREMENT`
+
+- **Minor bump (0.9.0 → 0.10.0):** Significant changes or features warranting new minor version
+  - Each new minor gets `-beta.1` suffix
+  - Example: `0.10.0-beta.1` (license change was significant enough for minor bump)
+
+- **Beta increment (beta.1 → beta.2 → beta.3):** Changes within same minor version
+  - Bug fixes: increment beta (e.g., `0.10.0-beta.1` → `0.10.0-beta.2`)
+  - New features: increment beta (e.g., `0.10.0-beta.2` → `0.10.0-beta.3`)
+  - Keep same MINOR version unless change is truly significant
+
+- **Major version 1.0.0:** Reserved for production-ready release
+  - Will mark end of beta phase
+  - Indicates stable, production-ready software
+  - Only use when ready for public release
+
+**Examples:**
+```
+0.9.0-beta.1  → Initial beta release
+0.9.0-beta.2  → Bug fix in same series
+0.10.0-beta.1 → Significant change (e.g., license change)
+0.10.0-beta.2 → Bug fix after significant change
+0.10.0-beta.3 → New feature in same series
+0.11.0-beta.1 → Next significant feature
+1.0.0         → Production release (NO beta suffix)
+```
+
+**Quick Decision Tree:**
+- 🔴 Breaking change? → Bump MAJOR (but stay in beta: use 0.X.0-beta.1)
+- 🟡 Significant change or new feature series? → Bump MINOR, reset to beta.1
+- 🟢 Bug fix or feature in current series? → Increment beta number
+- ⚪ Documentation only? → No version change needed
 
 #### Pre-Commit Verification Checklist
 
