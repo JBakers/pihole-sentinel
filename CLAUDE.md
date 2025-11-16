@@ -1,7 +1,7 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
 **Last Updated:** 2025-11-16
-**Version:** 0.10.0-beta.3
+**Version:** 0.10.0-beta.4
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 
 This document provides comprehensive guidance for AI assistants working with the Pi-hole Sentinel codebase. It covers architecture, structure, conventions, and development workflows.
@@ -9,6 +9,83 @@ This document provides comprehensive guidance for AI assistants working with the
 ---
 
 ## ⚠️ MANDATORY RULES - READ FIRST
+
+### Critical: Development Environment Awareness (ALWAYS REMEMBER)
+
+**🚨 WE WORK IN DIFFERENT ENVIRONMENTS - NEVER FORGET THIS 🚨**
+
+#### Environment Separation
+
+**AI Assistant (Claude) Environment:**
+- Works in: `/home/user/pihole-sentinel/`
+- Has direct file access via Read/Write/Edit tools
+- Can execute bash commands in sandbox
+- Makes all code changes directly
+- **CANNOT** access user's local machine
+
+**User's Local Environment:**
+- Works in: `~/Workspace/pihole-sentinel/` (or similar local directory)
+- Has NO access to `/home/user/pihole-sentinel/`
+- Uses git to sync with GitHub repository
+- Reviews and tests changes locally
+- Performs git push/pull operations
+
+**GitHub Repository:**
+- Our **ONLY** connection/sync point
+- Bridge between AI sandbox and user's local machine
+- Single source of truth for code
+
+#### Communication Rules (CRITICAL)
+
+**❌ NEVER say:**
+- "Please edit the file in `/home/user/pihole-sentinel/`"
+- "Run this command in `/home/user/pihole-sentinel/`"
+- "Create a file at `/home/user/pihole-sentinel/foo.txt`"
+- "Navigate to `/home/user/pihole-sentinel/` and..."
+
+**✅ ALWAYS say:**
+- "I'll edit the file for you" (then use Edit tool)
+- "I'll create this file" (then use Write tool)
+- "Let me make these changes..." (then make changes directly)
+- "After I commit and push, you can pull the changes locally"
+
+#### Workflow Protocol
+
+**AI Assistant's Role:**
+1. Make file changes using Read/Write/Edit tools
+2. Test changes if possible in sandbox
+3. Update VERSION, CHANGELOG.md, and CLAUDE.md
+4. Create git commit with proper message
+5. Push to designated branch
+6. **THEN** inform user: "Changes pushed to branch X, please pull locally to review"
+
+**User's Role:**
+1. Pull changes from GitHub: `git pull origin <branch>`
+2. Review changes in `~/Workspace/pihole-sentinel/`
+3. Test locally if needed
+4. Provide feedback or approval
+5. Merge to main branch (if applicable)
+
+#### Example Correct Communication
+
+**BAD (Don't do this):**
+```
+AI: "I've made the changes. Now please navigate to /home/user/pihole-sentinel/
+     and run 'git commit -m "update"'"
+```
+
+**GOOD (Do this):**
+```
+AI: "I'll make these changes for you now..."
+    [Uses Edit tool to modify files]
+    [Uses Bash tool to git commit and push]
+    "Done! I've committed and pushed the changes to branch claude/xyz.
+     You can pull them locally with: git pull origin claude/xyz"
+```
+
+**This rule exists because this miscommunication happens frequently. Read it again before every response involving file operations.**
+
+---
 
 ### Critical: Version Management (MUST FOLLOW FOR EVERY COMMIT)
 
