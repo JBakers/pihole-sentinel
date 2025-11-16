@@ -5,7 +5,7 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.0-beta.2] - 2025-11-16
+## [0.10.0-beta.3] - 2025-11-16
 
 ### 🎉 New Features
 
@@ -48,6 +48,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated CLAUDE.md with mandatory version management rules
 - Added Development Workflows setup instructions
 - Documented commit message format requirements
+
+---
+
+## [0.10.0-beta.2] - 2025-11-16
+
+### 🐛 Fixed
+
+#### Code Quality & Security
+- **Critical Code Quality Improvements:**
+  - Addressed security vulnerabilities identified in audit
+  - Fixed potential code injection risks
+  - Improved input validation and sanitization
+  - Enhanced error handling across codebase
+
+### 📚 Documentation
+
+- **Branch Protection & Workflow:**
+  - Added comprehensive branch protection setup guide
+  - Created CODEOWNERS file for repository governance
+  - Documented branching strategy (main/develop/testing)
+  - Clarified branch protection settings for personal vs organization repos
+  - Added todo lists and workflow guidance
+
+---
+
+## [0.10.0-beta.1] - 2025-11-15
+
+### ⚠️ Important Changes
+
+#### License Change
+- **Changed License from MIT to GPL v3.0:**
+  - More appropriate for infrastructure/systems software
+  - Ensures contributions remain open source
+  - Protects against proprietary forks
+  - Aligns with project philosophy
+
+### 📚 Documentation
+
+- **Release Readiness & Repository Setup:**
+  - Added comprehensive release readiness audit report
+  - Documented GitHub About section configuration
+  - Improved repository metadata and discoverability
+  - Enhanced project presentation on GitHub
+
+---
+
+## [0.9.0-beta.2] - 2025-11-15
+
+### 🐛 Fixed
+
+#### Documentation Safety
+- **Removed Dangerous Production Advice:**
+  - Removed 'git pull on production' recommendation from TESTING-GUIDE.md
+  - Prevents accidental production system corruption
+  - Promotes safer deployment practices
+
+### 🔧 Improved
+
+#### Documentation
+- **README Enhancements:**
+  - Added comprehensive introduction section
+  - Updated version badges to v0.9.0-beta.1
+  - Fixed badge version format for consistency
+  - Improved project description and value proposition
 
 ---
 
