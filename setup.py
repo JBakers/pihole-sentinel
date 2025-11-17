@@ -132,7 +132,7 @@ class SetupConfig:
         return sanitized
 
     def escape_for_sed(self, text):
-        """Escape special characters for safe use in sed replacement string.
+        r"""Escape special characters for safe use in sed replacement string.
 
         Escapes: / \ & newline
         Uses # as delimiter to avoid issues with / in the text.
