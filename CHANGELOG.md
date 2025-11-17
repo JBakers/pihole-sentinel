@@ -5,6 +5,22 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.10] - 2025-11-17
+
+### 🐛 Fixed
+
+#### CI/CD Workflows
+- **Made PR comment step optional in enforce-merge-direction workflow:**
+  - Added `continue-on-error: true` to comment posting step
+  - Workflow now succeeds even if repository-level permissions block PR comments
+  - Core merge direction check still enforces rules correctly
+  - **Root cause:** Repository workflow permissions set to "Read" instead of "Read and write"
+  - **Workaround:** Comment step failures no longer fail the entire workflow
+  - **To enable comments:** Settings → Actions → General → Workflow permissions → "Read and write"
+  - Merge direction enforcement is functional, comments are optional enhancement
+
+---
+
 ## [0.10.0-beta.9] - 2025-11-17
 
 ### 🐛 Fixed
