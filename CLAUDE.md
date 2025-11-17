@@ -1,7 +1,7 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
 **Last Updated:** 2025-11-17
-**Version:** 0.10.0-beta.6
+**Version:** 0.10.0-beta.7
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
 

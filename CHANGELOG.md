@@ -5,6 +5,33 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.7] - 2025-11-17
+
+### 🐛 Fixed
+
+#### Code Quality
+- **Fixed Python SyntaxWarning in setup.py:**
+  - Fixed invalid escape sequence warning in `escape_for_sed()` docstring (line 137)
+  - Changed docstring to raw string (r"""...""") to properly handle backslash documentation
+  - No functional changes, purely cosmetic fix for Python 3.12+ compatibility
+
+#### Test Infrastructure
+- **Improved security scan accuracy:**
+  - Reduced false positives in `run-security-scans.sh`
+  - Now correctly excludes safe patterns: `getpass()`, `.get()`, function parameters
+  - Excludes template strings like `PRIMARY_PASSWORD={...}`
+  - Fixed grep regex errors with unmatched braces
+  - Security scan now reports "✓ No hardcoded secrets found" instead of warnings on safe code
+
+### 🔧 Improved
+
+#### Developer Experience
+- Test suite now runs cleanly without warnings or false positives
+- More accurate security feedback for developers
+- Better distinction between actual security issues and safe password handling
+
+---
+
 ## [0.10.0-beta.6] - 2025-11-17
 
 ### ✨ New
