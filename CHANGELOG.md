@@ -5,6 +5,20 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.9] - 2025-11-17
+
+### 🐛 Fixed
+
+#### CI/CD Workflows
+- **Added missing permissions to enforce-merge-direction workflow:**
+  - Workflow failed with "Resource not accessible by integration" (HTTP 403)
+  - Added `permissions` block with `pull-requests: write` and `issues: write`
+  - GitHub Actions token now has permission to post PR comments
+  - Workflow can now successfully complete both check and comment steps
+  - Error occurred in step 2 (Add merge direction comment) due to missing permissions
+
+---
+
 ## [0.10.0-beta.8] - 2025-11-17
 
 ### 🐛 Fixed
