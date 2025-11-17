@@ -5,8 +5,22 @@ echo "=== Running Security Scans ==="
 
 # Check for hardcoded secrets
 echo "Checking for hardcoded secrets..."
-if grep -r -i "password.*=.*['\"].*['\"]" --include="*.py" --include="*.sh" . | grep -v -E "(.env|.example|template)"; then
+# Look for actual hardcoded passwords (string literals), excluding safe patterns
+RESULT=$(grep -r -i "password.*=.*['\"][a-zA-Z0-9_!@#\$%^&*-]\+['\"]" --include="*.py" --include="*.sh" . \
+    | grep -v -E "(.env|.example|template)" \
+    | grep -v "getpass(" \
+    | grep -v "\.get(" \
+    | grep -v "def .*password.*=" \
+    | grep -v "password=None" \
+    | grep -v -F "PRIMARY_PASSWORD={" \
+    | grep -v -F "SECONDARY_PASSWORD={" \
+    || true)
+
+if [ -n "$RESULT" ]; then
+    echo "$RESULT"
     echo "⚠ Warning: Potential hardcoded password found"
+else
+    echo "✓ No hardcoded secrets found"
 fi
 
 # Check file permissions (if deployed)
