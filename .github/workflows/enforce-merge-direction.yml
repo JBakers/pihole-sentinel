@@ -108,21 +108,16 @@ jobs:
               message = '**Development Branch**\n\nThis PR will merge to `develop` - integration and development testing.';
             }
 
-            const comment = `${emoji} **Merge Direction Check: PASSED**
-
-${message}
-
-**Merge flow:** \`${headRef}\` → \`${baseRef}\`
-
-<details>
-<summary>ℹ️ Allowed merge directions</summary>
-
-- ✅ \`feature/*\` → \`develop\`
-- ✅ \`develop\` → \`testing\`
-- ✅ \`testing\` → \`main\`
-- ❌ Reverse merges are blocked
-
-</details>`;
+            const comment = emoji + ' **Merge Direction Check: PASSED**\n\n' +
+              message + '\n\n' +
+              '**Merge flow:** `' + headRef + '` → `' + baseRef + '`\n\n' +
+              '<details>\n' +
+              '<summary>ℹ️ Allowed merge directions</summary>\n\n' +
+              '- ✅ `feature/*` → `develop`\n' +
+              '- ✅ `develop` → `testing`\n' +
+              '- ✅ `testing` → `main`\n' +
+              '- ❌ Reverse merges are blocked\n\n' +
+              '</details>';
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
