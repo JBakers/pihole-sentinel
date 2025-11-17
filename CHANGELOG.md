@@ -5,6 +5,44 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.6] - 2025-11-17
+
+### ✨ New
+
+#### Test Automation Infrastructure
+- **Implemented complete test automation script suite:**
+  - Created `.github/scripts/` directory with 8 automated test scripts
+  - **`run-syntax-checks.sh`** - Validates Python and Bash syntax across codebase
+  - **`run-quality-checks.sh`** - Checks code quality (print statements, line endings, required files)
+  - **`run-security-scans.sh`** - Scans for hardcoded secrets and file permission issues
+  - **`test-failover.sh`** - Automated failover testing with VIP transition timing
+  - **`test-dashboard.sh`** - Dashboard API endpoint validation with JSON response verification
+  - **`generate-test-summary.sh`** - Generates test summaries from test reports
+  - **`nightly-tests.sh`** - Nightly automated test execution with email notifications
+  - **`run-all-tests.sh`** - Master script to run all automated tests sequentially
+  - All scripts are executable (755 permissions) and follow bash best practices
+
+### 🔧 Improved
+
+#### Testing Workflow
+- **Closed gap between documentation and implementation:**
+  - CLAUDE.md and TEST_AUTOMATION_GUIDE.md extensively documented these scripts
+  - Scripts were referenced throughout testing documentation but were not implemented
+  - Now fully functional and tested - `run-all-tests.sh` successfully validates codebase
+
+#### Developer Experience
+- Developers can now run automated tests locally before pushing
+- CI/CD pipelines can use these scripts for automated quality gates
+- Nightly testing can be scheduled via cron for continuous validation
+- Test reports can be automatically generated and summarized
+
+### 📚 Documentation
+- Scripts match exact specifications in TEST_AUTOMATION_GUIDE.md (lines 131-675)
+- All usage examples in documentation are now executable
+- Testing workflow is fully operational and reproducible
+
+---
+
 ## [0.10.0-beta.5] - 2025-11-17
 
 ### 📚 Documentation
