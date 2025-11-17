@@ -5,6 +5,44 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.5] - 2025-11-17
+
+### 📚 Documentation
+
+#### Git Workflow Rules for AI Assistants
+- **Added "Critical: Always Push Changes (Git Workflow)" mandatory rule to CLAUDE.md:**
+  - Explicitly requires pushing all changes to GitHub before ending any session
+  - Prevents lost work due to AI sandbox being temporary and isolated
+  - Includes session end checklist to verify all changes are pushed
+  - Emphasizes that GitHub is the only way to transfer work from AI to user
+  - Provides examples of correct vs incorrect workflow
+  - **Addresses critical issue** where unpushed changes are lost when sandbox closes
+
+- **Added "Required: Provide Git Commands for Learning" rule to CLAUDE.md:**
+  - Requires AI to show exact git commands used during work
+  - Helps user learn git through repeated exposure and practice
+  - Includes command explanations and what they do
+  - Always provides pull commands after pushing
+  - Lists common git command categories with examples
+  - **Supports user's learning journey** with git workflow
+
+#### Cleanup
+- **Verified removal of private reference files:**
+  - Confirmed no references to `ai-versioning-instructions.md`
+  - Confirmed no references to Dutch quick reference guides
+  - These files were already removed in previous commits (3004b82)
+  - Only harmless mentions remain in audit report documenting past state
+
+### 🔧 Improved
+
+#### Developer Experience
+- Better transparency in git operations through required command display
+- Reduced risk of lost work through mandatory push requirements
+- Enhanced learning through educational git command explanations
+- Clearer workflow expectations for AI assistants
+
+---
+
 ## [0.10.0-beta.4] - 2025-11-16
 
 ### 📚 Documentation
