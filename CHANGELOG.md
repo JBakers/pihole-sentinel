@@ -5,6 +5,29 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.8] - 2025-11-17
+
+### 🐛 Fixed
+
+#### CI/CD Workflows
+- **Fixed critical YAML syntax error in enforce-merge-direction workflow:**
+  - JavaScript template literals (backticks) in `script:` section caused YAML parser conflict
+  - Converted template literals to string concatenation for YAML compatibility
+  - Workflow was completely non-functional due to syntax error (never triggered on PRs)
+  - **Impact:** Merge direction enforcement now works correctly
+  - **Root cause:** Line 111-120 had invalid YAML syntax preventing workflow execution
+  - Validated fix with Python YAML parser - syntax now correct
+  - Required check can now be added to branch protection rules after workflow runs
+
+### 🔧 Improved
+
+#### Developer Experience
+- Merge direction enforcement workflow will now trigger on pull requests
+- GitHub Actions will recognize the check after first successful run
+- Can be added as required status check in branch protection settings
+
+---
+
 ## [0.10.0-beta.7] - 2025-11-17
 
 ### 🐛 Fixed
