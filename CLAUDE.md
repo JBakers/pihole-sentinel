@@ -1,7 +1,7 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
-**Last Updated:** 2025-11-16
-**Version:** 0.10.0-beta.4
+**Last Updated:** 2025-11-17
+**Version:** 0.10.0-beta.5
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
 
@@ -198,6 +198,164 @@ Version: X.Y.Z
 - ✅ Apologize to the user and explain what was missed
 
 **No exceptions. No shortcuts. These rules apply to EVERY commit.**
+
+---
+
+### Critical: Always Push Changes (Git Workflow)
+
+**🚨 NEVER END A SESSION WITHOUT PUSHING ALL CHANGES TO GITHUB 🚨**
+
+#### Push Requirements
+
+**BEFORE ending any work session, you MUST:**
+
+1. ✅ **Commit all changes** with proper commit message
+2. ✅ **Push to the designated branch** on GitHub
+3. ✅ **Verify push succeeded** - check for errors
+4. ✅ **Inform user** which branch to pull from
+
+**Why This Rule Exists:**
+
+- The AI sandbox (`/home/user/pihole-sentinel/`) is **temporary** and **isolated**
+- User **CANNOT** access the sandbox directly
+- GitHub is the **ONLY** way to transfer work from AI to user
+- **Unpushed changes = LOST WORK** when sandbox closes
+
+**Example Workflow:**
+
+```bash
+# ✅ CORRECT - Always push before ending session
+git add .
+git commit -m "feat: add new notification service"
+git push -u origin claude/feature-xyz
+
+# User is informed:
+# "Changes pushed to branch claude/feature-xyz"
+# "Pull locally with: git pull origin claude/feature-xyz"
+```
+
+**❌ NEVER do this:**
+```bash
+# Made changes, committed locally
+git commit -m "feat: add feature"
+
+# Ended session without pushing
+# User: "Where are my changes?"
+# AI: ❌ Lost forever in closed sandbox
+```
+
+#### Session End Checklist
+
+**Before completing ANY task:**
+
+- [ ] All files saved
+- [ ] VERSION and CHANGELOG.md updated (if code changed)
+- [ ] Changes committed with proper message
+- [ ] **PUSHED to GitHub** ✅
+- [ ] User informed of branch name
+- [ ] User given pull command
+
+**If you forget to push, you have FAILED the task.**
+
+---
+
+### Required: Provide Git Commands for Learning
+
+**🎓 ALWAYS SHOW GIT COMMANDS TO HELP USER LEARN 🎓**
+
+#### Command Transparency Rules
+
+**WHENEVER you use git, you MUST:**
+
+1. ✅ **Show the exact command** in a code block
+2. ✅ **Explain what it does** in simple terms
+3. ✅ **Provide the command user can run** locally (if applicable)
+
+**Why This Rule Exists:**
+
+- User wants to **learn git** through practice
+- Seeing commands repeatedly builds **muscle memory**
+- User can **replicate workflow** locally
+- Transparency builds **understanding and trust**
+
+#### Examples
+
+**✅ GOOD - Educational approach:**
+
+```markdown
+I'll commit these changes now:
+
+```bash
+git add CLAUDE.md VERSION CHANGELOG.md
+git commit -m "docs: add git workflow rules"
+git push -u origin claude/feature-xyz
+```
+
+**What these commands do:**
+- `git add` - Stage the modified files for commit
+- `git commit -m` - Create a commit with the message
+- `git push -u origin` - Push to GitHub and set upstream tracking
+
+**To pull these changes locally:**
+```bash
+git pull origin claude/feature-xyz
+```
+```
+
+**❌ BAD - No learning opportunity:**
+
+```markdown
+I've committed and pushed the changes.
+```
+
+#### Always Provide Pull Commands
+
+**After EVERY push, provide the exact command:**
+
+```bash
+git pull origin <branch-name>
+```
+
+**Example:**
+```
+✅ Changes pushed to branch claude/docs-update-01abc
+
+Pull locally with:
+git pull origin claude/docs-update-01abc
+```
+
+#### Git Command Categories to Show
+
+**Branch operations:**
+```bash
+git checkout -b claude/new-feature    # Create and switch to new branch
+git branch                             # List all branches
+git checkout testing                   # Switch to testing branch
+```
+
+**Staging and committing:**
+```bash
+git status                             # Check what changed
+git add <file>                         # Stage specific file
+git add .                              # Stage all changes
+git commit -m "type: message"          # Commit with message
+```
+
+**Pushing and pulling:**
+```bash
+git push -u origin <branch>            # Push and set upstream
+git pull origin <branch>               # Pull latest changes
+git fetch origin                       # Fetch without merging
+```
+
+**Viewing history:**
+```bash
+git log --oneline -10                  # Last 10 commits
+git show <commit-hash>                 # Show specific commit
+git diff                               # Show unstaged changes
+```
+
+**This helps user learn git organically through repeated exposure.**
 
 ---
 
