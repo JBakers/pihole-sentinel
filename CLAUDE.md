@@ -16,6 +16,62 @@ This document provides comprehensive guidance for AI assistants working with the
 
 ## ⚠️ MANDATORY RULES - READ FIRST
 
+### Critical: Never Commit Without User Confirmation (ALWAYS ASK FIRST)
+
+**🚨 NEVER COMMIT OR PUSH CHANGES WITHOUT EXPLICIT USER APPROVAL 🚨**
+
+#### Commit Protocol (REQUIRED)
+
+**BEFORE making ANY commit, you MUST:**
+
+1. ✅ **Show the user what you plan to commit**
+   - List all changed files
+   - Explain what changed and why
+   - Show the commit message you plan to use
+
+2. ✅ **Wait for explicit confirmation**
+   - User must say "yes", "commit", "go ahead", or similar
+   - Do NOT assume silence means approval
+   - Do NOT commit "automatically" because you think it's ready
+
+3. ✅ **Only commit after user confirms**
+   - User: "yes" → You may commit
+   - User: asks questions → Answer, don't commit yet
+   - User: silent → Wait, don't commit
+
+**Examples:**
+
+❌ **WRONG - Never do this:**
+```
+AI: "I've fixed the bug, let me commit that for you..."
+AI: *commits without asking*
+```
+
+✅ **CORRECT - Always do this:**
+```
+AI: "I've fixed the bug. Here's what I changed:
+     - dashboard/monitor.py (line 259): increased timeout to 10s
+     - VERSION: 0.10.0-beta.11 → 0.10.0-beta.12
+     - CHANGELOG.md: documented the fix
+
+     Shall I commit these changes?"
+
+User: "yes"
+AI: *Now commits*
+```
+
+**Why This Rule Exists:**
+
+- User wants control over what goes into git history
+- User may want to review changes first
+- User may want to adjust commit message
+- User may want to make additional changes before committing
+- Respects user's ownership of the repository
+
+**No exceptions. Always ask before commit.**
+
+---
+
 ### Critical: Development Environment Awareness (ALWAYS REMEMBER)
 
 **🚨 WE WORK IN DIFFERENT ENVIRONMENTS - NEVER FORGET THIS 🚨**
