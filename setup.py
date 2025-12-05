@@ -880,27 +880,33 @@ NODE_STATE=MASTER
         if not self.config.get('monitor_ssh_user'):
             print("No remote monitor configured, deploying locally...")
             return self.deploy_monitor()
-        
+
         host = self.config['monitor_ip']
         user = self.config['monitor_ssh_user']
         port = self.config['monitor_ssh_port']
         password = self.config.get('monitor_ssh_pass')
-        
+
         try:
             print(f"\nDeploying monitor to {host} via SSH...")
-            
+
             # Backup existing configurations
             self.backup_existing_configs(host, user, port, password, "monitor")
-            
+
             # Install system dependencies first
             if not self.install_remote_dependencies(host, user, port, password):
                 return False
-            
+
             # Configure timezone and NTP
             self.configure_timezone_and_ntp(host, user, port, password)
-            
+
+            # Pre-deployment checks and directory setup
+            print("Running pre-deployment checks...")
+            print("├─ Creating required directories...")
+            # Create /etc/pihole-sentinel (required by systemd ReadWritePaths)
+            self.remote_exec(host, user, port, "mkdir -p /etc/pihole-sentinel", password)
+
             # Create remote temp directory
-            print("Preparing remote server...")
+            print("├─ Preparing deployment staging area...")
             self.remote_exec(host, user, port, "mkdir -p /tmp/pihole-sentinel-deploy", password)
             
             # Copy necessary files
@@ -912,6 +918,7 @@ NODE_STATE=MASTER
                 ("generated_configs/monitor.env", "/tmp/pihole-sentinel-deploy/monitor.env"),
                 ("systemd/pihole-monitor.service", "/tmp/pihole-sentinel-deploy/pihole-monitor.service"),
                 ("requirements.txt", "/tmp/pihole-sentinel-deploy/requirements.txt"),
+                ("VERSION", "/tmp/pihole-sentinel-deploy/VERSION"),
             ]
             
             for local, remote in files_to_copy:
@@ -943,6 +950,7 @@ NODE_STATE=MASTER
                 "cp /tmp/pihole-sentinel-deploy/settings.html /opt/pihole-monitor/",
                 "cp /tmp/pihole-sentinel-deploy/monitor.env /opt/pihole-monitor/.env",
                 "cp /tmp/pihole-sentinel-deploy/pihole-monitor.service /etc/systemd/system/",
+                "cp /tmp/pihole-sentinel-deploy/VERSION /opt/VERSION",
             ]
             for cmd in commands:
                 self.remote_exec(host, user, port, cmd, password)
@@ -971,6 +979,9 @@ NODE_STATE=MASTER
                 "chmod 755 -R /opt/pihole-monitor/venv",
                 "chown root:root /etc/systemd/system/pihole-monitor.service",
                 "chmod 644 /etc/systemd/system/pihole-monitor.service",
+                "chown pihole-monitor:pihole-monitor /etc/pihole-sentinel",
+                "chmod 755 /etc/pihole-sentinel",
+                "chmod 644 /opt/VERSION",
             ]
             for cmd in perms_commands:
                 self.remote_exec(host, user, port, cmd, password)

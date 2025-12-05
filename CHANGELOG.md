@@ -5,6 +5,21 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.16] - 2025-12-06
+
+### ✨ Improved
+
+#### Setup Script
+- **Added pre-deployment directory and file checks:**
+  - Creates `/etc/pihole-sentinel` directory before systemd service starts
+  - **Prevents:** systemd NAMESPACE error (`Failed to set up mount namespacing: /etc/pihole-sentinel: No such file or directory`)
+  - Deploys VERSION file to `/opt/VERSION` (correct location for monitor.py to read)
+  - Sets proper ownership (pihole-monitor:pihole-monitor) and permissions (755/644)
+  - **Impact:** Robust deployment that prevents common systemd mount namespace failures
+  - Updated `setup.py` deploy_monitor_remote() function (lines 902-906, 921, 953, 982-984)
+
+---
+
 ## [0.10.0-beta.15] - 2025-12-06
 
 ### 🐛 Fixed
