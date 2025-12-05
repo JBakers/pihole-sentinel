@@ -296,11 +296,20 @@ class SetupConfig:
             return False
 
     def get_interface_names(self):
-        """Get list of network interfaces."""
+        """Get list of physical network interfaces (filtered)."""
         interfaces = []
         try:
             if os.path.exists('/sys/class/net'):
-                interfaces = os.listdir('/sys/class/net')
+                all_interfaces = os.listdir('/sys/class/net')
+                # Filter out virtual/unwanted interfaces
+                skip_prefixes = ('lo', 'docker', 'br-', 'veth', 'tailscale', 'bonding_masters', 'virbr', 'tun', 'tap')
+                interfaces = [
+                    iface for iface in all_interfaces
+                    if not any(iface.startswith(prefix) for prefix in skip_prefixes)
+                ]
+                # Sort to prioritize common physical interface names
+                priority = ['eth0', 'ens18', 'enp3s0', 'eno1']
+                interfaces.sort(key=lambda x: (x not in priority, priority.index(x) if x in priority else 999, x))
         except:
             pass
         return interfaces or ['eth0', 'ens18', 'enp3s0']
@@ -308,23 +317,33 @@ class SetupConfig:
     def collect_network_config(self):
         """Collect network configuration interactively."""
         print("\n=== Network Configuration ===")
-        
+
         # Get network interface
         interfaces = self.get_interface_names()
-        print("\nAvailable network interfaces:", ", ".join(interfaces))
+        if len(interfaces) == 0:
+            interfaces = ['eth0']
+
+        print(f"\n{Colors.CYAN}Physical network interfaces detected:{Colors.END}")
+        for i, iface in enumerate(interfaces[:5], 1):  # Show max 5
+            marker = f"{Colors.GREEN}(default){Colors.END}" if i == 1 else ""
+            print(f"  {i}. {iface} {marker}")
+        if len(interfaces) > 5:
+            print(f"  ... and {len(interfaces) - 5} more")
+
         while True:
-            interface = input(f"Enter network interface name [{interfaces[0]}]: ").strip()
+            interface = input(f"\n{Colors.BOLD}Enter network interface name [{Colors.CYAN}{interfaces[0]}{Colors.END}]:{Colors.END} ").strip()
             if not interface:
                 interface = interfaces[0]
             # Validate interface name to prevent command injection
             if not self.validate_interface_name(interface):
-                print(f"Error: Invalid interface name! Only alphanumeric characters, dots, hyphens, and underscores allowed.")
+                print(f"{Colors.RED}Error: Invalid interface name! Only alphanumeric characters, dots, hyphens, and underscores allowed.{Colors.END}")
                 continue
             if interface in interfaces:
                 self.config['interface'] = interface
+                print(f"{Colors.GREEN}✓ Using interface: {interface}{Colors.END}")
                 break
-            print(f"Warning: '{interface}' not in detected interfaces. Are you sure? (y/n): ", end='')
-            confirm = input().strip().lower()
+            print(f"{Colors.YELLOW}Warning: '{interface}' not in detected physical interfaces.{Colors.END}")
+            confirm = input(f"Are you sure you want to use '{interface}'? (y/N): ").strip().lower()
             if confirm == 'y':
                 self.config['interface'] = interface
                 break

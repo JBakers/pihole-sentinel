@@ -5,6 +5,23 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.14] - 2025-12-05
+
+### ✨ Improved
+
+#### Setup Script
+- **Improved network interface selection UX:**
+  - Filters out virtual interfaces (docker, veth*, br-*, tailscale*, etc.)
+  - Shows only physical network interfaces by default
+  - Prioritizes common interface names (eth0, ens18, enp3s0, eno1)
+  - Numbered list display with max 5 interfaces shown
+  - Colorized output with clear default indication
+  - Better confirmation prompt for non-standard interfaces
+  - **Impact:** Much clearer interface selection, especially on systems with many virtual interfaces
+  - Fixed issue where docker-debian showed 12+ interfaces (mostly virtual)
+
+---
+
 ## [0.10.0-beta.13] - 2025-12-05
 
 ### 🐛 Fixed
