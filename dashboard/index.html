@@ -788,8 +788,8 @@
             document.getElementById('vip-ip').textContent = data.vip;
             document.getElementById('dhcp-leases').textContent = data.dhcp_leases;
 
-            // Handle timestamp with explicit timezone - server timestamp is in local time
-            const timestamp = new Date(data.timestamp);
+            // Handle timestamp - server sends UTC, convert to browser's local time
+            const timestamp = new Date(data.timestamp + ' UTC');
             document.getElementById('last-update').textContent = timestamp.toLocaleString('nl-NL', {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -977,7 +977,7 @@
                 type: 'line',
                 data: {
                     labels: limitedData.map(d => {
-                        const date = new Date(d.time);
+                        const date = new Date(d.time + ' UTC');
                         return date.toLocaleString('nl-NL', {
                             month: 'short',
                             day: 'numeric',
@@ -1061,10 +1061,10 @@
                     document.getElementById('failover-summary').textContent = 'Geen failovers gedetecteerd';
                 } else {
                     failoverBody.innerHTML = failoverEvents.map((event, idx) => {
-                        const eventDate = new Date(event.time);
+                        const eventDate = new Date(event.time + ' UTC');
                         const isMaster = event.message.toLowerCase().includes('primary');
-                        const uptime = idx > 0 
-                            ? calculateUptime(eventDate, new Date(failoverEvents[idx - 1].time))
+                        const uptime = idx > 0
+                            ? calculateUptime(eventDate, new Date(failoverEvents[idx - 1].time + ' UTC'))
                             : calculateUptime(eventDate, new Date());
                         
                         return `
@@ -1087,7 +1087,7 @@
                     
                     // Update failover summary
                     const lastFailover = failoverEvents[0];
-                    const lastFailoverDate = new Date(lastFailover.time);
+                    const lastFailoverDate = new Date(lastFailover.time + ' UTC');
                     const timeSince = calculateUptime(lastFailoverDate, new Date());
                     const currentMaster = lastFailover.message.toLowerCase().includes('primary') ? 'Primary' : 'Secondary';
                     document.getElementById('failover-summary').textContent = 
@@ -1108,7 +1108,7 @@
                         <div class="event-content">
                             <div>${event.message}</div>
                         </div>
-                        <div class="event-time">${new Date(event.time).toLocaleString('nl-NL')}</div>
+                        <div class="event-time">${new Date(event.time + ' UTC').toLocaleString('nl-NL')}</div>
                     </div>
                 `).join('');
                 

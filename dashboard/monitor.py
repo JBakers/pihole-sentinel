@@ -256,14 +256,14 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
         sid = None
 
         try:
-            async with session.post(f"http://{ip}/api/auth", json={"password": password}, timeout=aiohttp.ClientTimeout(total=5)) as auth_resp:
+            async with session.post(f"http://{ip}/api/auth", json={"password": password}, timeout=aiohttp.ClientTimeout(total=10)) as auth_resp:
                 if auth_resp.status == 200:
                     auth_data = await auth_resp.json()
                     # Pi-hole v6 returns sid within a session object
                     session_data = auth_data.get("session", {})
                     sid = session_data.get("sid")
         except Exception as e:
-            logger.debug(f"FTL Auth exception for {ip}: {e}")
+            logger.warning(f"FTL Auth exception for {ip}: {e.__class__.__name__}: {e}")
             return result
 
         if not sid:
