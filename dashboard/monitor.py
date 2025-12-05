@@ -175,6 +175,21 @@ async def serve_index():
 async def serve_settings():
     return FileResponse("settings.html")
 
+@app.get("/api/version")
+async def get_version():
+    """Get current Pi-hole Sentinel version from VERSION file"""
+    try:
+        version_file = os.path.join(os.path.dirname(__file__), "..", "VERSION")
+        if os.path.exists(version_file):
+            with open(version_file, 'r') as f:
+                version = f.read().strip()
+                return {"version": version}
+        # Fallback if VERSION file not found
+        return {"version": "0.10.0-beta.14"}
+    except Exception as e:
+        logger.error(f"Failed to read VERSION file: {e}")
+        return {"version": "unknown"}
+
 async def init_db():
     """Initialize SQLite database"""
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
