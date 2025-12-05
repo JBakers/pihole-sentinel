@@ -5,6 +5,25 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.11] - 2025-12-05
+
+### 🐛 Fixed
+
+#### Monitor Dashboard
+- **Fixed timezone issue causing timestamps to be 1 hour behind:**
+  - Monitor displayed timestamps in UTC instead of local time
+  - Timestamps in dashboard showed times 1 hour behind actual time (CET/CEST issue)
+  - **Root cause:** SQLite `CURRENT_TIMESTAMP` and `datetime('now')` default to UTC
+  - **Fix:** Added `'localtime'` modifier to all datetime operations
+  - Changed `INSERT INTO events` to use `datetime('now', 'localtime')`
+  - Changed `INSERT INTO status_history` to use `datetime('now', 'localtime')`
+  - Changed history query to use `datetime('now', 'localtime', '-' || hours)`
+  - All new timestamps now stored in local timezone (CET/CEST)
+  - **Impact:** Dashboard timestamps now match server local time
+  - **Note:** Old database entries remain in UTC, new entries use local time
+
+---
+
 ## [0.10.0-beta.10] - 2025-11-17
 
 ### 🐛 Fixed

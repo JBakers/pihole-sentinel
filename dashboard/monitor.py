@@ -431,7 +431,7 @@ async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str, max_re
 
 async def log_event(event_type: str, message: str):
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
-        await db.execute("INSERT INTO events (event_type, message) VALUES (?, ?)", (event_type, message))
+        await db.execute("INSERT INTO events (timestamp, event_type, message) VALUES (datetime('now', 'localtime'), ?, ?)", (event_type, message))
         await db.commit()
 
 async def monitor_loop():
@@ -516,8 +516,8 @@ async def monitor_loop():
             
             async with aiosqlite.connect(CONFIG["db_path"]) as db:
                 await db.execute("""
-                    INSERT INTO status_history (primary_state, secondary_state, primary_has_vip, secondary_has_vip, primary_online, secondary_online, primary_pihole, secondary_pihole, primary_dns, secondary_dns, dhcp_leases, primary_dhcp, secondary_dhcp) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO status_history (timestamp, primary_state, secondary_state, primary_has_vip, secondary_has_vip, primary_online, secondary_online, primary_pihole, secondary_pihole, primary_dns, secondary_dns, dhcp_leases, primary_dhcp, secondary_dhcp)
+                    VALUES (datetime('now', 'localtime'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (primary_state, secondary_state, primary_has_vip, secondary_has_vip, primary_data["online"], secondary_data["online"], primary_data["pihole"], secondary_data["pihole"], primary_dns, secondary_dns, dhcp_leases, primary_data.get("dhcp_enabled", False), secondary_data.get("dhcp_enabled", False)))
                 await db.commit()
             
@@ -624,7 +624,7 @@ async def get_status(api_key: str = Depends(verify_api_key)):
 @app.get("/api/history")
 async def get_history(hours: float = 24, api_key: str = Depends(verify_api_key)):
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
-        async with db.execute("SELECT timestamp, primary_state, secondary_state FROM status_history WHERE timestamp > datetime('now', '-' || ? || ' hours') ORDER BY timestamp ASC", (hours,)) as cursor:
+        async with db.execute("SELECT timestamp, primary_state, secondary_state FROM status_history WHERE timestamp > datetime('now', 'localtime', '-' || ? || ' hours') ORDER BY timestamp ASC", (hours,)) as cursor:
             rows = await cursor.fetchall()
             return [{"time": row[0], "primary": 1 if row[1] == "MASTER" else 0, "secondary": 1 if row[2] == "MASTER" else 0} for row in rows]
 
