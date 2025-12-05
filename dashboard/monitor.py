@@ -819,8 +819,9 @@ async def save_notification_settings(settings: dict, api_key: str = Depends(veri
                 f.write(f"CUSTOM_WEBHOOK_URL=\"{merged_settings['webhook'].get('url', '')}\"\n\n")
         
         return {"status": "success", "message": "Settings saved successfully"}
-    
+
     except Exception as e:
+        logger.error(f"Failed to save notification settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to save settings: {str(e)}")
 
 @app.post("/api/notifications/test")
