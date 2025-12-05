@@ -237,9 +237,9 @@ class SetupConfig:
         """Install system dependencies on remote host."""
         if packages is None:
             packages = [
-                "build-essential", "python3.11-dev", "python3-pip",
+                "build-essential", "python3-dev", "python3-pip",
                 "keepalived", "arping", "iproute2", "iputils-ping",
-                "sqlite3", "python3.11-venv", "sshpass", "dnsutils"
+                "sqlite3", "python3-venv", "sshpass", "dnsutils"
             ]
         
         print(f"\n┌─ Installing system dependencies on {host}")
