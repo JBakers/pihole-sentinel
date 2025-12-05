@@ -5,6 +5,22 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.12] - 2025-12-05
+
+### 🐛 Fixed
+
+#### Monitor Service
+- **Improved FTL auth timeout and error logging:**
+  - Increased auth API timeout from 5 to 10 seconds to handle slower responses
+  - **Issue:** After Trixie upgrade on pihole2, occasional "Server disconnected" errors
+  - **Root cause:** FTL auth requests timing out under load or during restarts
+  - Improved error logging from debug to warning level
+  - Added exception class name to error messages for better debugging
+  - **Impact:** Fewer false "Pi-hole service down" alerts during normal operation
+  - Helps diagnose intermittent connectivity issues with pihole2
+
+---
+
 ## [0.10.0-beta.11] - 2025-12-05
 
 ### 🐛 Fixed
