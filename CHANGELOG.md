@@ -5,6 +5,22 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.15] - 2025-12-06
+
+### 🐛 Fixed
+
+#### Monitor Service
+- **Fixed notification settings save error (500 Internal Server Error):**
+  - **Issue:** Settings page returned "Failed to save settings" with HTTP 500 error
+  - **Root cause:** systemd's `ProtectSystem=strict` made `/etc/` read-only for the service
+  - Added `/etc/pihole-sentinel` to `ReadWritePaths` in systemd service file
+  - Added detailed error logging with stack traces for easier debugging
+  - **Impact:** Notification settings (Telegram, Discord, Pushover, etc.) can now be saved via web interface
+  - Updated `systemd/pihole-monitor.service` (line 20)
+  - Updated `dashboard/monitor.py` (line 824) to log save errors with full traceback
+
+---
+
 ## [0.10.0-beta.14] - 2025-12-05
 
 ### ✨ Improved
