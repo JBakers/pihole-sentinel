@@ -5,6 +5,73 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.12] - 2025-12-05
+
+### 🐛 Fixed
+
+#### Monitor Service
+- **Improved FTL auth timeout and error logging:**
+  - Increased auth API timeout from 5 to 10 seconds to handle slower responses
+  - **Issue:** After Trixie upgrade on pihole2, occasional "Server disconnected" errors
+  - **Root cause:** FTL auth requests timing out under load or during restarts
+  - Improved error logging from debug to warning level
+  - Added exception class name to error messages for better debugging
+  - **Impact:** Fewer false "Pi-hole service down" alerts during normal operation
+  - Helps diagnose intermittent connectivity issues with pihole2
+
+---
+
+## [0.10.0-beta.11] - 2025-12-05
+
+### 🐛 Fixed
+
+#### Monitor Dashboard
+- **Fixed timezone display for all users regardless of location:**
+  - Dashboard showed UTC timestamps, causing confusion for users in different timezones
+  - **Solution:** Frontend now converts UTC to browser's local timezone automatically
+  - Database stores timestamps in UTC (universal standard)
+  - JavaScript adds ' UTC' suffix and converts to user's local time
+  - Works automatically for any timezone without server configuration
+  - **Impact:** Dutch users see CET/CEST, US users see EST/PST, etc.
+  - Changed 7 timestamp conversions in index.html:
+    - Last update display (line 792)
+    - Chart labels (line 980)
+    - Failover event times (lines 1064, 1067, 1090)
+    - Event list times (line 1111)
+  - **Best practice:** UTC in database, local display in browser
+
+---
+
+## [0.10.0-beta.10] - 2025-11-17
+
+### 🐛 Fixed
+
+#### CI/CD Workflows
+- **Made PR comment step optional in enforce-merge-direction workflow:**
+  - Added `continue-on-error: true` to comment posting step
+  - Workflow now succeeds even if repository-level permissions block PR comments
+  - Core merge direction check still enforces rules correctly
+  - **Root cause:** Repository workflow permissions set to "Read" instead of "Read and write"
+  - **Workaround:** Comment step failures no longer fail the entire workflow
+  - **To enable comments:** Settings → Actions → General → Workflow permissions → "Read and write"
+  - Merge direction enforcement is functional, comments are optional enhancement
+
+---
+
+## [0.10.0-beta.9] - 2025-11-17
+
+### 🐛 Fixed
+
+#### CI/CD Workflows
+- **Added missing permissions to enforce-merge-direction workflow:**
+  - Workflow failed with "Resource not accessible by integration" (HTTP 403)
+  - Added `permissions` block with `pull-requests: write` and `issues: write`
+  - GitHub Actions token now has permission to post PR comments
+  - Workflow can now successfully complete both check and comment steps
+  - Error occurred in step 2 (Add merge direction comment) due to missing permissions
+
+---
+
 ## [0.10.0-beta.8] - 2025-11-17
 
 ### 🐛 Fixed
