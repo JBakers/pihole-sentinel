@@ -390,7 +390,7 @@
         <div class="header">
             <div>
                 <h1>⚙️ Notification Settings</h1>
-                <p style="margin-top: 5px; opacity: 0.7; font-size: 14px;">Pi-hole Sentinel v0.9.0-beta.1</p>
+                <p style="margin-top: 5px; opacity: 0.7; font-size: 14px;">Pi-hole Sentinel <span id="version-display">v0.0.0</span></p>
             </div>
             <a href="/" class="back-btn">← Back to Dashboard</a>
         </div>
@@ -838,6 +838,27 @@
         }
         
         loadSettings();
+
+        // Load and display version dynamically
+        async function loadVersion() {
+            try {
+                const response = await fetch('/api/version');
+                const data = await response.json();
+                const version = 'v' + (data.version || 'unknown');
+                
+                // Update all version display elements
+                const versionElements = ['version-header', 'version-footer', 'version-display'];
+                versionElements.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = version;
+                });
+            } catch (error) {
+                console.error('Failed to load version:', error);
+            }
+        }
+
+        // Load version on page load
+        loadVersion();
     </script>
 </body>
 </html>
