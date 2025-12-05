@@ -5,6 +5,21 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.13] - 2025-12-05
+
+### 🐛 Fixed
+
+#### Setup Script
+- **Fixed Python version compatibility in setup.py:**
+  - Replaced hardcoded `python3.11-dev` and `python3.11-venv` with generic `python3-dev` and `python3-venv`
+  - **Issue:** Setup failed on systems with Python 3.13+ (Debian Trixie, Ubuntu 24.10+)
+  - **Root cause:** Hardcoded version-specific package names in setup.py and system-requirements.txt
+  - Updated both `setup.py` (lines 240-242) and `system-requirements.txt` (lines 3, 9)
+  - **Impact:** Setup now works on any Python 3.8+ system regardless of exact version
+  - Tested on Python 3.13.5 (Debian Trixie)
+
+---
+
 ## [0.10.0-beta.12] - 2025-12-05
 
 ### 🐛 Fixed
