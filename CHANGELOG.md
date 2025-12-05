@@ -5,6 +5,27 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.11] - 2025-12-05
+
+### 🐛 Fixed
+
+#### Monitor Dashboard
+- **Fixed timezone display for all users regardless of location:**
+  - Dashboard showed UTC timestamps, causing confusion for users in different timezones
+  - **Solution:** Frontend now converts UTC to browser's local timezone automatically
+  - Database stores timestamps in UTC (universal standard)
+  - JavaScript adds ' UTC' suffix and converts to user's local time
+  - Works automatically for any timezone without server configuration
+  - **Impact:** Dutch users see CET/CEST, US users see EST/PST, etc.
+  - Changed 7 timestamp conversions in index.html:
+    - Last update display (line 792)
+    - Chart labels (line 980)
+    - Failover event times (lines 1064, 1067, 1090)
+    - Event list times (line 1111)
+  - **Best practice:** UTC in database, local display in browser
+
+---
+
 ## [0.10.0-beta.10] - 2025-11-17
 
 ### 🐛 Fixed
