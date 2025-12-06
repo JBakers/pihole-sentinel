@@ -4,11 +4,13 @@
 
 # Pi-hole Sentinel
 
+resilient dns · simple ops · keep dns up when others drop
+
 **High Availability for Pi-hole**
 
-*Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
+*Automatic failover • Real-time monitoring • Quick IP flow + monitor placement guidance • Seamless DNS/DHCP redundancy*
 
-[![Version](https://img.shields.io/badge/version-v0.9.0--beta.1-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-v0.10.0--beta.20-blue.svg)](VERSION)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
@@ -146,10 +148,12 @@ Built for home networks and small businesses that need reliability without compl
 
 ## Quick Start
 
-- **📋 Existing Pi-holes**: See [`EXISTING-SETUP.md`](EXISTING-SETUP.md) for adding HA to your current setup
-- **🔄 Configuration Sync**: See [`SYNC-SETUP.md`](SYNC-SETUP.md) for keeping Pi-holes in sync
-- **🔔 Notifications**: Configure alerts via web interface at `http://monitor-ip:8080/settings.html`
-- **⚙️ Automated Setup**: Use `setup.py` to generate all configurations automatically
+- Clone and enter the repo: `git clone https://github.com/JBakers/pihole-sentinel.git && cd pihole-sentinel`
+- Run the wizard: `sudo python3 setup.py`
+- Choose the quick IP flow and confirm where the monitor should run
+- Pick option 1 (generate configs to copy manually) or option 2 (deploy everything via SSH)
+- Configure notifications at `http://<monitor-ip>:8080/settings.html`
+- **Security:** `generated_configs/` contains secrets after setup—remove it once you deploy
 
 ## Installation
 
@@ -314,7 +318,7 @@ The automated setup script will:
 - Database: SQLite with history tracking (primary_dhcp, secondary_dhcp columns)
 - Update Interval: 10 seconds (configurable via .env)
 
-See `EXISTING-SETUP.md` for detailed steps
+Follow the Quick Start steps above for the full setup flow.
 
 ## Management
 
