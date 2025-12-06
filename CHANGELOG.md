@@ -5,6 +5,24 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.17] - 2025-12-06
+
+### 🐛 Fixed
+
+#### Keepalived Deployment
+- **Fixed missing notification infrastructure on Pi-holes:**
+  - **Issue:** Failover events were detected but no Telegram/Discord/Pushover notifications were sent
+  - **Root cause:** `notify.sh` script was not deployed to Pi-holes, `/etc/pihole-sentinel/` directory didn't exist
+  - Creates `/etc/pihole-sentinel/` directory on Pi-holes during deployment
+  - Deploys `notify.sh` script to `/usr/local/bin/` (required by keepalived_notify.sh)
+  - Deploys `notify.conf` template to `/etc/pihole-sentinel/` (placeholder for user credentials)
+  - Sets proper permissions (755 for directory, 644 for notify.conf, 755 for notify.sh)
+  - **Impact:** Notifications now work correctly when failover events occur
+  - **Note:** Users must configure notification credentials via web interface
+  - Updated `setup.py` deploy_keepalived_remote() function (lines 1082-1086, 1102-1103, 1124, 1131-1133)
+
+---
+
 ## [0.10.0-beta.16] - 2025-12-06
 
 ### ✨ Improved
