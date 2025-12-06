@@ -629,9 +629,3 @@ Feel free to submit issues and pull requests.
 ## License
 
 MIT License - see LICENSE file for details
-
-##
-
-<p align="center">
-   <img src="logo-horizontal.svg" alt="Pi-hole Sentinel horizontal logo" width="360" />
-</p>
