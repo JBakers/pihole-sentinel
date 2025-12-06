@@ -146,6 +146,12 @@ Built for home networks and small businesses that need reliability without compl
 - `setuptools` - Python package development tools
 - `wheel` - Python package build tool
 
+
+##
+<p align="center">
+   <img src="logo-horizontal.svg" alt="Pi-hole Sentinel horizontal logo" width="360" />
+</p>
+
 ## Quick Start
 
 - Clone and enter the repo: `git clone https://github.com/JBakers/pihole-sentinel.git && cd pihole-sentinel`
@@ -623,3 +629,9 @@ Feel free to submit issues and pull requests.
 ## License
 
 MIT License - see LICENSE file for details
+
+##
+
+<p align="center">
+   <img src="logo-horizontal.svg" alt="Pi-hole Sentinel horizontal logo" width="360" />
+</p>
