@@ -151,49 +151,180 @@ async def close_http_session():
     if http_session and not http_session.closed:
         await http_session.close()
 
-async def send_notification(event_type: str, message: str):
-    """Send notification via configured services (Telegram, Discord, etc.)"""
-    notify_conf = "/etc/pihole-sentinel/notify.conf"
+async def send_notification(event_type: str, template_vars: dict):
+    """Send notification via configured services using custom templates"""
+    import json
 
-    if not os.path.exists(notify_conf):
-        logger.debug(f"Notification config not found: {notify_conf}")
+    config_path = CONFIG["notify_config_path"]
+
+    if not os.path.exists(config_path):
+        logger.debug(f"Notification config not found: {config_path}")
         return
 
-    # Load notification config
-    config = {}
+    # Load notification settings from JSON
     try:
-        with open(notify_conf, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    config[key.strip()] = value.strip().strip('"')
+        with open(config_path, 'r') as f:
+            settings = json.load(f)
     except Exception as e:
-        logger.error(f"Failed to read notify config: {e}")
+        logger.error(f"Failed to read notification settings: {e}")
+        await log_event("warning", f"⚠️ Failed to load notification settings: {e}")
         return
+
+    # Check if event type is enabled
+    events_config = settings.get('events', {})
+    if not events_config.get(event_type, True):
+        logger.debug(f"Event type {event_type} is disabled in settings")
+        return
+
+    # Load template and substitute variables
+    templates = settings.get('templates', {})
+    template = templates.get(event_type, "")
+
+    if not template:
+        # Fallback to default template if not found
+        template = f"Pi-hole Sentinel Alert: {event_type}"
+
+    try:
+        message = template.format(**template_vars)
+    except KeyError as e:
+        logger.error(f"Template variable missing: {e}")
+        await log_event("warning", f"⚠️ Notification template error: missing variable {e}")
+        return
+
+    # Track if any notification was sent
+    sent_count = 0
+    failed_services = []
 
     # Send Telegram notification
-    telegram_token = config.get('TELEGRAM_BOT_TOKEN')
-    telegram_chat = config.get('TELEGRAM_CHAT_ID')
+    if settings.get('telegram', {}).get('enabled'):
+        telegram_token = settings['telegram'].get('bot_token')
+        telegram_chat = settings['telegram'].get('chat_id')
 
-    if telegram_token and telegram_chat:
-        try:
-            url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-            payload = {
-                "chat_id": telegram_chat,
-                "text": f"🛡️ Pi-hole Sentinel Alert\n\n{message}",
-                "parse_mode": "HTML"
-            }
-            async with aiohttp.ClientSession() as session:
+        if telegram_token and telegram_chat:
+            try:
+                session = await get_http_session()
+                url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+                payload = {
+                    "chat_id": telegram_chat,
+                    "text": message,
+                    "parse_mode": "HTML"
+                }
                 async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                     if resp.status == 200:
                         logger.info(f"Telegram notification sent: {event_type}")
+                        sent_count += 1
                     else:
                         logger.warning(f"Telegram notification failed: HTTP {resp.status}")
-        except Exception as e:
-            logger.error(f"Failed to send Telegram notification: {e}")
+                        failed_services.append(f"Telegram (HTTP {resp.status})")
+            except Exception as e:
+                logger.error(f"Failed to send Telegram notification: {e}")
+                failed_services.append(f"Telegram ({type(e).__name__})")
 
-    # TODO: Add Discord, Pushover, Ntfy, webhook support here if needed
+    # Send Discord notification
+    if settings.get('discord', {}).get('enabled'):
+        webhook_url = settings['discord'].get('webhook_url')
+
+        if webhook_url:
+            try:
+                session = await get_http_session()
+                # Convert HTML formatting to Discord markdown
+                discord_message = message.replace('<b>', '**').replace('</b>', '**')
+                payload = {
+                    "content": discord_message
+                }
+                async with session.post(webhook_url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status in [200, 204]:
+                        logger.info(f"Discord notification sent: {event_type}")
+                        sent_count += 1
+                    else:
+                        logger.warning(f"Discord notification failed: HTTP {resp.status}")
+                        failed_services.append(f"Discord (HTTP {resp.status})")
+            except Exception as e:
+                logger.error(f"Failed to send Discord notification: {e}")
+                failed_services.append(f"Discord ({type(e).__name__})")
+
+    # Send Pushover notification
+    if settings.get('pushover', {}).get('enabled'):
+        user_key = settings['pushover'].get('user_key')
+        app_token = settings['pushover'].get('app_token')
+
+        if user_key and app_token:
+            try:
+                session = await get_http_session()
+                # Remove HTML tags for Pushover
+                pushover_message = message.replace('<b>', '').replace('</b>', '')
+                async with session.post('https://api.pushover.net/1/messages.json', data={
+                    'token': app_token,
+                    'user': user_key,
+                    'title': 'Pi-hole Sentinel',
+                    'message': pushover_message
+                }, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        logger.info(f"Pushover notification sent: {event_type}")
+                        sent_count += 1
+                    else:
+                        logger.warning(f"Pushover notification failed: HTTP {resp.status}")
+                        failed_services.append(f"Pushover (HTTP {resp.status})")
+            except Exception as e:
+                logger.error(f"Failed to send Pushover notification: {e}")
+                failed_services.append(f"Pushover ({type(e).__name__})")
+
+    # Send Ntfy notification
+    if settings.get('ntfy', {}).get('enabled'):
+        topic = settings['ntfy'].get('topic')
+        server = settings['ntfy'].get('server', 'https://ntfy.sh')
+
+        if topic:
+            try:
+                session = await get_http_session()
+                url = f"{server}/{topic}"
+                # Remove HTML tags for Ntfy
+                ntfy_message = message.replace('<b>', '').replace('</b>', '')
+                async with session.post(url, data=ntfy_message.encode('utf-8'), headers={
+                    'Title': 'Pi-hole Sentinel',
+                    'Priority': 'default'
+                }, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        logger.info(f"Ntfy notification sent: {event_type}")
+                        sent_count += 1
+                    else:
+                        logger.warning(f"Ntfy notification failed: HTTP {resp.status}")
+                        failed_services.append(f"Ntfy (HTTP {resp.status})")
+            except Exception as e:
+                logger.error(f"Failed to send Ntfy notification: {e}")
+                failed_services.append(f"Ntfy ({type(e).__name__})")
+
+    # Send custom webhook notification
+    if settings.get('webhook', {}).get('enabled'):
+        webhook_url = settings['webhook'].get('url')
+
+        if webhook_url:
+            try:
+                session = await get_http_session()
+                payload = {
+                    'service': 'pihole-sentinel',
+                    'event_type': event_type,
+                    'message': message,
+                    'variables': template_vars,
+                    'timestamp': datetime.now().isoformat()
+                }
+                async with session.post(webhook_url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status in [200, 201, 202, 204]:
+                        logger.info(f"Webhook notification sent: {event_type}")
+                        sent_count += 1
+                    else:
+                        logger.warning(f"Webhook notification failed: HTTP {resp.status}")
+                        failed_services.append(f"Webhook (HTTP {resp.status})")
+            except Exception as e:
+                logger.error(f"Failed to send Webhook notification: {e}")
+                failed_services.append(f"Webhook ({type(e).__name__})")
+
+    # Log notification status
+    if sent_count > 0:
+        await log_event("notification", f"✉️ Notification sent: {event_type} ({sent_count} service{'s' if sent_count > 1 else ''})")
+
+    if failed_services:
+        await log_event("warning", f"⚠️ Notification failed for: {', '.join(failed_services)}")
 
 # CORS middleware - restricted to localhost for security
 # If you need remote access, add specific origins here
@@ -605,11 +736,12 @@ async def monitor_loop():
                         await log_event("info", f"Failback reason: {reason}")
 
                 # Send notification
-                notification_message = f"<b>{master_name} became MASTER</b>"
-                if reason:
-                    notification_message += f"\n\nReason: {reason}"
-                notification_message += f"\n\nVIP: {CONFIG['vip_address']}"
-                await send_notification("failover", notification_message)
+                template_vars = {
+                    "node_name": master_name,
+                    "reason": reason if reason else "Unknown",
+                    "vip_address": CONFIG['vip']
+                }
+                await send_notification("failover", template_vars)
             
             previous_state = current_master
             previous_primary_online = primary_data["online"]
@@ -740,7 +872,20 @@ async def get_notification_settings(api_key: str = Depends(verify_api_key)):
         "discord": {"enabled": False, "webhook_url": ""},
         "pushover": {"enabled": False, "user_key": "", "app_token": ""},
         "ntfy": {"enabled": False, "topic": "", "server": "https://ntfy.sh"},
-        "webhook": {"enabled": False, "url": ""}
+        "webhook": {"enabled": False, "url": ""},
+        "templates": {
+            "failover": "🛡️ Pi-hole Sentinel Alert\n\n<b>{node_name} became MASTER</b>\n\nReason: {reason}\nVIP: {vip_address}",
+            "recovery": "✅ Pi-hole Sentinel\n\n<b>{node_name} recovered</b>\n\nThe issue has been resolved.",
+            "fault": "⚠️ Pi-hole Sentinel Warning\n\n<b>{node_name} is in FAULT state</b>\n\nVIP: {vip_address}"
+        },
+        "repeat": {
+            "enabled": False,
+            "interval": 0  # 0=disabled, 5/10/30/60 minutes
+        },
+        "snooze": {
+            "enabled": False,
+            "until": None  # ISO timestamp when snooze ends
+        }
     }
 
 # SECURITY: Removed insecure test-settings endpoint that exposed credentials
