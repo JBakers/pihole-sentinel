@@ -5,6 +5,22 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.20] - 2025-12-07
+
+### ✨ Improved
+
+#### Setup Quick IP Flow
+- Added auto-detection of local IP range for quick setup; falls back to manual range entry if detection fails.
+- Quick setup now remembers the chosen range and reuses it for subsequent prompts.
+- Monitor server IP prompt reuses the detected/selected range and only asks for the last octet (no auto .50 default).
+- Validation and prompts now use colored output and explicit error messages.
+
+#### Banner & Version Display
+- Setup banner now reads version from `VERSION` via `_get_version_banner()`.
+- Updated ASCII banner to match logo style.
+
+---
+
 ## [0.10.0-beta.19] - 2025-12-06
 
 ### ✨ New

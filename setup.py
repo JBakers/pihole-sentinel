@@ -47,7 +47,33 @@ class Colors:
         Colors.UNDERLINE = ''
         Colors.END = ''
 
-# ASCII art logo (simplified version of logo.svg)
+def detect_local_ip_range():
+    """Best-effort detection of the first 3 octets of the primary IP.
+
+    Tries to open a UDP socket to a public IP (no traffic sent) and inspects
+    the local socket address. Falls back to None if detection fails.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(('1.1.1.1', 80))
+            local_ip = s.getsockname()[0]
+        parts = local_ip.split('.')
+        if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+            return '.'.join(parts[:3])
+    except Exception:
+        pass
+    return None
+
+# ASCII art logo (aligned with logo.svg / logo-horizontal.svg styling)
+def _get_version_banner():
+    version_file = os.path.join(os.path.dirname(__file__), "VERSION")
+    try:
+        with open(version_file, "r", encoding="utf-8") as vf:
+            return vf.read().strip()
+    except Exception:
+        return "unknown"
+
+
 LOGO = f"""{Colors.PURPLE}{Colors.BOLD}
     ██████╗ ██╗██╗  ██╗ ██████╗ ██╗     ███████╗
     ██╔══██╗██║██║  ██║██╔═══██╗██║     ██╔════╝
@@ -61,9 +87,10 @@ LOGO = f"""{Colors.PURPLE}{Colors.BOLD}
         ███████╗█████╗  ██╔██╗ ██║   ██║   ██║██╔██╗ ██║█████╗  ██║     
         ╚════██║██╔══╝  ██║╚██╗██║   ██║   ██║██║╚██╗██║██╔══╝  ██║     
         ███████║███████╗██║ ╚████║   ██║   ██║██║ ╚████║███████╗███████╗
-        ╚══════╝╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
+        ╚══════╝╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝{Colors.END}{Colors.CYAN}{Colors.BOLD}
+resilient dns · simple ops · keep dns up when others drop{Colors.END}{Colors.BOLD}
+Version: {_get_version_banner()}
 {Colors.END}
-          {Colors.BOLD}High Availability Monitoring for Pi-hole{Colors.END}
 """
 
 class SetupConfig:
@@ -349,30 +376,107 @@ class SetupConfig:
                 break
 
         # Get IP addresses
-        print("\nNOTE: All IP addresses must be in the same subnet!")
+        detected_range = detect_local_ip_range()
+        if detected_range:
+            self.config['ip_range'] = detected_range
+
+        print(f"\n{Colors.YELLOW}NOTE: All IP addresses must be in the same subnet!{Colors.END}")
         while True:
-            print("\nEnter IP addresses (press Enter for defaults):")
-            primary_ip = input("Primary Pi-hole IP [10.10.100.10]: ").strip() or "10.10.100.10"
-            secondary_ip = input("Secondary Pi-hole IP [10.10.100.20]: ").strip() or "10.10.100.20"
-            vip = input("Virtual IP (VIP) address [10.10.100.2]: ").strip() or "10.10.100.2"
-            gateway = input("Network gateway IP [10.10.100.1]: ").strip() or "10.10.100.1"
-            
+            print(f"\n{Colors.BOLD}Choose IP configuration method:{Colors.END}")
+            print(f"  1. {Colors.CYAN}Quick setup{Colors.END} (enter IP range once, then last octet for each device)")
+            print(f"  2. Manual setup (enter full IP addresses)")
+
+            setup_choice = input(f"\n{Colors.BOLD}Choice [1]:{Colors.END} ").strip() or "1"
+
+            if setup_choice == "1":
+                # Quick setup - IP range + last octet
+                print(f"\n{Colors.CYAN}Quick Setup:{Colors.END}")
+                default_range = self.config.get('ip_range') or detected_range
+                if not default_range:
+                    print(f"{Colors.YELLOW}No IP range auto-detected; please enter it manually.{Colors.END}")
+                else:
+                    print(f"Auto-detected range: {Colors.CYAN}{default_range}.x{Colors.END}")
+
+                print("Enter the first 3 octets of your IP range (e.g., 192.168.178)")
+                prompt = f"{Colors.BOLD}IP range{Colors.END}"
+                if default_range:
+                    prompt += f" [{default_range}]"
+                prompt += ": "
+                ip_range = input(prompt).strip()
+                if not ip_range and default_range:
+                    ip_range = default_range
+                if not ip_range:
+                    print(f"{Colors.RED}Error: IP range is required.{Colors.END}")
+                    continue
+
+                # Validate IP range format
+                parts = ip_range.split('.')
+                if len(parts) != 3:
+                    print(f"{Colors.RED}Error: Invalid IP range! Must be exactly 3 octets (e.g., 192.168.178){Colors.END}")
+                    continue
+
+                if not all(part.isdigit() and 0 <= int(part) <= 255 for part in parts):
+                    print(f"{Colors.RED}Error: Invalid IP range! Each octet must be 0-255{Colors.END}")
+                    continue
+
+                print(f"\n{Colors.CYAN}Enter last octet for each device (using {ip_range}.X):{Colors.END}")
+                primary_octet = input(f"Primary Pi-hole    ({ip_range}.): ").strip()
+                secondary_octet = input(f"Secondary Pi-hole  ({ip_range}.): ").strip()
+                vip_octet = input(f"Virtual IP (VIP)   ({ip_range}.): ").strip()
+                gateway_octet = input(f"Network gateway    ({ip_range}.): ").strip()
+
+                # Validate octets
+                try:
+                    octets = [primary_octet, secondary_octet, vip_octet, gateway_octet]
+                    if not all(octet.isdigit() and 0 <= int(octet) <= 255 for octet in octets):
+                        print(f"{Colors.RED}Error: Invalid octet! Must be 0-255{Colors.END}")
+                        continue
+
+                    primary_ip = f"{ip_range}.{primary_octet}"
+                    secondary_ip = f"{ip_range}.{secondary_octet}"
+                    vip = f"{ip_range}.{vip_octet}"
+                    gateway = f"{ip_range}.{gateway_octet}"
+                    self.config['ip_range'] = ip_range
+                except ValueError:
+                    print(f"{Colors.RED}Error: Invalid octet value!{Colors.END}")
+                    continue
+            else:
+                # Manual setup - full IP addresses
+                print(f"\n{Colors.CYAN}Manual Setup:{Colors.END}")
+                print("Enter full IP addresses:")
+                primary_ip = input("Primary Pi-hole IP: ").strip()
+                secondary_ip = input("Secondary Pi-hole IP: ").strip()
+                vip = input("Virtual IP (VIP) address: ").strip()
+                gateway = input("Network gateway IP: ").strip()
+
+            # Validate all IPs
             if not all(map(self.validate_ip, [primary_ip, secondary_ip, vip, gateway])):
-                print("Error: Invalid IP address format!")
+                print(f"{Colors.RED}Error: Invalid IP address format!{Colors.END}")
                 continue
-            
+
             # Check if IPs are in same subnet
             try:
                 netmask = "24"  # Assuming /24 network
                 network = str(ip_network(f"{primary_ip}/{netmask}", strict=False).network_address)
                 if not all(ip_address(ip) in ip_network(f"{network}/{netmask}")
                           for ip in [primary_ip, secondary_ip, vip, gateway]):
-                    print("Error: IP addresses must be in the same subnet!")
+                    print(f"{Colors.RED}Error: IP addresses must be in the same subnet!{Colors.END}")
                     continue
             except ValueError as e:
-                print(f"Error: {e}")
+                print(f"{Colors.RED}Error: {e}{Colors.END}")
                 continue
-            
+
+            # Show summary
+            print(f"\n{Colors.GREEN}✓ IP Configuration:{Colors.END}")
+            print(f"  Primary Pi-hole:  {primary_ip}")
+            print(f"  Secondary Pi-hole: {secondary_ip}")
+            print(f"  Virtual IP (VIP):  {vip}")
+            print(f"  Network gateway:   {gateway}")
+
+            confirm = input(f"\n{Colors.BOLD}Is this correct? (Y/n):{Colors.END} ").strip().lower()
+            if confirm == 'n':
+                continue
+
             self.config.update({
                 'primary_ip': primary_ip,
                 'secondary_ip': secondary_ip,
@@ -489,7 +593,23 @@ class SetupConfig:
             
         if self.config['separate_monitor']:
             while True:
-                monitor_ip = input(f"\n{Colors.BOLD}Monitor server IP:{Colors.END} ")
+                default_range = self.config.get('ip_range')
+
+                if default_range:
+                    print(f"\n{Colors.CYAN}Monitor IP (quick){Colors.END} — using range {default_range}.X")
+                    monitor_octet = input(f"Last octet for monitor ({default_range}.): ").strip()
+
+                    try:
+                        if not monitor_octet.isdigit() or not (0 <= int(monitor_octet) <= 255):
+                            print(f"{Colors.RED}Error: Invalid octet! Must be 0-255{Colors.END}")
+                            continue
+                        monitor_ip = f"{default_range}.{monitor_octet}"
+                    except ValueError:
+                        print(f"{Colors.RED}Error: Invalid octet!{Colors.END}")
+                        continue
+                else:
+                    monitor_ip = input(f"\n{Colors.BOLD}Monitor server IP:{Colors.END} ").strip()
+
                 if self.validate_ip(monitor_ip):
                     self.config['monitor_ip'] = monitor_ip
 
@@ -1276,7 +1396,7 @@ NODE_STATE=MASTER
 {Colors.GREEN}{Colors.BOLD}
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
-║                     ✓ DEPLOYMENT COMPLETED SUCCESSFULLY!                     ║
+║                     ✓ DEPLOYMENT COMPLETED SUCCESSFULLY!                      ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 {Colors.END}
