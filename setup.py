@@ -1081,10 +1081,6 @@ NODE_STATE=MASTER
 
             # Pre-deployment checks and directory setup
             print("Running pre-deployment checks...")
-            print("├─ Creating required directories...")
-            # Create /etc/pihole-sentinel (required for notify.conf)
-            self.remote_exec(host, user, port, "mkdir -p /etc/pihole-sentinel", password)
-
             # Create remote temp directory
             print("├─ Preparing deployment staging area...")
             self.remote_exec(host, user, port, "mkdir -p /tmp/pihole-sentinel-deploy", password)
@@ -1099,8 +1095,6 @@ NODE_STATE=MASTER
                 ("keepalived/scripts/check_dhcp_service.sh", "/tmp/pihole-sentinel-deploy/check_dhcp_service.sh"),
                 ("keepalived/scripts/dhcp_control.sh", "/tmp/pihole-sentinel-deploy/dhcp_control.sh"),
                 ("keepalived/scripts/keepalived_notify.sh", "/tmp/pihole-sentinel-deploy/keepalived_notify.sh"),
-                ("keepalived/scripts/notify.sh", "/tmp/pihole-sentinel-deploy/notify.sh"),
-                ("keepalived/notify.conf.example", "/tmp/pihole-sentinel-deploy/notify.conf"),
             ]
             
             for local, remote in files_to_copy:
@@ -1121,16 +1115,12 @@ NODE_STATE=MASTER
                 "chown root:root /etc/keepalived/.env",
                 "chmod 600 /etc/keepalived/.env",
                 # Copy and fix line endings for scripts
-                "for script in check_pihole_service.sh check_dhcp_service.sh dhcp_control.sh keepalived_notify.sh notify.sh; do " +
+                "for script in check_pihole_service.sh check_dhcp_service.sh dhcp_control.sh keepalived_notify.sh; do " +
                 "cp /tmp/pihole-sentinel-deploy/$script /tmp/$script && " +
                 "sed -i 's/\\r$//' /tmp/$script && " +
                 "mv /tmp/$script /usr/local/bin/$script && " +
                 "chown root:root /usr/local/bin/$script && " +
                 "chmod 755 /usr/local/bin/$script; done",
-                # Copy notify.conf to /etc/pihole-sentinel/
-                "cp /tmp/pihole-sentinel-deploy/notify.conf /etc/pihole-sentinel/notify.conf",
-                "chown root:root /etc/pihole-sentinel/notify.conf",
-                "chmod 644 /etc/pihole-sentinel/notify.conf",
                 "systemctl enable keepalived",
                 "systemctl restart keepalived",
                 "rm -rf /tmp/pihole-sentinel-deploy"

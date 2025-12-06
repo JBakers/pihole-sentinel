@@ -5,6 +5,28 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.18] - 2025-12-06
+
+### ✨ Improved
+
+#### Notification Architecture
+- **Centralized notifications on monitor service:**
+  - **Change:** Notifications now handled entirely by monitor service instead of by keepalived on Pi-holes
+  - **Benefit:** Simpler architecture, no configuration sync needed between servers
+  - Monitor detects failover events and sends notifications (Telegram, Discord, Pushover, etc.)
+  - `notify.conf` only needs to exist on monitor server (not on Pi-holes)
+  - Notifications sent within 10 seconds of failover (previous polling interval)
+  - Removed `notify.sh` calls from `keepalived_notify.sh` (Pi-holes only log events)
+  - Updated `setup.py` to NOT deploy `notify.sh` and `notify.conf` to Pi-holes
+  - Added `send_notification()` function in `monitor.py` with Telegram support
+  - **Impact:** Easier to manage, no sync issues, cleaner separation of concerns
+  - Updated files:
+    - `keepalived/scripts/keepalived_notify.sh` - removed notify.sh calls
+    - `setup.py` deploy_keepalived_remote() - removed notify.sh/conf deployment
+    - `dashboard/monitor.py` - added send_notification() and failover notifications
+
+---
+
 ## [0.10.0-beta.17] - 2025-12-06
 
 ### 🐛 Fixed

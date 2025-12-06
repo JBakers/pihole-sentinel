@@ -151,6 +151,50 @@ async def close_http_session():
     if http_session and not http_session.closed:
         await http_session.close()
 
+async def send_notification(event_type: str, message: str):
+    """Send notification via configured services (Telegram, Discord, etc.)"""
+    notify_conf = "/etc/pihole-sentinel/notify.conf"
+
+    if not os.path.exists(notify_conf):
+        logger.debug(f"Notification config not found: {notify_conf}")
+        return
+
+    # Load notification config
+    config = {}
+    try:
+        with open(notify_conf, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    config[key.strip()] = value.strip().strip('"')
+    except Exception as e:
+        logger.error(f"Failed to read notify config: {e}")
+        return
+
+    # Send Telegram notification
+    telegram_token = config.get('TELEGRAM_BOT_TOKEN')
+    telegram_chat = config.get('TELEGRAM_CHAT_ID')
+
+    if telegram_token and telegram_chat:
+        try:
+            url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+            payload = {
+                "chat_id": telegram_chat,
+                "text": f"🛡️ Pi-hole Sentinel Alert\n\n{message}",
+                "parse_mode": "HTML"
+            }
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        logger.info(f"Telegram notification sent: {event_type}")
+                    else:
+                        logger.warning(f"Telegram notification failed: HTTP {resp.status}")
+        except Exception as e:
+            logger.error(f"Failed to send Telegram notification: {e}")
+
+    # TODO: Add Discord, Pushover, Ntfy, webhook support here if needed
+
 # CORS middleware - restricted to localhost for security
 # If you need remote access, add specific origins here
 app.add_middleware(
@@ -542,18 +586,30 @@ async def monitor_loop():
                 master_name = "Primary" if current_master == "primary" else "Secondary"
                 await log_event("failover", f"{master_name} became MASTER")
                 logger.warning(f"FAILOVER: {master_name} is now MASTER")
-                
-                # Log reason for failover
+
+                # Determine failover reason
+                reason = ""
                 if current_master == "secondary":
                     if not primary_data["online"]:
-                        await log_event("info", "Failover reason: Primary is offline")
+                        reason = "Primary is offline"
+                        await log_event("info", f"Failover reason: {reason}")
                     elif not primary_data["pihole"]:
-                        await log_event("info", "Failover reason: Pi-hole service on Primary is down")
+                        reason = "Pi-hole service on Primary is down"
+                        await log_event("info", f"Failover reason: {reason}")
                 else:
                     if not secondary_data["online"]:
-                        await log_event("info", "Failback reason: Secondary is offline")
+                        reason = "Secondary is offline"
+                        await log_event("info", f"Failback reason: {reason}")
                     elif not secondary_data["pihole"]:
-                        await log_event("info", "Failback reason: Pi-hole service on Secondary is down")
+                        reason = "Pi-hole service on Secondary is down"
+                        await log_event("info", f"Failback reason: {reason}")
+
+                # Send notification
+                notification_message = f"<b>{master_name} became MASTER</b>"
+                if reason:
+                    notification_message += f"\n\nReason: {reason}"
+                notification_message += f"\n\nVIP: {CONFIG['vip_address']}"
+                await send_notification("failover", notification_message)
             
             previous_state = current_master
             previous_primary_online = primary_data["online"]
