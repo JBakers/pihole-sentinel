@@ -5,6 +5,59 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.19] - 2025-12-06
+
+### ✨ New
+
+#### Advanced Notification Features - Phase 1
+- **Custom message templates:**
+  - Templates support variable substitution: `{node_name}`, `{reason}`, `{vip_address}`
+  - Default templates for: failover, recovery, fault events
+  - Editable via settings interface (planned in UI update)
+  - Example: `"🛡️ Pi-hole Sentinel Alert\n\n<b>{node_name} became MASTER</b>\n\nReason: {reason}\nVIP: {vip_address}"`
+- **Event logging for notifications:**
+  - Logs when notifications are sent: `✉️ Notification sent: failover (1 service)`
+  - Logs failed notifications: `⚠️ Notification failed for: Telegram (HTTP 500)`
+  - Visible in System Events timeline
+- **Multi-service notification support:**
+  - Telegram (with HTML formatting)
+  - Discord (with markdown conversion)
+  - Pushover (plain text)
+  - Ntfy (plain text)
+  - Custom webhooks (JSON with full context)
+  - All services can be enabled simultaneously
+  - Tracks success/failure per service
+
+### 🐛 Fixed
+
+#### VIP Address Configuration
+- **Fixed incorrect config key:**
+  - Changed `CONFIG['vip_address']` → `CONFIG['vip']` in failover notification code
+  - Prevents KeyError when sending failover notifications
+  - Aligns with actual CONFIG structure (line 66)
+
+### 📝 Technical Details
+
+#### Code Changes
+- **`dashboard/monitor.py` (lines 154-327):**
+  - Completely rewritten `send_notification()` function
+  - Changed signature: `(event_type: str, message: str)` → `(event_type: str, template_vars: dict)`
+  - Loads templates from JSON settings file
+  - Supports all notification services (not just Telegram)
+  - Logs success/failure to events database
+  - Format conversion for Discord (HTML → Markdown) and Pushover/Ntfy (HTML tags removed)
+- **`dashboard/monitor.py` (lines 738-744):**
+  - Updated failover detection to pass template variables
+  - Sends `{node_name, reason, vip_address}` dict to notification function
+
+### 🔮 Coming Next
+
+- **Phase 2:** Repeat/reminder logic (5/10/30/60 min intervals)
+- **Phase 3:** Snooze functionality
+- Settings UI update to edit message templates
+
+---
+
 ## [0.10.0-beta.18] - 2025-12-06
 
 ### ✨ Improved
