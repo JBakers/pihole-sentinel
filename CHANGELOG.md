@@ -1,3 +1,9 @@
+# 0.11.0-beta.4 (2025-12-07)
+## New
+- Frontend: System Commands sectie, modal, CSS, JS in dashboard/index.html
+## Improved
+- UI: Mobile-friendly command buttons, copy output, dark mode support
+
 # Changelog
 
 All notable changes to Pi-hole Sentinel will be documented in this file.
