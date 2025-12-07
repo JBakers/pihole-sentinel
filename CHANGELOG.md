@@ -2,8 +2,19 @@
 
 All notable changes to Pi-hole Sentinel will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [0.12.0-beta.5] - 2025-12-07
+
+### 🔄 Merged from develop
+
+**Merged develop (0.10.0-beta.15) into testing**
+
+- All features and fixes from develop branch
+- See develop changelog entries below for details
+
+---
+
 
 ## [0.12.0-beta.4] - 2025-12-07
 

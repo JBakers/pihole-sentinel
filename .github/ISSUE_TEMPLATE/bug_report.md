@@ -10,7 +10,7 @@ assignees: ''
 A clear and concise description of what the bug is.
 
 ## Environment
-- **Pi-hole Sentinel Version:** [e.g., 0.9.0-beta.1]
+- **Pi-hole Sentinel Version:** [e.g., 0.10.0-beta.15]
 - **Pi-hole Version:** [e.g., 6.0]
 - **Operating System:** [e.g., Debian 12, Ubuntu 22.04]
 - **Python Version:** [e.g., 3.11]
