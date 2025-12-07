@@ -574,7 +574,7 @@ pihole-sentinel/
 ├── EXISTING-SETUP.md              # Guide for existing Pi-hole setups
 ├── SYNC-SETUP.md                  # Configuration sync guide
 ├── LICENSE                         # MIT License
-├── VERSION                         # Current version (0.8.0)
+├── VERSION                         # Current version (0.12.0-beta.2)
 ├── .gitignore                      # Git ignore rules
 ├── .markdownlint.json             # Markdown linting config
 ├── logo.svg                        # Project logo
