@@ -516,6 +516,9 @@ class SetupConfig:
             })
             break
 
+                        subprocess.run(["sudo", "cp", "bin/pisen", "/usr/local/bin/pisen"], check=True)
+                        subprocess.run(["sudo", "chmod", "755", "/usr/local/bin/pisen"], check=True)
+
     def collect_dhcp_config(self):
         """Collect DHCP failover configuration."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== DHCP Configuration ==={Colors.END}")
@@ -967,6 +970,11 @@ NODE_STATE=MASTER
             subprocess.run(["sudo", "cp", "generated_configs/monitor.env", "/opt/pihole-monitor/.env"], check=True)
             subprocess.run(["sudo", "cp", "systemd/pihole-monitor.service",
                           "/etc/systemd/system/"], check=True)
+
+            # Install pisen CLI tool
+            print("Installing pisen CLI tool...")
+            subprocess.run(["sudo", "cp", "bin/pisen", "/usr/local/bin/pisen"], check=True)
+            subprocess.run(["sudo", "chmod", "755", "/usr/local/bin/pisen"], check=True)
 
             # Inject API key into HTML files
             print("Configuring API authentication...")
@@ -1453,33 +1461,25 @@ NODE_STATE=MASTER
 {Colors.CYAN}{Colors.BOLD}📊 Access Your Monitor Dashboard:{Colors.END}
    {Colors.BOLD}→ http://{monitor_ip}:8080{Colors.END}
 
-{Colors.CYAN}{Colors.BOLD}🔍 Quick Status Check Commands:{Colors.END}
+{Colors.CYAN}{Colors.BOLD}🛠️  Quick Management Commands:{Colors.END}
 
-   {Colors.YELLOW}On Monitor Server ({monitor_ip}):{Colors.END}
-   {Colors.CYAN}systemctl status pihole-monitor{Colors.END}
-   {Colors.CYAN}journalctl -u pihole-monitor -f{Colors.END}
-   {Colors.CYAN}sqlite3 /opt/pihole-monitor/monitor.db "SELECT * FROM status_history ORDER BY timestamp DESC LIMIT 5;"{Colors.END}
+   {Colors.BOLD}Use the 'pisen' CLI tool for easy management:{Colors.END}
 
-   {Colors.YELLOW}On Primary Pi-hole ({primary_ip}):{Colors.END}
-   {Colors.CYAN}systemctl status keepalived{Colors.END}
-   {Colors.CYAN}systemctl status pihole-FTL{Colors.END}
-   {Colors.CYAN}ip addr show | grep {vip}{Colors.END}
+   {Colors.CYAN}pisen status{Colors.END}      - Show service status
+   {Colors.CYAN}pisen logs{Colors.END}        - Tail service logs (Ctrl+C to stop)
+   {Colors.CYAN}pisen vip{Colors.END}         - Check which server has the VIP
+   {Colors.CYAN}pisen dashboard{Colors.END}   - Show dashboard access info
+   {Colors.CYAN}pisen health{Colors.END}      - Run comprehensive health check
+   {Colors.CYAN}pisen test{Colors.END}        - Interactive failover testing guide
+   {Colors.CYAN}pisen --help{Colors.END}      - Show all available commands
 
-   {Colors.YELLOW}On Secondary Pi-hole ({secondary_ip}):{Colors.END}
-   {Colors.CYAN}systemctl status keepalived{Colors.END}
-   {Colors.CYAN}systemctl status pihole-FTL{Colors.END}
+{Colors.CYAN}{Colors.BOLD}📁 Additional Commands:{Colors.END}
+   {Colors.DIM}Direct systemd access (if needed):{Colors.END}
+   Monitor logs: {Colors.DIM}journalctl -u pihole-monitor{Colors.END}
+   Keepalived logs: {Colors.DIM}journalctl -u keepalived{Colors.END}
+   Keepalived events: {Colors.DIM}/var/log/keepalived-notify.log{Colors.END}
 
-{Colors.CYAN}{Colors.BOLD}🧪 Test Failover:{Colors.END}
-   {Colors.BOLD}1.{Colors.END} Note which server has the VIP ({vip})
-   {Colors.BOLD}2.{Colors.END} On that server: {Colors.CYAN}systemctl stop pihole-FTL{Colors.END}
-   {Colors.BOLD}3.{Colors.END} Watch the VIP move to the other server
-   {Colors.BOLD}4.{Colors.END} Check the dashboard for status changes
-   {Colors.BOLD}5.{Colors.END} Restore service: {Colors.CYAN}systemctl start pihole-FTL{Colors.END}
-
-{Colors.CYAN}{Colors.BOLD}📁 Log Files:{Colors.END}
-   {Colors.CYAN}Monitor:{Colors.END} journalctl -u pihole-monitor
-   {Colors.CYAN}Keepalived:{Colors.END} journalctl -u keepalived
-   {Colors.CYAN}Keepalived events:{Colors.END} /var/log/keepalived-notify.log
+{Colors.GREEN}{Colors.BOLD}🎉 Your Pi-hole High Availability setup is ready!{Colors.END}
 
 {Colors.GREEN}{Colors.BOLD}🎉 Your Pi-hole High Availability setup is ready!{Colors.END}
 

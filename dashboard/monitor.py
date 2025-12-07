@@ -1,3 +1,141 @@
+import time
+
+# =============================================================================
+# Command Execution API (System Commands)
+# =============================================================================
+
+# Command whitelist - only these commands can be executed
+COMMANDS_WHITELIST = {
+    'monitor_status': {
+        'cmd': ['systemctl', 'status', 'pihole-monitor', '--no-pager', '--lines=20'],
+        'description': 'Monitor Service Status',
+        'icon': '📊',
+    },
+    'monitor_logs': {
+        'cmd': ['journalctl', '-u', 'pihole-monitor', '-n', '50', '--no-pager'],
+        'description': 'Monitor Logs (last 50 lines)',
+        'icon': '📄',
+    },
+    'keepalived_status': {
+        'cmd': ['systemctl', 'status', 'keepalived', '--no-pager', '--lines=20'],
+        'description': 'Keepalived Service Status',
+        'icon': '🔄',
+    },
+    'keepalived_logs': {
+        'cmd': ['journalctl', '-u', 'keepalived', '-n', '50', '--no-pager'],
+        'description': 'Keepalived Logs (last 50 lines)',
+        'icon': '📜',
+    },
+    'vip_check': {
+        'cmd': ['ip', 'addr', 'show'],
+        'description': 'Network Interfaces (VIP Check)',
+        'icon': '🌐',
+    },
+    'db_recent_events': {
+        'cmd': ['sqlite3', CONFIG["db_path"],
+                'SELECT timestamp, event_type, message FROM events ORDER BY timestamp DESC LIMIT 20'],
+        'description': 'Recent Database Events',
+        'icon': '📊',
+    },
+}
+
+# Rate limiting voor command execution
+command_rate_limit_store = defaultdict(list)
+COMMAND_RATE_LIMIT_REQUESTS = 5  # Max 5 commands
+COMMAND_RATE_LIMIT_WINDOW = 60   # Per 60 seconds
+
+async def command_rate_limit_check(request: Request):
+    """Rate limit command execution to prevent spam"""
+    client_ip = request.client.host
+    now = time.time()
+
+    # Remove old entries
+    command_rate_limit_store[client_ip] = [
+        timestamp for timestamp in command_rate_limit_store[client_ip]
+        if now - timestamp < COMMAND_RATE_LIMIT_WINDOW
+    ]
+
+    # Check limit
+    if len(command_rate_limit_store[client_ip]) >= COMMAND_RATE_LIMIT_REQUESTS:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Max {COMMAND_RATE_LIMIT_REQUESTS} commands per {COMMAND_RATE_LIMIT_WINDOW}s"
+        )
+
+    # Add current timestamp
+    command_rate_limit_store[client_ip].append(now)
+    return True
+
+@app.get("/api/commands")
+async def list_commands(api_key: str = Depends(verify_api_key)):
+    """List available system commands"""
+    return {
+        "commands": {
+            name: {
+                "description": info['description'],
+                "icon": info['icon']
+            }
+            for name, info in COMMANDS_WHITELIST.items()
+        }
+    }
+
+@app.post("/api/commands/{command_name}")
+async def execute_command(
+    command_name: str,
+    api_key: str = Depends(verify_api_key),
+    _rate_limit: bool = Depends(command_rate_limit_check)
+):
+    """Execute a whitelisted system command"""
+    if command_name not in COMMANDS_WHITELIST:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Command '{command_name}' not whitelisted. Use /api/commands to see available commands."
+        )
+
+    cmd_info = COMMANDS_WHITELIST[command_name]
+    cmd = cmd_info['cmd']
+
+    try:
+        # Execute command with timeout
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False
+        )
+
+        logger.info(f"Command executed: {command_name} (exit code: {result.returncode})")
+
+        return {
+            "status": "success" if result.returncode == 0 else "error",
+            "command": command_name,
+            "description": cmd_info['description'],
+            "icon": cmd_info['icon'],
+            "output": result.stdout,
+            "error": result.stderr if result.returncode != 0 else None,
+            "exit_code": result.returncode,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except subprocess.TimeoutExpired:
+        logger.warning(f"Command timeout: {command_name}")
+        return {
+            "status": "error",
+            "command": command_name,
+            "error": "Command execution timed out (10s limit)",
+            "exit_code": 124,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Command execution failed: {command_name}", exc_info=True)
+        return {
+            "status": "error",
+            "command": command_name,
+            "error": str(e),
+            "exit_code": 1,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 #!/usr/bin/env python3
 """
 Pi-hole Keepalived Monitor - Simple Standalone Version
@@ -15,8 +153,9 @@ import socket
 import copy
 import logging
 import json
+import time
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict
 from collections import defaultdict
 from fastapi import FastAPI, HTTPException, Security, Depends, Request
@@ -1714,6 +1853,145 @@ async def cancel_snooze(api_key: str = Depends(verify_api_key)):
         return {"status": "success", "message": "Snooze cancelled"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to cancel snooze: {str(e)}")
+
+
+# =============================================================================
+# Command Execution API (System Commands)
+# =============================================================================
+
+# Command whitelist - only these commands can be executed
+COMMANDS_WHITELIST = {
+    'monitor_status': {
+        'cmd': ['systemctl', 'status', 'pihole-monitor', '--no-pager', '--lines=20'],
+        'description': 'Monitor Service Status',
+        'icon': '📊',
+    },
+    'monitor_logs': {
+        'cmd': ['journalctl', '-u', 'pihole-monitor', '-n', '50', '--no-pager'],
+        'description': 'Monitor Logs (last 50 lines)',
+        'icon': '📄',
+    },
+    'keepalived_status': {
+        'cmd': ['systemctl', 'status', 'keepalived', '--no-pager', '--lines=20'],
+        'description': 'Keepalived Service Status',
+        'icon': '🔄',
+    },
+    'keepalived_logs': {
+        'cmd': ['journalctl', '-u', 'keepalived', '-n', '50', '--no-pager'],
+        'description': 'Keepalived Logs (last 50 lines)',
+        'icon': '📜',
+    },
+    'vip_check': {
+        'cmd': ['ip', 'addr', 'show'],
+        'description': 'Network Interfaces (VIP Check)',
+        'icon': '🌐',
+    },
+    'db_recent_events': {
+        'cmd': ['sqlite3', CONFIG["db_path"],
+                'SELECT timestamp, event_type, message FROM events ORDER BY timestamp DESC LIMIT 20'],
+        'description': 'Recent Database Events',
+        'icon': '📊',
+    },
+}
+
+# Rate limiting voor command execution
+command_rate_limit_store = defaultdict(list)
+COMMAND_RATE_LIMIT_REQUESTS = 5  # Max 5 commands
+COMMAND_RATE_LIMIT_WINDOW = 60   # Per 60 seconds
+
+async def command_rate_limit_check(request: Request):
+    """Rate limit command execution to prevent spam"""
+    client_ip = request.client.host
+    now = time.time()
+
+    # Remove old entries
+    command_rate_limit_store[client_ip] = [
+        timestamp for timestamp in command_rate_limit_store[client_ip]
+        if now - timestamp < COMMAND_RATE_LIMIT_WINDOW
+    ]
+
+    # Check limit
+    if len(command_rate_limit_store[client_ip]) >= COMMAND_RATE_LIMIT_REQUESTS:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Max {COMMAND_RATE_LIMIT_REQUESTS} commands per {COMMAND_RATE_LIMIT_WINDOW}s"
+        )
+
+    # Add current timestamp
+    command_rate_limit_store[client_ip].append(now)
+    return True
+
+@app.get("/api/commands")
+async def list_commands(api_key: str = Depends(verify_api_key)):
+    """List available system commands"""
+    return {
+        "commands": {
+            name: {
+                "description": info['description'],
+                "icon": info['icon']
+            }
+            for name, info in COMMANDS_WHITELIST.items()
+        }
+    }
+
+@app.post("/api/commands/{command_name}")
+async def execute_command(
+    command_name: str,
+    api_key: str = Depends(verify_api_key),
+    _rate_limit: bool = Depends(command_rate_limit_check)
+):
+    """Execute a whitelisted system command"""
+    if command_name not in COMMANDS_WHITELIST:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Command '{command_name}' not whitelisted. Use /api/commands to see available commands."
+        )
+
+    cmd_info = COMMANDS_WHITELIST[command_name]
+    cmd = cmd_info['cmd']
+
+    try:
+        # Execute command with timeout
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False
+        )
+
+        logger.info(f"Command executed: {command_name} (exit code: {result.returncode})")
+
+        return {
+            "status": "success" if result.returncode == 0 else "error",
+            "command": command_name,
+            "description": cmd_info['description'],
+            "icon": cmd_info['icon'],
+            "output": result.stdout,
+            "error": result.stderr if result.returncode != 0 else None,
+            "exit_code": result.returncode,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except subprocess.TimeoutExpired:
+        logger.warning(f"Command timeout: {command_name}")
+        return {
+            "status": "error",
+            "command": command_name,
+            "error": "Command execution timed out (10s limit)",
+            "exit_code": 124,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Command execution failed: {command_name}", exc_info=True)
+        return {
+            "status": "error",
+            "command": command_name,
+            "error": str(e),
+            "exit_code": 1,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
 
 if __name__ == "__main__":
     if not os.path.exists(os.path.dirname(CONFIG["db_path"])):
