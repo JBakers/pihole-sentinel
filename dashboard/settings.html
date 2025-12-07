@@ -32,26 +32,26 @@
         }
         
         .header {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(241, 245, 249, 0.95);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(203, 213, 225, 0.5);
             border-radius: 16px;
-            padding: 30px;
+            padding: 25px 30px;
             margin-bottom: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         
         body.dark-mode .header {
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(30, 41, 59, 0.8);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         .header h1 {
             color: #1e293b;
-            font-size: 32px;
+            font-size: 28px;
             font-weight: 700;
             margin-bottom: 0;
         }
@@ -80,24 +80,24 @@
         }
         
         .settings-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(241, 245, 249, 0.95);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(203, 213, 225, 0.5);
             border-radius: 16px;
-            padding: 30px;
-            margin-bottom: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            padding: 20px 25px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
         }
         
         body.dark-mode .settings-card {
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(30, 41, 59, 0.8);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         .settings-card h2 {
             color: #1e293b;
-            font-size: 24px;
-            margin-bottom: 20px;
+            font-size: 20px;
+            margin-bottom: 4px;
             display: flex;
             align-items: center;
             gap: 10px;
@@ -105,6 +105,16 @@
         
         body.dark-mode .settings-card h2 {
             color: #ffffff;
+        }
+        
+        .card-description {
+            color: #64748b;
+            font-size: 13px;
+            margin: 0 0 15px 0;
+        }
+        
+        body.dark-mode .card-description {
+            color: rgba(255, 255, 255, 0.6);
         }
         
         .form-group {
@@ -566,6 +576,151 @@
         .dark-mode-toggle:hover {
             transform: scale(1.1);
         }
+        
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .container {
+                max-width: 100%;
+            }
+            
+            .header {
+                padding: 20px 15px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+            
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .header > div:last-child {
+                flex-direction: column;
+                width: 100%;
+                gap: 8px;
+            }
+            
+            .back-btn {
+                padding: 10px 16px;
+                font-size: 14px;
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .settings-card {
+                padding: 20px 15px;
+            }
+            
+            .settings-card h2 {
+                font-size: 20px;
+            }
+            
+            .service-header {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            .form-group input,
+            .form-group select {
+                font-size: 16px; /* Prevents iOS zoom on focus */
+            }
+            
+            .input-wrapper {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .input-wrapper input {
+                width: 100%;
+            }
+            
+            .toggle-visibility {
+                width: 100%;
+                text-align: center;
+            }
+            
+            .test-btn {
+                width: 100%;
+                padding: 12px;
+            }
+            
+            .event-checkbox {
+                padding: 15px 12px;
+            }
+            
+            .event-checkbox strong {
+                font-size: 15px;
+            }
+            
+            #snooze-buttons {
+                flex-direction: column;
+            }
+            
+            #snooze-buttons .test-btn {
+                flex: 1;
+            }
+            
+            .dark-mode-toggle {
+                width: 44px;
+                height: 44px;
+                font-size: 20px;
+                bottom: 15px;
+                right: 15px;
+            }
+            
+            /* Modal responsive */
+            .modal-content {
+                width: 95%;
+                padding: 20px;
+                max-height: 85vh;
+            }
+            
+            .modal-header {
+                padding: 15px 20px 10px 20px;
+                margin: -20px -20px 10px -20px;
+            }
+            
+            .modal-header h2 {
+                font-size: 20px;
+            }
+            
+            .variables-bar {
+                padding-left: 20px;
+                padding-right: 20px;
+                margin: 0 -20px;
+            }
+            
+            .var-btn {
+                padding: 6px 10px !important;
+                font-size: 12px !important;
+            }
+            
+            .template-area {
+                font-size: 14px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 20px;
+            }
+            
+            .settings-card h2 {
+                font-size: 18px;
+            }
+            
+            .form-group label {
+                font-size: 14px;
+            }
+            
+            .form-group small {
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -591,6 +746,7 @@
                         <span class="slider"></span>
                     </label>
                 </div>
+                <p class="card-description">Receive instant alerts via Telegram bot</p>
                 
                 <div id="telegram-fields" class="collapsible">
                     <div class="form-group">
@@ -624,6 +780,7 @@
                         <span class="slider"></span>
                     </label>
                 </div>
+                <p class="card-description">Post alerts to a Discord channel via webhook</p>
                 
                 <div id="discord-fields" class="collapsible">
                     <div class="form-group">
@@ -648,6 +805,7 @@
                         <span class="slider"></span>
                     </label>
                 </div>
+                <p class="card-description">Push notifications to iOS/Android devices</p>
                 
                 <div id="pushover-fields" class="collapsible">
                     <div class="form-group">
@@ -675,12 +833,13 @@
             <!-- Ntfy -->
             <div class="settings-card">
                 <div class="service-header">
-                    <h2>🔕 Ntfy</h2>
+                    <h2>📣 Ntfy</h2>
                     <label class="toggle-switch">
                         <input type="checkbox" id="ntfy-enabled" onchange="toggleService('ntfy')">
                         <span class="slider"></span>
                     </label>
                 </div>
+                <p class="card-description">Open source push notifications (self-hosted or public)</p>
                 
                 <div id="ntfy-fields" class="collapsible">
                     <div class="form-group">
@@ -708,6 +867,7 @@
                         <span class="slider"></span>
                     </label>
                 </div>
+                <p class="card-description">Send JSON payloads to any endpoint</p>
                 
                 <div id="webhook-fields" class="collapsible">
                     <div class="form-group">
@@ -1398,18 +1558,28 @@ Monitoring {primary} and {secondary}</textarea>
         // Load and display version dynamically
         async function loadVersion() {
             try {
-                const response = await fetch('/api/version');
-                const data = await response.json();
-                const version = 'v' + (data.version || 'unknown');
-                
-                // Update all version display elements
-                const versionElements = ['version-header', 'version-footer', 'version-display'];
-                versionElements.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.textContent = version;
+                const response = await fetch(`${API_BASE}/api/version`, {
+                    headers: { 'X-API-Key': API_KEY }
                 });
+                if (response.ok) {
+                    const data = await response.json();
+                    const version = 'v' + (data.version || 'unknown');
+                    
+                    // Update all version display elements
+                    const versionElements = ['version-header', 'version-footer', 'version-display'];
+                    versionElements.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.textContent = version;
+                    });
+                } else {
+                    // Fallback to hardcoded version
+                    document.getElementById('version-display').textContent = 'v0.11.0';
+                }
             } catch (error) {
                 console.error('Failed to load version:', error);
+                // Fallback to hardcoded version
+                const el = document.getElementById('version-display');
+                if (el) el.textContent = 'v0.11.0';
             }
         }
 
