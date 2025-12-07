@@ -194,15 +194,42 @@ mv "$TEMP_CHANGELOG" CHANGELOG.md
 git add CHANGELOG.md
 echo -e "${GREEN}  ✓ Added merge entry to CHANGELOG.md${NC}"
 
-# Commit the merge
-echo -e "${BLUE}→ Committing merge...${NC}"
-git commit -m "chore: merge develop (${DEVELOP_VERSION}) into testing
+# Generate detailed commit message
+echo -e "${BLUE}→ Generating commit message...${NC}"
+
+# Get list of commits from develop
+COMMIT_LIST=$(git log testing..develop --oneline --no-merges | sed 's/^/- /')
+
+# Get list of resolved conflicts
+CONFLICTS=$(git diff --name-only --diff-filter=U 2>/dev/null || echo "")
+RESOLVED_CONFLICTS=""
+if [ -n "$CONFLICTS" ]; then
+    RESOLVED_CONFLICTS=$(echo "$CONFLICTS" | sed 's/^/- /')
+fi
+
+# Create commit message
+COMMIT_MSG="chore: merge develop (${DEVELOP_VERSION}) into testing
 
 Merged all features and fixes from develop branch.
 
 Version: ${TESTING_VERSION} → ${NEW_VERSION}
 
+Commits from develop:
+${COMMIT_LIST}
+
+Resolved conflicts:
+- VERSION: Updated to ${NEW_VERSION}
+- DEVELOPMENT.md: Restored from develop
+- TESTING-GUIDE.md: Restored from develop
+- CHANGELOG.md: Merged entries
+- CLAUDE.md: Updated version
+- README.md: Updated version badge
+
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+
+# Commit the merge
+echo -e "${BLUE}→ Committing merge...${NC}"
+git commit -m "$COMMIT_MSG"
 
 echo -e "${GREEN}✓ Merge committed successfully${NC}"
 
