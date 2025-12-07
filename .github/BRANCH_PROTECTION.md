@@ -1,6 +1,6 @@
 # Branch Protection Rules Setup Guide
 
-**Last Updated:** 2025-11-16
+**Last Updated:** 2025-11-17
 **Repository:** JBakers/pihole-sentinel
 
 This guide explains how to configure GitHub branch protection rules to enforce the branching strategy.
@@ -14,6 +14,18 @@ To maintain code quality and prevent accidental changes, we protect the followin
 - **`main`** - Production releases only, strictly controlled
 - **`testing`** - QA and integration testing, controlled
 - **`develop`** - Active development, basic protection
+
+### Enforced Merge Direction
+
+**Allowed flow:** `features` → `develop` → `testing` → `main`
+
+**Blocked flows:**
+- ❌ `testing` → `develop` (BLOCKED)
+- ❌ `main` → `testing` (BLOCKED)
+- ❌ `main` → `develop` (BLOCKED)
+- ❌ Any backwards merge
+
+This is enforced automatically via GitHub Actions workflow (`.github/workflows/enforce-merge-direction.yml`). Pull requests in the wrong direction will be automatically blocked.
 
 ### GitHub Plan and Repository Type Requirements
 
@@ -446,14 +458,116 @@ After following this guide, you should have:
 
 ---
 
+## Automated Merge Direction Enforcement
+
+### How It Works
+
+The `.github/workflows/enforce-merge-direction.yml` workflow automatically runs on every pull request and:
+
+1. **Detects the merge direction** (source branch → target branch)
+2. **Checks against allowed patterns**:
+   - ✅ `feature/*` → `develop`
+   - ✅ `develop` → `testing`
+   - ✅ `testing` → `main`
+   - ❌ All reverse merges (BLOCKED)
+3. **Blocks the PR** if direction is wrong
+4. **Adds a helpful comment** explaining the correct direction
+
+### What Happens When You Create a Wrong PR
+
+If you accidentally create a PR like `testing` → `develop`:
+
+1. ❌ GitHub Actions check will **FAIL**
+2. ❌ PR will show **"Some checks were not successful"**
+3. 💬 A comment will appear explaining:
+   - Why it's blocked
+   - What the correct direction is
+   - How to fix it
+4. 🚫 **You cannot merge** until the PR is closed
+
+### Example Block Message
+
+```
+❌ BLOCKED: Cannot merge testing → develop (wrong direction!)
+
+✅ ALLOWED merge directions:
+   • feature/* → develop
+   • develop → testing
+   • testing → main
+
+❌ Your PR: testing → develop
+
+Please close this PR and create one in the correct direction.
+```
+
+### Bypassing the Check (Emergency Only)
+
+If you absolutely need to bypass this check (emergency hotfix):
+
+1. Go to **Settings** → **Branches**
+2. Edit the branch protection rule
+3. Temporarily **uncheck** "Require status checks to pass before merging"
+4. Merge your PR
+5. **Re-enable** the status check immediately after
+
+**⚠️ Warning:** Only do this in emergencies. Document the reason in the PR description.
+
+### Testing the Workflow
+
+To verify the workflow works:
+
+```bash
+# Test 1: Try to create wrong-direction PR
+git checkout testing
+git checkout -b test-wrong-direction
+echo "test" >> README.md
+git commit -am "test: wrong direction"
+git push -u origin test-wrong-direction
+
+# On GitHub: Create PR from test-wrong-direction → develop
+# Expected: GitHub Actions check FAILS, PR is blocked
+```
+
+---
+
 ## Reference Links
 
 - [GitHub Branch Protection Rules Documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
 - [GitHub Code Owners](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners)
 - [GitHub Actions](https://docs.github.com/en/actions)
+- [GitHub Actions - Required Status Checks](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/collaborating-on-repositories-with-code-quality-features/about-status-checks)
+
+---
+
+## Quick Setup Checklist
+
+After reading this guide, complete these steps:
+
+1. **Branch Protection Rules:**
+   - [ ] Set up protection for `main` branch
+   - [ ] Set up protection for `testing` branch
+   - [ ] Set up protection for `develop` branch
+   - [ ] Enable "Require status checks to pass before merging"
+   - [ ] Add `check-merge-direction` as required status check
+
+2. **GitHub Actions:**
+   - [ ] Verify `.github/workflows/enforce-merge-direction.yml` exists
+   - [ ] Verify workflow runs on pull requests
+   - [ ] Test with a wrong-direction PR to confirm it blocks
+
+3. **Workflow Testing:**
+   - [ ] Create a test feature branch
+   - [ ] Create PR to develop (should pass)
+   - [ ] Create PR to testing (should fail)
+   - [ ] Verify status checks work correctly
+
+4. **Team Communication:**
+   - [ ] Inform collaborators about merge direction rules
+   - [ ] Document any exceptions or special cases
+   - [ ] Add link to this guide in README.md
 
 ---
 
 **Questions?** Open a GitHub issue or discussion.
 
-**Last Updated:** 2025-11-16
+**Last Updated:** 2025-11-17

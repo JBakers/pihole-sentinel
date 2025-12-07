@@ -5,6 +5,237 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.13] - 2025-12-05
+
+### 🐛 Fixed
+
+#### Setup Script
+- **Fixed Python version compatibility in setup.py:**
+  - Replaced hardcoded `python3.11-dev` and `python3.11-venv` with generic `python3-dev` and `python3-venv`
+  - **Issue:** Setup failed on systems with Python 3.13+ (Debian Trixie, Ubuntu 24.10+)
+  - **Root cause:** Hardcoded version-specific package names in setup.py and system-requirements.txt
+  - Updated both `setup.py` (lines 240-242) and `system-requirements.txt` (lines 3, 9)
+  - **Impact:** Setup now works on any Python 3.8+ system regardless of exact version
+  - Tested on Python 3.13.5 (Debian Trixie)
+
+---
+
+## [0.10.0-beta.12] - 2025-12-05
+
+### 🐛 Fixed
+
+#### Monitor Service
+- **Improved FTL auth timeout and error logging:**
+  - Increased auth API timeout from 5 to 10 seconds to handle slower responses
+  - **Issue:** After Trixie upgrade on pihole2, occasional "Server disconnected" errors
+  - **Root cause:** FTL auth requests timing out under load or during restarts
+  - Improved error logging from debug to warning level
+  - Added exception class name to error messages for better debugging
+  - **Impact:** Fewer false "Pi-hole service down" alerts during normal operation
+  - Helps diagnose intermittent connectivity issues with pihole2
+
+---
+
+## [0.10.0-beta.11] - 2025-12-05
+
+### 🐛 Fixed
+
+#### Monitor Dashboard
+- **Fixed timezone display for all users regardless of location:**
+  - Dashboard showed UTC timestamps, causing confusion for users in different timezones
+  - **Solution:** Frontend now converts UTC to browser's local timezone automatically
+  - Database stores timestamps in UTC (universal standard)
+  - JavaScript adds ' UTC' suffix and converts to user's local time
+  - Works automatically for any timezone without server configuration
+  - **Impact:** Dutch users see CET/CEST, US users see EST/PST, etc.
+  - Changed 7 timestamp conversions in index.html:
+    - Last update display (line 792)
+    - Chart labels (line 980)
+    - Failover event times (lines 1064, 1067, 1090)
+    - Event list times (line 1111)
+  - **Best practice:** UTC in database, local display in browser
+
+---
+
+## [0.10.0-beta.10] - 2025-11-17
+
+### 🐛 Fixed
+
+#### CI/CD Workflows
+- **Made PR comment step optional in enforce-merge-direction workflow:**
+  - Added `continue-on-error: true` to comment posting step
+  - Workflow now succeeds even if repository-level permissions block PR comments
+  - Core merge direction check still enforces rules correctly
+  - **Root cause:** Repository workflow permissions set to "Read" instead of "Read and write"
+  - **Workaround:** Comment step failures no longer fail the entire workflow
+  - **To enable comments:** Settings → Actions → General → Workflow permissions → "Read and write"
+  - Merge direction enforcement is functional, comments are optional enhancement
+
+---
+
+## [0.10.0-beta.9] - 2025-11-17
+
+### 🐛 Fixed
+
+#### CI/CD Workflows
+- **Added missing permissions to enforce-merge-direction workflow:**
+  - Workflow failed with "Resource not accessible by integration" (HTTP 403)
+  - Added `permissions` block with `pull-requests: write` and `issues: write`
+  - GitHub Actions token now has permission to post PR comments
+  - Workflow can now successfully complete both check and comment steps
+  - Error occurred in step 2 (Add merge direction comment) due to missing permissions
+
+---
+
+## [0.10.0-beta.8] - 2025-11-17
+
+### 🐛 Fixed
+
+#### CI/CD Workflows
+- **Fixed critical YAML syntax error in enforce-merge-direction workflow:**
+  - JavaScript template literals (backticks) in `script:` section caused YAML parser conflict
+  - Converted template literals to string concatenation for YAML compatibility
+  - Workflow was completely non-functional due to syntax error (never triggered on PRs)
+  - **Impact:** Merge direction enforcement now works correctly
+  - **Root cause:** Line 111-120 had invalid YAML syntax preventing workflow execution
+  - Validated fix with Python YAML parser - syntax now correct
+  - Required check can now be added to branch protection rules after workflow runs
+
+### 🔧 Improved
+
+#### Developer Experience
+- Merge direction enforcement workflow will now trigger on pull requests
+- GitHub Actions will recognize the check after first successful run
+- Can be added as required status check in branch protection settings
+
+---
+
+## [0.10.0-beta.7] - 2025-11-17
+
+### 🐛 Fixed
+
+#### Code Quality
+- **Fixed Python SyntaxWarning in setup.py:**
+  - Fixed invalid escape sequence warning in `escape_for_sed()` docstring (line 137)
+  - Changed docstring to raw string (r"""...""") to properly handle backslash documentation
+  - No functional changes, purely cosmetic fix for Python 3.12+ compatibility
+
+#### Test Infrastructure
+- **Improved security scan accuracy:**
+  - Reduced false positives in `run-security-scans.sh`
+  - Now correctly excludes safe patterns: `getpass()`, `.get()`, function parameters
+  - Excludes template strings like `PRIMARY_PASSWORD={...}`
+  - Fixed grep regex errors with unmatched braces
+  - Security scan now reports "✓ No hardcoded secrets found" instead of warnings on safe code
+
+### 🔧 Improved
+
+#### Developer Experience
+- Test suite now runs cleanly without warnings or false positives
+- More accurate security feedback for developers
+- Better distinction between actual security issues and safe password handling
+
+---
+
+## [0.10.0-beta.6] - 2025-11-17
+
+### ✨ New
+
+#### Test Automation Infrastructure
+- **Implemented complete test automation script suite:**
+  - Created `.github/scripts/` directory with 8 automated test scripts
+  - **`run-syntax-checks.sh`** - Validates Python and Bash syntax across codebase
+  - **`run-quality-checks.sh`** - Checks code quality (print statements, line endings, required files)
+  - **`run-security-scans.sh`** - Scans for hardcoded secrets and file permission issues
+  - **`test-failover.sh`** - Automated failover testing with VIP transition timing
+  - **`test-dashboard.sh`** - Dashboard API endpoint validation with JSON response verification
+  - **`generate-test-summary.sh`** - Generates test summaries from test reports
+  - **`nightly-tests.sh`** - Nightly automated test execution with email notifications
+  - **`run-all-tests.sh`** - Master script to run all automated tests sequentially
+  - All scripts are executable (755 permissions) and follow bash best practices
+
+### 🔧 Improved
+
+#### Testing Workflow
+- **Closed gap between documentation and implementation:**
+  - CLAUDE.md and TEST_AUTOMATION_GUIDE.md extensively documented these scripts
+  - Scripts were referenced throughout testing documentation but were not implemented
+  - Now fully functional and tested - `run-all-tests.sh` successfully validates codebase
+
+#### Developer Experience
+- Developers can now run automated tests locally before pushing
+- CI/CD pipelines can use these scripts for automated quality gates
+- Nightly testing can be scheduled via cron for continuous validation
+- Test reports can be automatically generated and summarized
+
+### 📚 Documentation
+- Scripts match exact specifications in TEST_AUTOMATION_GUIDE.md (lines 131-675)
+- All usage examples in documentation are now executable
+- Testing workflow is fully operational and reproducible
+
+---
+
+## [0.10.0-beta.5] - 2025-11-17
+
+### 📚 Documentation
+
+#### Git Workflow Rules for AI Assistants
+- **Added "Critical: Always Push Changes (Git Workflow)" mandatory rule to CLAUDE.md:**
+  - Explicitly requires pushing all changes to GitHub before ending any session
+  - Prevents lost work due to AI sandbox being temporary and isolated
+  - Includes session end checklist to verify all changes are pushed
+  - Emphasizes that GitHub is the only way to transfer work from AI to user
+  - Provides examples of correct vs incorrect workflow
+  - **Addresses critical issue** where unpushed changes are lost when sandbox closes
+
+- **Added "Required: Provide Git Commands for Learning" rule to CLAUDE.md:**
+  - Requires AI to show exact git commands used during work
+  - Helps user learn git through repeated exposure and practice
+  - Includes command explanations and what they do
+  - Always provides pull commands after pushing
+  - Lists common git command categories with examples
+  - **Supports user's learning journey** with git workflow
+
+#### Cleanup
+- **Verified removal of private reference files:**
+  - Confirmed no references to `ai-versioning-instructions.md`
+  - Confirmed no references to Dutch quick reference guides
+  - These files were already removed in previous commits (3004b82)
+  - Only harmless mentions remain in audit report documenting past state
+
+### 🔧 Improved
+
+#### Developer Experience
+- Better transparency in git operations through required command display
+- Reduced risk of lost work through mandatory push requirements
+- Enhanced learning through educational git command explanations
+- Clearer workflow expectations for AI assistants
+
+---
+
+## [0.10.0-beta.4] - 2025-11-16
+
+### 📚 Documentation
+
+#### Development Environment Clarity
+- **Added "Critical: Development Environment Awareness" mandatory rule to CLAUDE.md:**
+  - Explicitly defines AI sandbox environment (`/home/user/pihole-sentinel/`)
+  - Explicitly defines user's local environment (`~/Workspace/pihole-sentinel/`)
+  - Clarifies GitHub as the only connection/sync point between environments
+  - Provides clear communication rules: AI should never instruct user to work in `/home/user/pihole-sentinel/`
+  - Defines workflow protocol: AI makes changes and commits, user pulls and reviews locally
+  - Includes examples of correct vs incorrect communication
+  - **Addresses recurring miscommunication issue** where AI forgets we work in separate environments
+
+### 🔧 Improved
+
+#### Communication Protocol
+- AI assistants now have explicit guidelines to avoid confusing path references
+- Clear separation of responsibilities: AI does file operations, user does git pull/review
+- Better workflow clarity prevents back-and-forth about "where to run commands"
+
+---
+
 ## [0.10.0-beta.3] - 2025-11-16
 
 ### 🎉 New Features
@@ -48,6 +279,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated CLAUDE.md with mandatory version management rules
 - Added Development Workflows setup instructions
 - Documented commit message format requirements
+- **Merged Comprehensive Audit & Test Infrastructure from develop:**
+  - Added `AUDIT_REPORT_20251116.md` with complete code quality assessment (Score: 89/100 - Excellent)
+  - Added `.github/TEST_AUTOMATION_GUIDE.md` (700 lines) for automated test execution and CI/CD integration
+  - Added `.github/TEST_DOCUMENTATION_TEMPLATE.md` (802 lines) for standardized test reporting
+  - Enhanced `CLAUDE.md` with audit status badge and test infrastructure overview section
+  - Provides complete quality assurance framework for production readiness
 
 ---
 
