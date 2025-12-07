@@ -1,3 +1,35 @@
+# 0.12.0-beta.7 (2025-12-07)
+
+## Security
+- **🚫 CRITICAL: Added foolproof git hook protection against unauthorized merges**
+  - Created `.githooks/pre-merge-commit` hook to block AI agents from merging to testing/main
+  - Hook enforces CLAUDE.md mandatory rule: "Only user may merge to testing/main"
+  - Provides clear error messages and instructions (Dutch/English)
+  - User can override with `--no-verify` if needed
+
+## Documentation
+- **📚 Extensive CLAUDE.md updates for merge restrictions**
+  - Added new section: "Critical: NEVER Merge to Protected Branches"
+  - 150+ lines of detailed rules, examples, and workflows
+  - Clear forbidden vs. correct workflows for AI agents
+  - Installation instructions for git hooks
+- **📝 Updated `.githooks/README.md`**
+  - Documented pre-merge-commit hook functionality
+  - Added testing instructions for merge protection
+  - Updated installation methods (Option 1 & 2)
+  - Added security notes about hook importance
+- **🔧 Updated Development Workflows section**
+  - Clear explanation of what pre-merge-commit hook does
+  - Testing instructions for both hooks
+  - Critical warning for AI assistants
+
+## Fixed
+- Fixed corrupt shebang in `bin/pisen` (removed erroneous prefix)
+
+**Version:** 0.12.0-beta.6 → 0.12.0-beta.7
+
+---
+
 # 0.11.0-beta.6 (2025-12-07)
 ## Docs & Admin
 - Added docs/usage/cli-tool.md and docs/README.md
