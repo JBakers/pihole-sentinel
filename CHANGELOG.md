@@ -1,11 +1,45 @@
-# 0.11.0-beta.3 (2025-12-07)
+# 0.12.0-beta.7 (2025-12-07)
+
+## Security
+- **🚫 CRITICAL: Added foolproof git hook protection against unauthorized merges**
+  - Created `.githooks/pre-merge-commit` hook to block AI agents from merging to testing/main
+  - Hook enforces CLAUDE.md mandatory rule: "Only user may merge to testing/main"
+  - Provides clear error messages and instructions (Dutch/English)
+  - User can override with `--no-verify` if needed
+
+## Documentation
+- **📚 Extensive CLAUDE.md updates for merge restrictions**
+  - Added new section: "Critical: NEVER Merge to Protected Branches"
+  - 150+ lines of detailed rules, examples, and workflows
+  - Clear forbidden vs. correct workflows for AI agents
+  - Installation instructions for git hooks
+- **📝 Updated `.githooks/README.md`**
+  - Documented pre-merge-commit hook functionality
+  - Added testing instructions for merge protection
+  - Updated installation methods (Option 1 & 2)
+  - Added security notes about hook importance
+- **🔧 Updated Development Workflows section**
+  - Clear explanation of what pre-merge-commit hook does
+  - Testing instructions for both hooks
+  - Critical warning for AI assistants
+
+## Fixed
+- Fixed corrupt shebang in `bin/pisen` (removed erroneous prefix)
+
+**Version:** 0.12.0-beta.6 → 0.12.0-beta.7
+
+---
+
+# 0.11.0-beta.6 (2025-12-07)
+## Docs & Admin
+- Added docs/usage/cli-tool.md and docs/README.md
+- Updated README.md with CLI tool and docs links
+# 0.11.0-beta.4 (2025-12-07)
 ## New
-- Added /api/commands endpoint to monitor.py (system commands, rate limiting)
-- Added bin/pisen CLI tool (status, logs, vip, dashboard, health, test)
-- Added TODO_USER.md for user todo tracking
+- Frontend: System Commands sectie, modal, CSS, JS in dashboard/index.html
 ## Improved
-- Updated setup.py: deployment, CLI install, improved success message
-- Updated CLAUDE.md: Pre-Release Versioning rules and examples
+- UI: Mobile-friendly command buttons, copy output, dark mode support
+
 # Changelog
 
 All notable changes to Pi-hole Sentinel will be documented in this file.
