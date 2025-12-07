@@ -5,6 +5,33 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0-beta.2] - 2025-12-07
+
+### ✨ New
+
+#### Repeat/Reminder Notifications (Fase 2)
+- **Repeat alerts**: Send reminder notifications while issues persist
+- Configurable intervals: Off / 5 min / 10 min / 30 min / 60 min
+- Automatic tracking of active issues (failover, fault)
+- Reminders include "🔔 REMINDER:" prefix
+
+#### Snooze Notifications (Fase 3)
+- **Snooze functionality**: Temporarily disable notifications (for maintenance)
+- Quick snooze buttons: 1 hour / 4 hours / 24 hours
+- Visual snooze status display with cancel button
+- New API endpoints:
+  - `GET /api/notifications/snooze` - Get snooze status
+  - `POST /api/notifications/snooze` - Set snooze (duration in minutes)
+  - `DELETE /api/notifications/snooze` - Cancel snooze
+
+### 🎨 Improved
+
+- Settings UI now includes Repeat Alerts section
+- Settings UI now includes Snooze section with status display
+- Better notification state tracking in monitor loop
+
+---
+
 ## [0.11.0-beta.1] - 2025-12-07
 
 ### ✨ New
