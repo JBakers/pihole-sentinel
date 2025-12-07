@@ -188,9 +188,33 @@ class SetupConfig:
             return False
 
     def generate_secure_password(self, length=32):
-        """Generate a secure random password."""
-        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+        """Generate a secure random password.
+        
+        Uses only alphanumeric characters to ensure compatibility with
+        keepalived auth_pass and other config files that may have issues
+        with special characters like !@#$%^&* in shell/config parsing.
+        """
+        alphabet = string.ascii_letters + string.digits
         return ''.join(secrets.choice(alphabet) for _ in range(length))
+    
+    def validate_timezone(self, tz):
+        """Validate timezone format to prevent shell injection."""
+        if not tz:
+            return False
+        # Timezone format: Region/City or just a region (e.g., UTC)
+        pattern = r'^[A-Za-z_]+(/[A-Za-z_]+)?$'
+        return bool(re.match(pattern, tz)) and len(tz) <= 64
+    
+    def escape_for_env_file(self, value):
+        """Escape value for safe use in .env file."""
+        if not value:
+            return ""
+        value_str = str(value)
+        # If value contains special chars, wrap in quotes and escape
+        if any(c in value_str for c in ['"', "'", ' ', '\n', '\r', '=', '#', '$', '`']):
+            escaped = value_str.replace('\\', '\\\\').replace('"', '\\"')
+            return f'"{escaped}"'
+        return value_str
     
     def remote_exec(self, host, user, port, command, password=None):
         """Execute command on remote host via SSH.
@@ -241,9 +265,14 @@ class SetupConfig:
             except Exception:
                 timezone = "Europe/Amsterdam"  # Fallback
         
+        # Validate timezone format to prevent shell injection
+        if not self.validate_timezone(timezone):
+            print(f"{Colors.YELLOW}├─ Invalid timezone format '{timezone}', using Europe/Amsterdam{Colors.END}")
+            timezone = "Europe/Amsterdam"
+        
         print(f"{Colors.CYAN}├─ Configuring timezone ({timezone}) and NTP...{Colors.END}")
         try:
-            # Set timezone
+            # Set timezone (timezone is validated, safe to use in shell)
             self.remote_exec(host, user, port, f"timedatectl set-timezone {timezone}", password)
             
             # Try to enable NTP (will be skipped in containers, which sync from host)

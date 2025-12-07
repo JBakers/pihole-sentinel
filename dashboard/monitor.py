@@ -1112,6 +1112,18 @@ async def save_notification_settings(settings: dict, api_key: str = Depends(veri
     # Merge settings, keeping existing values where new value is None
     merged_settings = merge_settings(existing_settings, settings)
     
+    def escape_for_bash_config(value):
+        """Escape value for safe use in bash double-quoted string."""
+        if not value:
+            return ""
+        # Escape backslashes first, then other special chars
+        escaped = str(value).replace('\\', '\\\\')
+        escaped = escaped.replace('"', '\\"')
+        escaped = escaped.replace('$', '\\$')
+        escaped = escaped.replace('`', '\\`')
+        escaped = escaped.replace('!', '\\!')
+        return escaped
+    
     try:
         with open(config_path, 'w') as f:
             json.dump(merged_settings, f, indent=2)
@@ -1132,29 +1144,29 @@ async def save_notification_settings(settings: dict, api_key: str = Depends(veri
             f.write(f"NOTIFY_FAULT=\"{'true' if events.get('fault', True) else 'false'}\"\n")
             f.write(f"NOTIFY_STARTUP=\"{'true' if events.get('startup', False) else 'false'}\"\n\n")
             
-            # Service credentials
+            # Service credentials - escape all values for bash safety
             if merged_settings.get('telegram', {}).get('enabled'):
                 f.write("# Telegram\n")
-                f.write(f"TELEGRAM_BOT_TOKEN=\"{merged_settings['telegram'].get('bot_token', '')}\"\n")
-                f.write(f"TELEGRAM_CHAT_ID=\"{merged_settings['telegram'].get('chat_id', '')}\"\n\n")
+                f.write(f"TELEGRAM_BOT_TOKEN=\"{escape_for_bash_config(merged_settings['telegram'].get('bot_token', ''))}\"\n")
+                f.write(f"TELEGRAM_CHAT_ID=\"{escape_for_bash_config(merged_settings['telegram'].get('chat_id', ''))}\"\n\n")
             
             if merged_settings.get('discord', {}).get('enabled'):
                 f.write("# Discord\n")
-                f.write(f"DISCORD_WEBHOOK_URL=\"{merged_settings['discord'].get('webhook_url', '')}\"\n\n")
+                f.write(f"DISCORD_WEBHOOK_URL=\"{escape_for_bash_config(merged_settings['discord'].get('webhook_url', ''))}\"\n\n")
             
             if merged_settings.get('pushover', {}).get('enabled'):
                 f.write("# Pushover\n")
-                f.write(f"PUSHOVER_USER_KEY=\"{merged_settings['pushover'].get('user_key', '')}\"\n")
-                f.write(f"PUSHOVER_APP_TOKEN=\"{merged_settings['pushover'].get('app_token', '')}\"\n\n")
+                f.write(f"PUSHOVER_USER_KEY=\"{escape_for_bash_config(merged_settings['pushover'].get('user_key', ''))}\"\n")
+                f.write(f"PUSHOVER_APP_TOKEN=\"{escape_for_bash_config(merged_settings['pushover'].get('app_token', ''))}\"\n\n")
             
             if merged_settings.get('ntfy', {}).get('enabled'):
                 f.write("# Ntfy\n")
-                f.write(f"NTFY_TOPIC=\"{merged_settings['ntfy'].get('topic', '')}\"\n")
-                f.write(f"NTFY_SERVER=\"{merged_settings['ntfy'].get('server', 'https://ntfy.sh')}\"\n\n")
+                f.write(f"NTFY_TOPIC=\"{escape_for_bash_config(merged_settings['ntfy'].get('topic', ''))}\"\n")
+                f.write(f"NTFY_SERVER=\"{escape_for_bash_config(merged_settings['ntfy'].get('server', 'https://ntfy.sh'))}\"\n\n")
             
             if merged_settings.get('webhook', {}).get('enabled'):
                 f.write("# Custom Webhook\n")
-                f.write(f"CUSTOM_WEBHOOK_URL=\"{merged_settings['webhook'].get('url', '')}\"\n\n")
+                f.write(f"CUSTOM_WEBHOOK_URL=\"{escape_for_bash_config(merged_settings['webhook'].get('url', ''))}\"\n\n")
         
         return {"status": "success", "message": "Settings saved successfully"}
 

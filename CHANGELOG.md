@@ -5,6 +5,39 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0-beta.4] - 2025-12-07
+
+### 🔒 Security Fixes
+
+#### Password Generation (CRITICAL)
+- **Fixed**: Removed special characters from generated passwords that broke keepalived config
+- Now uses only alphanumeric characters (a-z, A-Z, 0-9)
+- Prevents shell parsing issues in config files
+
+#### Shell Injection Prevention
+- **Fixed**: `escape_for_bash_config()` added to monitor.py for safe credential writing
+- **Fixed**: Timezone validation in setup.py to prevent command injection
+- **Fixed**: `.env` file value escaping in setup.py
+- **Fixed**: JSON escaping in notify.sh for Discord/webhook payloads
+- **Fixed**: Quoted shell variables in keepalived_notify.sh
+
+### 🔧 Improved
+
+- Added `escape_json()` function to notify.sh for safe JSON construction
+- Added `validate_timezone()` method to setup.py
+- Added `escape_for_env_file()` method to setup.py
+- Better variable quoting in keepalived_notify.sh (arping command)
+
+### 📝 Audit
+
+Completed comprehensive security audit covering:
+- Password/secret generation
+- Config file writing
+- Shell command construction
+- Template variable substitution
+
+---
+
 ## [0.11.0-beta.3] - 2025-12-07
 
 ### 🎨 Improved

@@ -12,8 +12,10 @@ case $STATE in
         /usr/local/bin/dhcp_control.sh enable >> "$LOGFILE" 2>&1
         # Send gratuitous ARP to update network quickly
         # Load interface from environment, fallback to eth0 if not set
-        INTERFACE=${INTERFACE:-eth0}
-        arping -c 3 -I ${INTERFACE} -s ${VIP_ADDRESS} ${NETWORK_GATEWAY} &>/dev/null || true
+        INTERFACE="${INTERFACE:-eth0}"
+        if [ -n "$VIP_ADDRESS" ] && [ -n "$NETWORK_GATEWAY" ]; then
+            arping -c 3 -I "${INTERFACE}" -s "${VIP_ADDRESS}" "${NETWORK_GATEWAY}" &>/dev/null || true
+        fi
         # Notifications are handled by the monitor service
         ;;
     BACKUP)
