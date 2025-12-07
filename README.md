@@ -10,7 +10,7 @@ resilient dns · simple ops · keep dns up when others drop
 
 *Automatic failover • Real-time monitoring • Quick IP flow + monitor placement guidance • Seamless DNS/DHCP redundancy*
 
-[![Version](https://img.shields.io/badge/version-v0.11.0--beta.2-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-v0.12.0--beta.2-blue.svg)](VERSION)
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
@@ -417,6 +417,55 @@ Follow these steps to upgrade your installation:
 - Access web interface: `http://<monitor-ip>:8080`
 - View logs: `sudo journalctl -u pihole-monitor`
 - Restart service: `sudo systemctl restart pihole-monitor`
+
+#### Remote Dashboard Access
+
+By default, the dashboard only accepts connections from localhost. To access it remotely:
+
+1. **Edit the monitor configuration:**
+   ```bash
+   sudo nano /opt/pihole-monitor/monitor.py
+   ```
+
+2. **Find the CORS configuration** (around lines 154-167) and add your IP:
+   ```python
+   allow_origins=[
+       "http://localhost:8080",
+       "http://127.0.0.1:8080",
+       "http://192.168.1.100:8080",  # Add your remote IP here
+   ],
+   ```
+
+3. **Restart the monitor service:**
+   ```bash
+   sudo systemctl restart pihole-monitor
+   ```
+
+**Security Recommendations:**
+- ⚠️ **Never** use wildcard CORS (`"*"`) - only add specific IPs you trust
+- 🔒 For production use, set up HTTPS with a reverse proxy (nginx/traefik/Caddy)
+- 🛡️ Configure firewall rules to restrict access to port 8080
+- 📝 Use domain names instead of IPs when possible
+
+**Quick HTTPS Setup (Optional):**
+For secure remote access, consider using a reverse proxy. Example nginx configuration:
+```nginx
+server {
+    listen 443 ssl;
+    server_name pihole-sentinel.yourdomain.com;
+
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+> 💡 **Tip:** For detailed HTTPS setup instructions, see the documentation (coming soon).
 
 ### Keepalived Status
 ```bash
