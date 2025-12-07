@@ -274,7 +274,7 @@ sudo python3 setup.py --uninstall
 ## Architecture
 
 ```
-┌──────────────┐         VIP          ┌──────────────┐
+┌──────────────┐         VIP           ┌──────────────┐
 │  Primary     │◄─────(Keepalived)────►│  Secondary   │
 │  Pi-hole     │                       │  Pi-hole     │
 │              │      VRRP Protocol    │              │
