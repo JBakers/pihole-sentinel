@@ -5,6 +5,41 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0-beta.3] - 2025-12-07
+
+### ✨ New Features
+
+#### Database Maintenance
+- **Automatic database cleanup**: Prevents database growth over time
+  - Removes `status_history` records older than 30 days (configurable)
+  - Removes `events` older than 90 days (configurable)
+  - Runs on startup and then daily at 24-hour intervals
+  - Graceful error handling with retry logic (1-hour delay on error)
+
+#### Configuration
+- **New environment variables**:
+  - `RETENTION_DAYS_HISTORY` (default: 30) - Status history retention period
+  - `RETENTION_DAYS_EVENTS` (default: 90) - Events retention period
+- **Updated `.env.example`** with database cleanup configuration
+
+### 📝 Documentation
+
+- **Remote dashboard access**: Added comprehensive CORS configuration guide in README.md
+  - Step-by-step setup instructions for accessing dashboard remotely
+  - Security best practices (no wildcard CORS, HTTPS recommendations, firewall rules)
+  - nginx reverse proxy example for HTTPS setup
+  - Updated version badge to v0.12.0-beta.3
+
+### 🧹 Maintenance
+
+- **Repository cleanup**:
+  - Closed PR #12 (incorrect merge direction: testing → develop)
+  - Removed 11 stale branches (8 claude/* branches, 3 test/copilot branches)
+
+**Addresses:** Audit recommendation #5 (HIGH priority) - Database cleanup task
+
+---
+
 ## [0.12.0-beta.2] - 2025-12-07
 
 ### 🎨 Improved

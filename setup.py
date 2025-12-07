@@ -160,9 +160,9 @@ class SetupConfig:
         return sanitized
 
     def escape_for_sed(self, text):
-        r"""Escape special characters for safe use in sed replacement string.
+        """Escape special characters for safe use in sed replacement string.
 
-        Escapes: / \ & newline
+        Escapes: /  \\  &  newline
         Uses # as delimiter to avoid issues with / in the text.
         """
         if not text:
