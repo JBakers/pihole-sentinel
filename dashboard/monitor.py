@@ -468,16 +468,157 @@ async def serve_settings():
 async def get_version():
     """Get current Pi-hole Sentinel version from VERSION file"""
     try:
-        version_file = os.path.join(os.path.dirname(__file__), "..", "VERSION")
-        if os.path.exists(version_file):
-            with open(version_file, 'r') as f:
-                version = f.read().strip()
-                return {"version": version}
+        # Check multiple locations for VERSION file
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), "VERSION"),      # Same dir as monitor.py
+            os.path.join(os.path.dirname(__file__), "..", "VERSION"), # Parent dir (dev)
+            "/opt/pihole-monitor/VERSION",                            # Production location
+            "/opt/VERSION",                                           # Legacy location
+        ]
+        
+        for version_file in possible_paths:
+            if os.path.exists(version_file):
+                with open(version_file, 'r') as f:
+                    version = f.read().strip()
+                    if version:
+                        return {"version": version}
+        
         # Fallback if VERSION file not found
-        return {"version": "0.10.0-beta.14"}
+        return {"version": "0.11.0"}
     except Exception as e:
         logger.error(f"Failed to read VERSION file: {e}")
         return {"version": "unknown"}
+
+
+# Cache for update checks (avoid spamming GitHub API)
+_update_cache = {
+    "last_check": None,
+    "latest_version": None,
+    "release_url": None,
+    "check_interval": 6 * 60 * 60  # 6 hours in seconds
+}
+
+@app.get("/api/check-update")
+async def check_for_updates(api_key: str = Security(verify_api_key)):
+    """Check GitHub for available updates.
+    
+    Returns cached result if checked within last 6 hours.
+    """
+    global _update_cache
+    
+    now = datetime.now()
+    
+    # Return cached result if recent
+    if (_update_cache["last_check"] and 
+        (now - _update_cache["last_check"]).total_seconds() < _update_cache["check_interval"] and
+        _update_cache["latest_version"]):
+        
+        current = (await get_version())["version"]
+        return {
+            "current_version": current,
+            "latest_version": _update_cache["latest_version"],
+            "update_available": _is_newer_version(_update_cache["latest_version"], current),
+            "release_url": _update_cache["release_url"],
+            "cached": True
+        }
+    
+    try:
+        session = await get_http_session()
+        github_url = "https://api.github.com/repos/JBakers/pihole-sentinel/releases/latest"
+        
+        headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "PiholeSentinel-UpdateChecker"
+        }
+        
+        async with session.get(github_url, headers=headers, timeout=10) as resp:
+            if resp.status == 404:
+                # No releases yet
+                return {
+                    "current_version": (await get_version())["version"],
+                    "latest_version": None,
+                    "update_available": False,
+                    "message": "No releases found"
+                }
+            
+            if resp.status == 403:
+                # Rate limited - return cached or unknown
+                return {
+                    "current_version": (await get_version())["version"],
+                    "latest_version": _update_cache.get("latest_version"),
+                    "update_available": False,
+                    "message": "GitHub API rate limited"
+                }
+            
+            if resp.status != 200:
+                return {
+                    "current_version": (await get_version())["version"],
+                    "update_available": False,
+                    "error": f"GitHub API returned {resp.status}"
+                }
+            
+            data = await resp.json()
+        
+        # Parse release info
+        latest = data.get("tag_name", "").lstrip("v")
+        release_url = data.get("html_url", "")
+        
+        # Update cache
+        _update_cache["last_check"] = now
+        _update_cache["latest_version"] = latest
+        _update_cache["release_url"] = release_url
+        
+        current = (await get_version())["version"]
+        
+        return {
+            "current_version": current,
+            "latest_version": latest,
+            "update_available": _is_newer_version(latest, current),
+            "release_url": release_url,
+            "cached": False
+        }
+        
+    except asyncio.TimeoutError:
+        logger.warning("Timeout checking for updates")
+        return {
+            "current_version": (await get_version())["version"],
+            "update_available": False,
+            "error": "Timeout connecting to GitHub"
+        }
+    except Exception as e:
+        logger.error(f"Failed to check for updates: {e}")
+        return {
+            "current_version": (await get_version())["version"],
+            "update_available": False,
+            "error": str(e)
+        }
+
+
+def _is_newer_version(latest: str, current: str) -> bool:
+    """Compare versions to check if update is available.
+    
+    Handles semantic versioning including pre-release tags like:
+    - 0.11.0, 0.11.0-beta.4, 1.0.0-rc.1
+    """
+    if not latest or not current or current == "unknown":
+        return False
+    
+    try:
+        # Clean version strings
+        latest_clean = latest.lstrip("v").strip()
+        current_clean = current.lstrip("v").strip()
+        
+        # Simple version comparison using packaging library if available
+        try:
+            from packaging import version as pkg_version
+            return pkg_version.parse(latest_clean) > pkg_version.parse(current_clean)
+        except ImportError:
+            # Fallback: basic comparison
+            return latest_clean != current_clean and latest_clean > current_clean
+    except Exception as e:
+        logger.warning(f"Version comparison failed: {e}")
+        return False
+
 
 async def init_db():
     """Initialize SQLite database"""

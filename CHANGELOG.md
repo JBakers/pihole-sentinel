@@ -5,6 +5,34 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0-beta.1] - 2025-12-07
+
+### ✨ New Features
+
+#### Debian 12/13 Compatibility
+- Dynamic Python package resolution (`python3-dev` → `python3.13-dev` on Debian 13)
+- `apt-cache show` check before installation to find available packages
+- Automatic fallback to generic package names
+
+#### Uninstaller
+- New CLI: `sudo python3 setup.py --uninstall`
+- Options: `--keep-configs` (preserve config files), `--dry-run` (preview mode)
+- Interactive wizard with local and remote uninstall options
+- Troubleshooting tips for failed remote uninstalls
+
+#### Update Notifications
+- New `/api/check-update` endpoint checks GitHub releases
+- Dashboard shows banner when new version is available
+- Cached checks (every 6 hours) to respect GitHub API limits
+- Dismiss button remembers version (won't show again for same version)
+
+### 🔧 Improved
+
+- Better package resolution error messages
+- Progress indicators during package resolution
+
+---
+
 ## [0.11.0-beta.4] - 2025-12-07
 
 ### 🔒 Security Fixes
