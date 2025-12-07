@@ -5,6 +5,46 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.14] - 2025-12-07
+
+### ✨ New
+
+#### Testing Infrastructure
+- **Added comprehensive unit test framework:**
+  - Created `tests/` directory with full pytest configuration
+  - Added 4 test modules with 100+ test cases:
+    - `test_validation.py` - Input validation (IP, interface, port, username)
+    - `test_vip_detection.py` - VIP MAC address detection logic
+    - `test_api_handlers.py` - Pi-hole API request/response handling
+    - `test_dhcp_parsing.py` - DHCP configuration parsing and failover
+  - Added `pytest.ini` with coverage configuration (60% minimum threshold)
+  - Added `conftest.py` with shared fixtures and test utilities
+  - Added `requirements-dev.txt` with development dependencies
+  - Added `Makefile` with common development commands
+  - Added `tests/README.md` with testing guide and examples
+  - **Impact:** Enables automated testing, prevents regressions, improves code quality
+  - **Priority:** 🔴 HIGH - Addresses audit recommendation #1
+
+### 🔧 Improved
+
+#### Documentation
+- **Enhanced test documentation:**
+  - Comprehensive test organization guide
+  - Test category markers (unit, integration, slow, network, asyncio)
+  - Coverage reporting instructions
+  - CI/CD integration examples
+  - Debugging and troubleshooting guide
+
+#### Development Workflow
+- **Added development tooling:**
+  - `make test` - Run all tests with coverage
+  - `make test-unit` - Run only unit tests
+  - `make lint` - Run code linters
+  - `make format` - Format code with black and isort
+  - `make clean` - Remove generated files
+
+---
+
 ## [0.10.0-beta.13] - 2025-12-05
 
 ### 🐛 Fixed
