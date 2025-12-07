@@ -1,9 +1,23 @@
 # Pi-hole Sentinel Documentation
 
-**Version:** 0.10.0-beta.16
+**Version:** 0.11.0-beta.6
 **Last Updated:** 2025-12-07
 
-Welcome to the Pi-hole Sentinel documentation! This guide covers everything from installation to advanced configuration and troubleshooting.
+Welcome to the Pi-hole Sentinel documentation hub.
+## Usage Guides
+- [CLI Tool Usage](usage/cli-tool.md)
+- [Quick Start](../QUICKSTART.md)
+- [API Reference](api/README.md)
+
+## Features
+- High Availability for Pi-hole
+- Automatic failover
+- System commands via dashboard
+- Modern UI with dark mode
+
+## Links
+- [GitHub Repository](https://github.com/JBakers/pihole-sentinel)
+- [Main README](../README.md)
 
 ---
 
