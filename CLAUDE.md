@@ -1,7 +1,7 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
 **Last Updated:** 2025-12-07
-**Version:** 0.12.0-beta.6
+**Version:** 0.11.0-beta.3
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
 
@@ -16,9 +16,14 @@ This document provides comprehensive guidance for AI assistants working with the
 
 ## ⚠️ MANDATORY RULES - READ FIRST
 
-### Critical: Never Commit Without User Confirmation (ALWAYS ASK FIRST)
+### Critical: Branch Permissions & Commit Protocol
 
-**🚨 NEVER COMMIT OR PUSH CHANGES WITHOUT EXPLICIT USER APPROVAL 🚨**
+**🚨 AGENTS MAY ONLY COMMIT TO THE DEVELOP BRANCH 🚨**
+
+- Agents (AI, Claude, Copilot, etc.) may ONLY commit to the `develop` branch.
+- Only the user (repo owner) may merge from `develop` → `testing` → `main`.
+- Agents must always ask explicit user approval before any commit.
+- User is de enige die mag mergen naar testing/main.
 
 #### Commit Protocol (REQUIRED)
 
@@ -30,7 +35,7 @@ This document provides comprehensive guidance for AI assistants working with the
    - Show the commit message you plan to use
 
 2. ✅ **Wait for explicit confirmation**
-   - User must say "yes", "commit", "go ahead", or similar
+   - User must say "yes", "commit", "go ahead", of similar
    - Do NOT assume silence means approval
    - Do NOT commit "automatically" because you think it's ready
 
@@ -189,19 +194,27 @@ Given a version number **MAJOR.MINOR.PATCH-PRERELEASE**, increment:
 
 We are currently in **beta** phase (0.x.x-beta.y). Version format: `MAJOR.MINOR.PATCH-beta.INCREMENT`
 
-- **Minor bump (0.9.0 → 0.10.0):** Significant changes or features warranting new minor version
-  - Each new minor gets `-beta.1` suffix
-  - Example: `0.10.0-beta.1` (license change was significant enough for minor bump)
+- **Minor bump (0.9.0 → 0.10.0):** Significant changes or new feature series warranting new minor version
+   - Each new minor gets `-beta.1` suffix
+   - Example: `0.10.0-beta.1` (license change was significant enough for minor bump)
 
 - **Beta increment (beta.1 → beta.2 → beta.3):** Changes within same minor version
-  - Bug fixes: increment beta (e.g., `0.10.0-beta.1` → `0.10.0-beta.2`)
-  - New features: increment beta (e.g., `0.10.0-beta.2` → `0.10.0-beta.3`)
-  - Keep same MINOR version unless change is truly significant
+   - Bug fixes: increment beta (e.g., `0.10.0-beta.1` → `0.10.0-beta.2`)
+   - New features: increment beta (e.g., `0.10.0-beta.2` → `0.10.0-beta.3`)
+   - Keep same MINOR version unless change is truly significant
+
+- **Patch bump (0.10.0-beta.9 → 0.10.1-beta.0):** For small changes, increment PATCH and reset beta
+
+- **Significant change:**
+   - 0.11.2-beta.8, 0.11.3-beta.0, 0.11.4-beta.0
+
+- **Big change/new feature:**
+   - 0.11.4-beta.4, 0.12.0-beta.0, 0.13.0-beta.0
 
 - **Major version 1.0.0:** Reserved for production-ready release
-  - Will mark end of beta phase
-  - Indicates stable, production-ready software
-  - Only use when ready for public release
+   - Will mark end of beta phase
+   - Indicates stable, production-ready software
+   - Only use when ready for public release
 
 **Examples:**
 ```
@@ -210,6 +223,15 @@ We are currently in **beta** phase (0.x.x-beta.y). Version format: `MAJOR.MINOR.
 0.10.0-beta.1 → Significant change (e.g., license change)
 0.10.0-beta.2 → Bug fix after significant change
 0.10.0-beta.3 → New feature in same series
+small change 1: 0.10.0-beta.8
+small change 2: 0.10.0-beta.9
+small change 3: 0.10.1-beta.0
+significant change 1: 0.11.2-beta.8
+significant change 2: 0.11.3-beta.0
+significant change 3: 0.11.4-beta.0
+big change/new feature 1: 0.11.4-beta.4
+big change/new feature 2: 0.12.0-beta.0
+big change/new feature 3: 0.13.0-beta.0
 0.11.0-beta.1 → Next significant feature
 1.0.0         → Production release (NO beta suffix)
 ```

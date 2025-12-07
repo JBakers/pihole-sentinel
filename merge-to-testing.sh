@@ -56,19 +56,12 @@ git pull origin testing
 TESTING_VERSION=$(cat VERSION)
 echo -e "${GREEN}  Testing version: ${TESTING_VERSION}${NC}"
 
-# Calculate new testing version
-# Extract version components
-if [[ $TESTING_VERSION =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)-beta\.([0-9]+)$ ]]; then
-    MAJOR="${BASH_REMATCH[1]}"
-    MINOR="${BASH_REMATCH[2]}"
-    PATCH="${BASH_REMATCH[3]}"
-    BETA="${BASH_REMATCH[4]}"
 
-    # Increment beta version
-    NEW_BETA=$((BETA + 1))
-    NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-beta.${NEW_BETA}"
+# Calculate new testing version: use develop version after merge
+if [[ $DEVELOP_VERSION =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)-beta\.([0-9]+)$ ]]; then
+    NEW_VERSION="$DEVELOP_VERSION"
 else
-    echo -e "${RED}✗ Error: Invalid version format in testing branch${NC}"
+    echo -e "${RED}✗ Error: Invalid version format in develop branch${NC}"
     exit 1
 fi
 

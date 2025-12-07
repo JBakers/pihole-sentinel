@@ -1,3 +1,11 @@
+# 0.11.0-beta.3 (2025-12-07)
+## New
+- Added /api/commands endpoint to monitor.py (system commands, rate limiting)
+- Added bin/pisen CLI tool (status, logs, vip, dashboard, health, test)
+- Added TODO_USER.md for user todo tracking
+## Improved
+- Updated setup.py: deployment, CLI install, improved success message
+- Updated CLAUDE.md: Pre-Release Versioning rules and examples
 # Changelog
 
 All notable changes to Pi-hole Sentinel will be documented in this file.
