@@ -1,3 +1,7 @@
+# 0.11.0-beta.6 (2025-12-07)
+## Docs & Admin
+- Added docs/usage/cli-tool.md and docs/README.md
+- Updated README.md with CLI tool and docs links
 # 0.11.0-beta.4 (2025-12-07)
 ## New
 - Frontend: System Commands sectie, modal, CSS, JS in dashboard/index.html
