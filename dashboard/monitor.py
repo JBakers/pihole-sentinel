@@ -845,23 +845,20 @@ async def test_notification(
             
             test_message = (
                 "🧪 <b>Pi-hole Sentinel Test Notification</b>\n\n"
-                "📋 <b>Example Event Messages:</b>\n\n"
-                "🔵 <b>STARTUP Event:</b>\n"
-                "Pi-hole Sentinel started\n"
-                "🚀 Keepalived initialized\n"
-                "📡 Monitoring active\n\n"
-                "🟢 <b>MASTER/Recovery Event:</b>\n"
-                "Pi-hole is now MASTER\n"
-                "✅ DHCP server enabled\n"
-                "🌐 Virtual IP active\n\n"
-                "🟡 <b>BACKUP/Failover Event:</b>\n"
-                "Pi-hole is now BACKUP\n"
-                "⏸️ DHCP server disabled\n"
-                "👀 Monitoring MASTER\n\n"
-                "🔴 <b>FAULT Event:</b>\n"
-                "Pi-hole entered FAULT state\n"
-                "❌ DHCP server disabled\n"
-                "⚠️ Service issues detected\n\n"
+                "📋 <b>Default Template Examples:</b>\n\n"
+                "🚨 <b>Failover:</b>\n"
+                "🚨 Failover Alert!\n"
+                "Secondary Pi-hole is now MASTER\n"
+                "Primary Pi-hole issue: Service stopped\n\n"
+                "✅ <b>Recovery:</b>\n"
+                "✅ Recovery: Primary Pi-hole is back online\n"
+                "Primary Pi-hole is now MASTER\n\n"
+                "⚠️ <b>Fault:</b>\n"
+                "⚠️ FAULT: Both Pi-holes may have issues!\n"
+                "Check immediately!\n\n"
+                "🚀 <b>Startup:</b>\n"
+                "🚀 Pi-hole Sentinel started\n"
+                "Monitoring Primary Pi-hole and Secondary Pi-hole\n\n"
                 "✅ If you see this, notifications are working!"
             )
             
@@ -884,27 +881,27 @@ async def test_notification(
                     'embeds': [
                         {
                             'title': '🧪 Pi-hole Sentinel Test Notification',
-                            'description': '**Example Event Messages:**',
+                            'description': '**Default Template Examples:**',
                             'color': 3447003,
                             'fields': [
                                 {
-                                    'name': '🔵 STARTUP Event',
-                                    'value': 'Pi-hole Sentinel started\n🚀 Keepalived initialized\n📡 Monitoring active',
+                                    'name': '🚨 Failover',
+                                    'value': '🚨 Failover Alert!\nSecondary Pi-hole is now MASTER\nPrimary Pi-hole issue: Service stopped',
                                     'inline': False
                                 },
                                 {
-                                    'name': '🟢 MASTER/Recovery Event',
-                                    'value': 'Pi-hole is now MASTER\n✅ DHCP enabled\n🌐 Virtual IP active',
+                                    'name': '✅ Recovery',
+                                    'value': '✅ Recovery: Primary Pi-hole is back online\nPrimary Pi-hole is now MASTER',
                                     'inline': False
                                 },
                                 {
-                                    'name': '🟡 BACKUP/Failover Event',
-                                    'value': 'Pi-hole is now BACKUP\n⏸️ DHCP disabled\n👀 Monitoring MASTER',
+                                    'name': '⚠️ Fault',
+                                    'value': '⚠️ FAULT: Both Pi-holes may have issues!\nCheck immediately!',
                                     'inline': False
                                 },
                                 {
-                                    'name': '🔴 FAULT Event',
-                                    'value': 'Pi-hole entered FAULT state\n❌ DHCP disabled\n⚠️ Service issues detected',
+                                    'name': '🚀 Startup',
+                                    'value': '🚀 Pi-hole Sentinel started\nMonitoring Primary Pi-hole and Secondary Pi-hole',
                                     'inline': False
                                 },
                                 {
@@ -925,16 +922,20 @@ async def test_notification(
                 raise HTTPException(status_code=400, detail="User key and app token required")
             
             test_message = (
-                "🧪 Test Notification\n\n"
-                "Example Event Messages:\n\n"
-                "🔵 STARTUP:\n"
-                "🚀 Keepalived initialized, Monitoring active\n\n"
-                "🟢 MASTER/Recovery:\n"
-                "✅ DHCP enabled, Virtual IP active\n\n"
-                "🟡 BACKUP/Failover:\n"
-                "⏸️ DHCP disabled, Monitoring MASTER\n\n"
-                "🔴 FAULT:\n"
-                "❌ DHCP disabled, Service issues\n\n"
+                "🧪 Pi-hole Sentinel Test\n\n"
+                "Default Template Examples:\n\n"
+                "🚨 Failover:\n"
+                "Secondary Pi-hole is now MASTER\n"
+                "Primary Pi-hole issue: Service stopped\n\n"
+                "✅ Recovery:\n"
+                "Primary Pi-hole is back online\n"
+                "Primary Pi-hole is now MASTER\n\n"
+                "⚠️ Fault:\n"
+                "Both Pi-holes may have issues!\n"
+                "Check immediately!\n\n"
+                "🚀 Startup:\n"
+                "Pi-hole Sentinel started\n"
+                "Monitoring Primary and Secondary\n\n"
                 "✅ Notifications are working!"
             )
             
@@ -956,12 +957,12 @@ async def test_notification(
             url = f"{server}/{settings['topic']}"
             
             test_message = (
-                "🧪 Test Notification\n\n"
-                "Example Event Messages:\n\n"
-                "🔵 STARTUP: Keepalived initialized, Monitoring active\n"
-                "🟢 MASTER/Recovery: DHCP enabled, Virtual IP active\n"
-                "🟡 BACKUP/Failover: DHCP disabled, Monitoring MASTER\n"
-                "🔴 FAULT: DHCP disabled, Service issues detected\n\n"
+                "🧪 Pi-hole Sentinel Test\n\n"
+                "Default Template Examples:\n\n"
+                "🚨 Failover: Secondary Pi-hole is now MASTER (Primary issue: Service stopped)\n"
+                "✅ Recovery: Primary Pi-hole is back online (Primary is now MASTER)\n"
+                "⚠️ Fault: Both Pi-holes may have issues! Check immediately!\n"
+                "🚀 Startup: Pi-hole Sentinel started (Monitoring Primary and Secondary)\n\n"
                 "✅ If you see this, notifications are working!"
             )
             
@@ -982,13 +983,14 @@ async def test_notification(
                 async with session.post(settings['url'], json={
                     'service': 'pihole-sentinel',
                     'type': 'test',
-                    'message': 'Test notification - Example events',
-                    'examples': {
-                        'startup': 'Keepalived initialized, Monitoring active',
-                        'master': 'DHCP enabled, Virtual IP active',
-                        'backup': 'DHCP disabled, Monitoring MASTER',
-                        'fault': 'DHCP disabled, Service issues detected'
+                    'message': 'Test notification - Default template examples',
+                    'templates': {
+                        'failover': '🚨 Failover Alert! Secondary Pi-hole is now MASTER (Primary Pi-hole issue: Service stopped)',
+                        'recovery': '✅ Recovery: Primary Pi-hole is back online (Primary Pi-hole is now MASTER)',
+                        'fault': '⚠️ FAULT: Both Pi-holes may have issues! Check immediately!',
+                        'startup': '🚀 Pi-hole Sentinel started (Monitoring Primary Pi-hole and Secondary Pi-hole)'
                     },
+                    'status': 'Notifications are working!',
                     'timestamp': datetime.now().isoformat()
                 }) as response:
                     if response.status not in [200, 201, 202, 204]:
