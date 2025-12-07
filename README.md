@@ -10,7 +10,7 @@ resilient dns · simple ops · keep dns up when others drop
 
 *Automatic failover • Real-time monitoring • Quick IP flow + monitor placement guidance • Seamless DNS/DHCP redundancy*
 
-[![Version](https://img.shields.io/badge/version-v0.12.0--beta.2-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-v0.12.0--beta.3-blue.svg)](VERSION)
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)

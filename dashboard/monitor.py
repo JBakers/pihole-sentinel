@@ -97,10 +97,11 @@ async def lifespan(app: FastAPI):
     await get_http_session()
     await log_event("info", "Monitor started")
     asyncio.create_task(monitor_loop())
+    asyncio.create_task(daily_cleanup_loop())
     logger.info("Pi-hole Sentinel Monitor started")
-    
+
     yield
-    
+
     # Shutdown
     await close_http_session()
     logger.info("Monitor stopped, HTTP session closed")
@@ -669,6 +670,56 @@ async def init_db():
         """)
 
         await db.commit()
+
+async def cleanup_old_data():
+    """Remove old status history and events to prevent database growth."""
+    retention_days_history = int(os.getenv('RETENTION_DAYS_HISTORY', '30'))
+    retention_days_events = int(os.getenv('RETENTION_DAYS_EVENTS', '90'))
+
+    cutoff_history = datetime.now() - timedelta(days=retention_days_history)
+    cutoff_events = datetime.now() - timedelta(days=retention_days_events)
+
+    try:
+        async with aiosqlite.connect(CONFIG["db_path"]) as db:
+            # Delete old status_history records
+            cursor_history = await db.execute(
+                "DELETE FROM status_history WHERE timestamp < ?",
+                (cutoff_history.isoformat(),)
+            )
+
+            # Delete old events
+            cursor_events = await db.execute(
+                "DELETE FROM events WHERE timestamp < ?",
+                (cutoff_events.isoformat(),)
+            )
+
+            await db.commit()
+
+            # Get row counts (SQLite doesn't return rowcount reliably, so we log what we attempted)
+            logger.info(
+                f"Database cleanup completed: "
+                f"removed status_history older than {retention_days_history} days, "
+                f"removed events older than {retention_days_events} days"
+            )
+    except Exception as e:
+        logger.error(f"Database cleanup failed: {e}", exc_info=True)
+
+async def daily_cleanup_loop():
+    """Run database cleanup once per day."""
+    while True:
+        try:
+            # Run cleanup immediately on startup
+            await cleanup_old_data()
+
+            # Then wait 24 hours before next cleanup
+            await asyncio.sleep(24 * 60 * 60)  # 24 hours
+        except asyncio.CancelledError:
+            logger.info("Daily cleanup task cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Error in daily cleanup loop: {e}", exc_info=True)
+            # Wait 1 hour before retrying on error
+            await asyncio.sleep(60 * 60)
 
 async def check_pihole_simple(ip: str, password: str) -> Dict:
     """Simple Pi-hole check - uses global session pool for better performance."""
