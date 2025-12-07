@@ -14,6 +14,8 @@ import subprocess
 import socket
 import copy
 import logging
+import json
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Dict
 from collections import defaultdict
@@ -87,7 +89,24 @@ if missing_vars:
     logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
     sys.exit(1)
 
-app = FastAPI(title="Pi-hole Keepalived Monitor")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events."""
+    # Startup
+    await init_db()
+    await get_http_session()
+    await log_event("info", "Monitor started")
+    asyncio.create_task(monitor_loop())
+    asyncio.create_task(daily_cleanup_loop())
+    logger.info("Pi-hole Sentinel Monitor started")
+
+    yield
+
+    # Shutdown
+    await close_http_session()
+    logger.info("Monitor stopped, HTTP session closed")
+
+app = FastAPI(title="Pi-hole Keepalived Monitor", lifespan=lifespan)
 
 # Security: API Key authentication
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
@@ -133,7 +152,7 @@ async def rate_limit_check(request: Request):
 
 # Global aiohttp ClientSession for connection pooling
 # Reusing sessions improves performance and prevents connection exhaustion
-http_session: aiohttp.ClientSession = None
+http_session: aiohttp.ClientSession | None = None
 
 async def get_http_session() -> aiohttp.ClientSession:
     """Get or create global HTTP session for connection pooling."""
@@ -150,6 +169,277 @@ async def close_http_session():
     global http_session
     if http_session and not http_session.closed:
         await http_session.close()
+
+# Track notification state for repeat/reminder functionality
+notification_state = {
+    "last_notification_time": {},  # {event_type: datetime}
+    "active_issues": {},  # {event_type: bool} - is issue still active?
+}
+
+def is_snoozed(settings: dict) -> bool:
+    """Check if notifications are currently snoozed."""
+    snooze = settings.get('snooze', {})
+    if not snooze.get('enabled', False):
+        return False
+    
+    until_str = snooze.get('until')
+    if not until_str:
+        return False
+    
+    try:
+        until = datetime.fromisoformat(until_str.replace('Z', '+00:00'))
+        # Handle timezone-naive comparison
+        if until.tzinfo:
+            until = until.replace(tzinfo=None)
+        return datetime.now() < until
+    except (ValueError, TypeError):
+        return False
+
+def should_send_reminder(event_type: str, settings: dict) -> bool:
+    """Check if a reminder notification should be sent based on repeat settings."""
+    repeat = settings.get('repeat', {})
+    if not repeat.get('enabled', False):
+        return False
+    
+    interval_minutes = repeat.get('interval', 0)
+    if interval_minutes <= 0:
+        return False
+    
+    # Check if issue is still active
+    if not notification_state["active_issues"].get(event_type, False):
+        return False
+    
+    # Check if enough time has passed since last notification
+    last_time = notification_state["last_notification_time"].get(event_type)
+    if not last_time:
+        return False
+    
+    elapsed = datetime.now() - last_time
+    return elapsed >= timedelta(minutes=interval_minutes)
+
+async def send_notification(event_type: str, template_vars: dict, is_reminder: bool = False):
+    """Send notification via configured services using custom templates"""
+    import json
+
+    config_path = CONFIG["notify_config_path"]
+
+    if not os.path.exists(config_path):
+        logger.debug(f"Notification config not found: {config_path}")
+        return
+
+    # Load notification settings from JSON
+    try:
+        with open(config_path, 'r') as f:
+            settings = json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to read notification settings: {e}")
+        await log_event("warning", f"⚠️ Failed to load notification settings: {e}")
+        return
+
+    # Check if notifications are snoozed
+    if is_snoozed(settings):
+        logger.debug(f"Notification snoozed, skipping {event_type}")
+        return
+
+    # Check if event type is enabled
+    events_config = settings.get('events', {})
+    if not events_config.get(event_type, True):
+        logger.debug(f"Event type {event_type} is disabled in settings")
+        return
+
+    # Load template and substitute variables
+    templates = settings.get('templates', {})
+    template = templates.get(event_type, "")
+
+    if not template:
+        # Fallback to default template if not found
+        template = f"Pi-hole Sentinel Alert: {event_type}"
+
+    try:
+        message = template.format(**template_vars)
+        # Add reminder prefix if this is a repeat notification
+        if is_reminder:
+            message = f"🔔 REMINDER:\n{message}"
+    except KeyError as e:
+        logger.error(f"Template variable missing: {e}")
+        await log_event("warning", f"⚠️ Notification template error: missing variable {e}")
+        return
+
+    # Track if any notification was sent
+    sent_count = 0
+    failed_services = []
+
+    # Send Telegram notification
+    if settings.get('telegram', {}).get('enabled'):
+        telegram_token = settings['telegram'].get('bot_token')
+        telegram_chat = settings['telegram'].get('chat_id')
+
+        if telegram_token and telegram_chat:
+            try:
+                session = await get_http_session()
+                url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+                payload = {
+                    "chat_id": telegram_chat,
+                    "text": message,
+                    "parse_mode": "HTML"
+                }
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        logger.info(f"Telegram notification sent: {event_type}")
+                        sent_count += 1
+                    else:
+                        logger.warning(f"Telegram notification failed: HTTP {resp.status}")
+                        failed_services.append(f"Telegram (HTTP {resp.status})")
+            except Exception as e:
+                logger.error(f"Failed to send Telegram notification: {e}")
+                failed_services.append(f"Telegram ({type(e).__name__})")
+
+    # Send Discord notification
+    if settings.get('discord', {}).get('enabled'):
+        webhook_url = settings['discord'].get('webhook_url')
+
+        if webhook_url:
+            try:
+                session = await get_http_session()
+                # Convert HTML formatting to Discord markdown
+                discord_message = message.replace('<b>', '**').replace('</b>', '**')
+                payload = {
+                    "content": discord_message
+                }
+                async with session.post(webhook_url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status in [200, 204]:
+                        logger.info(f"Discord notification sent: {event_type}")
+                        sent_count += 1
+                    else:
+                        logger.warning(f"Discord notification failed: HTTP {resp.status}")
+                        failed_services.append(f"Discord (HTTP {resp.status})")
+            except Exception as e:
+                logger.error(f"Failed to send Discord notification: {e}")
+                failed_services.append(f"Discord ({type(e).__name__})")
+
+    # Send Pushover notification
+    if settings.get('pushover', {}).get('enabled'):
+        user_key = settings['pushover'].get('user_key')
+        app_token = settings['pushover'].get('app_token')
+
+        if user_key and app_token:
+            try:
+                session = await get_http_session()
+                # Remove HTML tags for Pushover
+                pushover_message = message.replace('<b>', '').replace('</b>', '')
+                async with session.post('https://api.pushover.net/1/messages.json', data={
+                    'token': app_token,
+                    'user': user_key,
+                    'title': 'Pi-hole Sentinel',
+                    'message': pushover_message
+                }, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        logger.info(f"Pushover notification sent: {event_type}")
+                        sent_count += 1
+                    else:
+                        logger.warning(f"Pushover notification failed: HTTP {resp.status}")
+                        failed_services.append(f"Pushover (HTTP {resp.status})")
+            except Exception as e:
+                logger.error(f"Failed to send Pushover notification: {e}")
+                failed_services.append(f"Pushover ({type(e).__name__})")
+
+    # Send Ntfy notification
+    if settings.get('ntfy', {}).get('enabled'):
+        topic = settings['ntfy'].get('topic')
+        server = settings['ntfy'].get('server', 'https://ntfy.sh')
+
+        if topic:
+            try:
+                session = await get_http_session()
+                url = f"{server}/{topic}"
+                # Remove HTML tags for Ntfy
+                ntfy_message = message.replace('<b>', '').replace('</b>', '')
+                async with session.post(url, data=ntfy_message.encode('utf-8'), headers={
+                    'Title': 'Pi-hole Sentinel',
+                    'Priority': 'default'
+                }, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        logger.info(f"Ntfy notification sent: {event_type}")
+                        sent_count += 1
+                    else:
+                        logger.warning(f"Ntfy notification failed: HTTP {resp.status}")
+                        failed_services.append(f"Ntfy (HTTP {resp.status})")
+            except Exception as e:
+                logger.error(f"Failed to send Ntfy notification: {e}")
+                failed_services.append(f"Ntfy ({type(e).__name__})")
+
+    # Send custom webhook notification
+    if settings.get('webhook', {}).get('enabled'):
+        webhook_url = settings['webhook'].get('url')
+
+        if webhook_url:
+            try:
+                session = await get_http_session()
+                payload = {
+                    'service': 'pihole-sentinel',
+                    'event_type': event_type,
+                    'message': message,
+                    'variables': template_vars,
+                    'timestamp': datetime.now().isoformat()
+                }
+                async with session.post(webhook_url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status in [200, 201, 202, 204]:
+                        logger.info(f"Webhook notification sent: {event_type}")
+                        sent_count += 1
+                    else:
+                        logger.warning(f"Webhook notification failed: HTTP {resp.status}")
+                        failed_services.append(f"Webhook (HTTP {resp.status})")
+            except Exception as e:
+                logger.error(f"Failed to send Webhook notification: {e}")
+                failed_services.append(f"Webhook ({type(e).__name__})")
+
+    # Log notification status
+    if sent_count > 0:
+        await log_event("notification", f"✉️ Notification sent: {event_type}{' (reminder)' if is_reminder else ''} ({sent_count} service{'s' if sent_count > 1 else ''})")
+        # Track last notification time for repeat/reminder functionality
+        notification_state["last_notification_time"][event_type] = datetime.now()
+
+    if failed_services:
+        await log_event("warning", f"⚠️ Notification failed for: {', '.join(failed_services)}")
+
+async def check_and_send_reminders():
+    """Check if any reminder notifications should be sent for active issues."""
+    import json
+    
+    config_path = CONFIG["notify_config_path"]
+    if not os.path.exists(config_path):
+        return
+    
+    try:
+        with open(config_path, 'r') as f:
+            settings = json.load(f)
+    except Exception:
+        return
+    
+    # Check repeat settings
+    repeat = settings.get('repeat', {})
+    if not repeat.get('enabled', False) or repeat.get('interval', 0) <= 0:
+        return
+    
+    # Check each active issue type
+    for event_type in ['failover', 'fault']:
+        if should_send_reminder(event_type, settings):
+            # Build template vars for reminder
+            template_vars = {
+                "node_name": "Unknown",
+                "node": "Unknown",
+                "master": CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole'),
+                "backup": CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole'),
+                "primary": CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole'),
+                "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole'),
+                "reason": "Issue still active",
+                "vip_address": CONFIG.get('vip', ''),
+                "vip": CONFIG.get('vip', ''),
+                "time": datetime.now().strftime("%H:%M:%S"),
+                "date": datetime.now().strftime("%Y-%m-%d")
+            }
+            await send_notification(event_type, template_vars, is_reminder=True)
+            logger.info(f"Sent reminder notification for {event_type}")
 
 # CORS middleware - restricted to localhost for security
 # If you need remote access, add specific origins here
@@ -174,6 +464,162 @@ async def serve_index():
 @app.get("/settings.html")
 async def serve_settings():
     return FileResponse("settings.html")
+
+@app.get("/api/version")
+async def get_version():
+    """Get current Pi-hole Sentinel version from VERSION file"""
+    try:
+        # Check multiple locations for VERSION file
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), "VERSION"),      # Same dir as monitor.py
+            os.path.join(os.path.dirname(__file__), "..", "VERSION"), # Parent dir (dev)
+            "/opt/pihole-monitor/VERSION",                            # Production location
+            "/opt/VERSION",                                           # Legacy location
+        ]
+        
+        for version_file in possible_paths:
+            if os.path.exists(version_file):
+                with open(version_file, 'r') as f:
+                    version = f.read().strip()
+                    if version:
+                        return {"version": version}
+        
+        # Fallback if VERSION file not found
+        return {"version": "0.11.0"}
+    except Exception as e:
+        logger.error(f"Failed to read VERSION file: {e}")
+        return {"version": "unknown"}
+
+
+# Cache for update checks (avoid spamming GitHub API)
+_update_cache = {
+    "last_check": None,
+    "latest_version": None,
+    "release_url": None,
+    "check_interval": 6 * 60 * 60  # 6 hours in seconds
+}
+
+@app.get("/api/check-update")
+async def check_for_updates(api_key: str = Security(verify_api_key)):
+    """Check GitHub for available updates.
+    
+    Returns cached result if checked within last 6 hours.
+    """
+    global _update_cache
+    
+    now = datetime.now()
+    
+    # Return cached result if recent
+    if (_update_cache["last_check"] and 
+        (now - _update_cache["last_check"]).total_seconds() < _update_cache["check_interval"] and
+        _update_cache["latest_version"]):
+        
+        current = (await get_version())["version"]
+        return {
+            "current_version": current,
+            "latest_version": _update_cache["latest_version"],
+            "update_available": _is_newer_version(_update_cache["latest_version"], current),
+            "release_url": _update_cache["release_url"],
+            "cached": True
+        }
+    
+    try:
+        session = await get_http_session()
+        github_url = "https://api.github.com/repos/JBakers/pihole-sentinel/releases/latest"
+        
+        headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "PiholeSentinel-UpdateChecker"
+        }
+        
+        async with session.get(github_url, headers=headers, timeout=10) as resp:
+            if resp.status == 404:
+                # No releases yet
+                return {
+                    "current_version": (await get_version())["version"],
+                    "latest_version": None,
+                    "update_available": False,
+                    "message": "No releases found"
+                }
+            
+            if resp.status == 403:
+                # Rate limited - return cached or unknown
+                return {
+                    "current_version": (await get_version())["version"],
+                    "latest_version": _update_cache.get("latest_version"),
+                    "update_available": False,
+                    "message": "GitHub API rate limited"
+                }
+            
+            if resp.status != 200:
+                return {
+                    "current_version": (await get_version())["version"],
+                    "update_available": False,
+                    "error": f"GitHub API returned {resp.status}"
+                }
+            
+            data = await resp.json()
+        
+        # Parse release info
+        latest = data.get("tag_name", "").lstrip("v")
+        release_url = data.get("html_url", "")
+        
+        # Update cache
+        _update_cache["last_check"] = now
+        _update_cache["latest_version"] = latest
+        _update_cache["release_url"] = release_url
+        
+        current = (await get_version())["version"]
+        
+        return {
+            "current_version": current,
+            "latest_version": latest,
+            "update_available": _is_newer_version(latest, current),
+            "release_url": release_url,
+            "cached": False
+        }
+        
+    except asyncio.TimeoutError:
+        logger.warning("Timeout checking for updates")
+        return {
+            "current_version": (await get_version())["version"],
+            "update_available": False,
+            "error": "Timeout connecting to GitHub"
+        }
+    except Exception as e:
+        logger.error(f"Failed to check for updates: {e}")
+        return {
+            "current_version": (await get_version())["version"],
+            "update_available": False,
+            "error": str(e)
+        }
+
+
+def _is_newer_version(latest: str, current: str) -> bool:
+    """Compare versions to check if update is available.
+    
+    Handles semantic versioning including pre-release tags like:
+    - 0.11.0, 0.11.0-beta.4, 1.0.0-rc.1
+    """
+    if not latest or not current or current == "unknown":
+        return False
+    
+    try:
+        # Clean version strings
+        latest_clean = latest.lstrip("v").strip()
+        current_clean = current.lstrip("v").strip()
+        
+        # Simple version comparison using packaging library if available
+        try:
+            from packaging import version as pkg_version
+            return pkg_version.parse(latest_clean) > pkg_version.parse(current_clean)
+        except ImportError:
+            # Fallback: basic comparison
+            return latest_clean != current_clean and latest_clean > current_clean
+    except Exception as e:
+        logger.warning(f"Version comparison failed: {e}")
+        return False
+
 
 async def init_db():
     """Initialize SQLite database"""
@@ -224,6 +670,56 @@ async def init_db():
         """)
 
         await db.commit()
+
+async def cleanup_old_data():
+    """Remove old status history and events to prevent database growth."""
+    retention_days_history = int(os.getenv('RETENTION_DAYS_HISTORY', '30'))
+    retention_days_events = int(os.getenv('RETENTION_DAYS_EVENTS', '90'))
+
+    cutoff_history = datetime.now() - timedelta(days=retention_days_history)
+    cutoff_events = datetime.now() - timedelta(days=retention_days_events)
+
+    try:
+        async with aiosqlite.connect(CONFIG["db_path"]) as db:
+            # Delete old status_history records
+            cursor_history = await db.execute(
+                "DELETE FROM status_history WHERE timestamp < ?",
+                (cutoff_history.isoformat(),)
+            )
+
+            # Delete old events
+            cursor_events = await db.execute(
+                "DELETE FROM events WHERE timestamp < ?",
+                (cutoff_events.isoformat(),)
+            )
+
+            await db.commit()
+
+            # Get row counts (SQLite doesn't return rowcount reliably, so we log what we attempted)
+            logger.info(
+                f"Database cleanup completed: "
+                f"removed status_history older than {retention_days_history} days, "
+                f"removed events older than {retention_days_events} days"
+            )
+    except Exception as e:
+        logger.error(f"Database cleanup failed: {e}", exc_info=True)
+
+async def daily_cleanup_loop():
+    """Run database cleanup once per day."""
+    while True:
+        try:
+            # Run cleanup immediately on startup
+            await cleanup_old_data()
+
+            # Then wait 24 hours before next cleanup
+            await asyncio.sleep(24 * 60 * 60)  # 24 hours
+        except asyncio.CancelledError:
+            logger.info("Daily cleanup task cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Error in daily cleanup loop: {e}", exc_info=True)
+            # Wait 1 hour before retrying on error
+            await asyncio.sleep(60 * 60)
 
 async def check_pihole_simple(ip: str, password: str) -> Dict:
     """Simple Pi-hole check - uses global session pool for better performance."""
@@ -527,18 +1023,67 @@ async def monitor_loop():
                 master_name = "Primary" if current_master == "primary" else "Secondary"
                 await log_event("failover", f"{master_name} became MASTER")
                 logger.warning(f"FAILOVER: {master_name} is now MASTER")
-                
-                # Log reason for failover
+
+                # Determine failover reason
+                reason = ""
                 if current_master == "secondary":
                     if not primary_data["online"]:
-                        await log_event("info", "Failover reason: Primary is offline")
+                        reason = "Primary is offline"
+                        await log_event("info", f"Failover reason: {reason}")
                     elif not primary_data["pihole"]:
-                        await log_event("info", "Failover reason: Pi-hole service on Primary is down")
+                        reason = "Pi-hole service on Primary is down"
+                        await log_event("info", f"Failover reason: {reason}")
                 else:
                     if not secondary_data["online"]:
-                        await log_event("info", "Failback reason: Secondary is offline")
+                        reason = "Secondary is offline"
+                        await log_event("info", f"Failback reason: {reason}")
                     elif not secondary_data["pihole"]:
-                        await log_event("info", "Failback reason: Pi-hole service on Secondary is down")
+                        reason = "Pi-hole service on Secondary is down"
+                        await log_event("info", f"Failback reason: {reason}")
+
+                # Send notification
+                # Determine which node is master and which is backup
+                if current_master == "Primary":
+                    master_node = CONFIG.get('primary_name', 'Primary-Pi-hole')
+                    backup_node = CONFIG.get('secondary_name', 'Secondary-Pi-hole')
+                else:
+                    master_node = CONFIG.get('secondary_name', 'Secondary-Pi-hole')
+                    backup_node = CONFIG.get('primary_name', 'Primary-Pi-hole')
+                
+                template_vars = {
+                    "node_name": master_name,
+                    "node": master_name,
+                    "master": master_node,
+                    "backup": backup_node,
+                    "primary": CONFIG.get('primary_name', 'Primary-Pi-hole'),
+                    "secondary": CONFIG.get('secondary_name', 'Secondary-Pi-hole'),
+                    "reason": reason if reason else "Unknown",
+                    "vip_address": CONFIG['vip'],
+                    "vip": CONFIG['vip'],
+                    "time": datetime.now().strftime("%H:%M:%S"),
+                    "date": datetime.now().strftime("%Y-%m-%d")
+                }
+                await send_notification("failover", template_vars)
+                # Mark failover as active issue for reminders
+                notification_state["active_issues"]["failover"] = True
+            
+            # Check for recovery - clear active issues
+            if previous_state and previous_state != current_master:
+                # If we switched back to primary as master, clear failover issue
+                if current_master == "primary":
+                    notification_state["active_issues"]["failover"] = False
+                    notification_state["active_issues"]["fault"] = False
+            
+            # Track fault state (both offline or both pihole down)
+            both_offline = not primary_data["online"] and not secondary_data["online"]
+            both_pihole_down = not primary_data["pihole"] and not secondary_data["pihole"]
+            if both_offline or both_pihole_down:
+                notification_state["active_issues"]["fault"] = True
+            else:
+                notification_state["active_issues"]["fault"] = False
+            
+            # Check and send reminder notifications if needed
+            await check_and_send_reminders()
             
             previous_state = current_master
             previous_primary_online = primary_data["online"]
@@ -573,20 +1118,6 @@ async def monitor_loop():
             logger.error(f"Error in monitor loop: {e}", exc_info=True)
             await log_event("error", f"Monitor error: {str(e)}")
         await asyncio.sleep(CONFIG["check_interval"])
-
-@app.on_event("startup")
-async def startup_event():
-    await init_db()
-    # Initialize HTTP session pool on startup
-    await get_http_session()
-    await log_event("info", "Monitor started")
-    asyncio.create_task(monitor_loop())
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    # Clean up HTTP session on shutdown
-    await close_http_session()
-    logger.info("Monitor stopped, HTTP session closed")
 
 @app.get("/api/status")
 async def get_status(api_key: str = Depends(verify_api_key)):
@@ -669,7 +1200,21 @@ async def get_notification_settings(api_key: str = Depends(verify_api_key)):
         "discord": {"enabled": False, "webhook_url": ""},
         "pushover": {"enabled": False, "user_key": "", "app_token": ""},
         "ntfy": {"enabled": False, "topic": "", "server": "https://ntfy.sh"},
-        "webhook": {"enabled": False, "url": ""}
+        "webhook": {"enabled": False, "url": ""},
+        "templates": {
+            "failover": "🚨 Failover Alert!\n{master} is now MASTER\n{backup} issue: {reason}",
+            "recovery": "✅ Recovery: {primary} is back online\n{master} is now MASTER",
+            "fault": "⚠️ FAULT: Both Pi-holes may have issues!\nCheck immediately!",
+            "startup": "🚀 Pi-hole Sentinel started\nMonitoring {primary} and {secondary}"
+        },
+        "repeat": {
+            "enabled": False,
+            "interval": 0  # 0=disabled, 5/10/30/60 minutes
+        },
+        "snooze": {
+            "enabled": False,
+            "until": None  # ISO timestamp when snooze ends
+        }
     }
 
 # SECURITY: Removed insecure test-settings endpoint that exposed credentials
@@ -759,6 +1304,18 @@ async def save_notification_settings(settings: dict, api_key: str = Depends(veri
     # Merge settings, keeping existing values where new value is None
     merged_settings = merge_settings(existing_settings, settings)
     
+    def escape_for_bash_config(value):
+        """Escape value for safe use in bash double-quoted string."""
+        if not value:
+            return ""
+        # Escape backslashes first, then other special chars
+        escaped = str(value).replace('\\', '\\\\')
+        escaped = escaped.replace('"', '\\"')
+        escaped = escaped.replace('$', '\\$')
+        escaped = escaped.replace('`', '\\`')
+        escaped = escaped.replace('!', '\\!')
+        return escaped
+    
     try:
         with open(config_path, 'w') as f:
             json.dump(merged_settings, f, indent=2)
@@ -779,33 +1336,34 @@ async def save_notification_settings(settings: dict, api_key: str = Depends(veri
             f.write(f"NOTIFY_FAULT=\"{'true' if events.get('fault', True) else 'false'}\"\n")
             f.write(f"NOTIFY_STARTUP=\"{'true' if events.get('startup', False) else 'false'}\"\n\n")
             
-            # Service credentials
+            # Service credentials - escape all values for bash safety
             if merged_settings.get('telegram', {}).get('enabled'):
                 f.write("# Telegram\n")
-                f.write(f"TELEGRAM_BOT_TOKEN=\"{merged_settings['telegram'].get('bot_token', '')}\"\n")
-                f.write(f"TELEGRAM_CHAT_ID=\"{merged_settings['telegram'].get('chat_id', '')}\"\n\n")
+                f.write(f"TELEGRAM_BOT_TOKEN=\"{escape_for_bash_config(merged_settings['telegram'].get('bot_token', ''))}\"\n")
+                f.write(f"TELEGRAM_CHAT_ID=\"{escape_for_bash_config(merged_settings['telegram'].get('chat_id', ''))}\"\n\n")
             
             if merged_settings.get('discord', {}).get('enabled'):
                 f.write("# Discord\n")
-                f.write(f"DISCORD_WEBHOOK_URL=\"{merged_settings['discord'].get('webhook_url', '')}\"\n\n")
+                f.write(f"DISCORD_WEBHOOK_URL=\"{escape_for_bash_config(merged_settings['discord'].get('webhook_url', ''))}\"\n\n")
             
             if merged_settings.get('pushover', {}).get('enabled'):
                 f.write("# Pushover\n")
-                f.write(f"PUSHOVER_USER_KEY=\"{merged_settings['pushover'].get('user_key', '')}\"\n")
-                f.write(f"PUSHOVER_APP_TOKEN=\"{merged_settings['pushover'].get('app_token', '')}\"\n\n")
+                f.write(f"PUSHOVER_USER_KEY=\"{escape_for_bash_config(merged_settings['pushover'].get('user_key', ''))}\"\n")
+                f.write(f"PUSHOVER_APP_TOKEN=\"{escape_for_bash_config(merged_settings['pushover'].get('app_token', ''))}\"\n\n")
             
             if merged_settings.get('ntfy', {}).get('enabled'):
                 f.write("# Ntfy\n")
-                f.write(f"NTFY_TOPIC=\"{merged_settings['ntfy'].get('topic', '')}\"\n")
-                f.write(f"NTFY_SERVER=\"{merged_settings['ntfy'].get('server', 'https://ntfy.sh')}\"\n\n")
+                f.write(f"NTFY_TOPIC=\"{escape_for_bash_config(merged_settings['ntfy'].get('topic', ''))}\"\n")
+                f.write(f"NTFY_SERVER=\"{escape_for_bash_config(merged_settings['ntfy'].get('server', 'https://ntfy.sh'))}\"\n\n")
             
             if merged_settings.get('webhook', {}).get('enabled'):
                 f.write("# Custom Webhook\n")
-                f.write(f"CUSTOM_WEBHOOK_URL=\"{merged_settings['webhook'].get('url', '')}\"\n\n")
+                f.write(f"CUSTOM_WEBHOOK_URL=\"{escape_for_bash_config(merged_settings['webhook'].get('url', ''))}\"\n\n")
         
         return {"status": "success", "message": "Settings saved successfully"}
-    
+
     except Exception as e:
+        logger.error(f"Failed to save notification settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to save settings: {str(e)}")
 
 @app.post("/api/notifications/test")
@@ -1005,6 +1563,157 @@ async def test_notification(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
+
+@app.post("/api/notifications/test-template")
+async def test_template_notification(
+    request: Request,
+    data: dict,
+    api_key: str = Depends(verify_api_key),
+    _rate_limit: bool = Depends(rate_limit_check)
+):
+    """Test a template notification with sample data"""
+    template_type = data.get('template_type', 'failover')
+    
+    if template_type not in ['failover', 'recovery', 'fault', 'startup']:
+        raise HTTPException(status_code=400, detail="Invalid template type")
+    
+    # Sample data for testing - use configured names or defaults
+    primary_name = CONFIG.get('primary_name', 'Primary-Pi-hole')
+    secondary_name = CONFIG.get('secondary_name', 'Secondary-Pi-hole')
+    
+    sample_vars = {
+        "node_name": secondary_name,
+        "node": secondary_name,
+        "master": secondary_name,
+        "backup": primary_name,
+        "primary": primary_name,
+        "secondary": secondary_name,
+        "reason": "Test notification - simulated failover",
+        "vip_address": CONFIG.get('vip', '192.168.1.100'),
+        "vip": CONFIG.get('vip', '192.168.1.100'),
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "date": datetime.now().strftime("%Y-%m-%d")
+    }
+    
+    try:
+        await send_notification(template_type, sample_vars)
+        return {"status": "success", "message": f"Test {template_type} notification sent"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
+
+@app.get("/api/notifications/snooze")
+async def get_snooze_status(api_key: str = Depends(verify_api_key)):
+    """Get current snooze status"""
+    import json
+    
+    config_path = CONFIG["notify_config_path"]
+    
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                settings = json.load(f)
+                snooze = settings.get('snooze', {})
+                
+                # Check if snooze is still active
+                if snooze.get('enabled') and snooze.get('until'):
+                    try:
+                        until = datetime.fromisoformat(snooze['until'].replace('Z', '+00:00'))
+                        if until.tzinfo:
+                            until = until.replace(tzinfo=None)
+                        if datetime.now() >= until:
+                            # Snooze has expired
+                            snooze['enabled'] = False
+                            snooze['until'] = None
+                    except (ValueError, TypeError):
+                        pass
+                
+                return {
+                    "enabled": snooze.get('enabled', False),
+                    "until": snooze.get('until'),
+                    "active": is_snoozed(settings)
+                }
+        except Exception:
+            pass
+    
+    return {"enabled": False, "until": None, "active": False}
+
+@app.post("/api/notifications/snooze")
+async def set_snooze(data: dict, api_key: str = Depends(verify_api_key)):
+    """Set snooze for notifications"""
+    import json
+    
+    duration_minutes = data.get('duration', 60)  # Default 1 hour
+    
+    if duration_minutes <= 0:
+        raise HTTPException(status_code=400, detail="Duration must be positive")
+    
+    if duration_minutes > 1440:  # Max 24 hours
+        raise HTTPException(status_code=400, detail="Maximum snooze duration is 24 hours")
+    
+    until = datetime.now() + timedelta(minutes=duration_minutes)
+    
+    config_path = CONFIG["notify_config_path"]
+    
+    # Load existing settings
+    settings = {}
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                settings = json.load(f)
+        except Exception:
+            pass
+    
+    # Update snooze settings
+    settings['snooze'] = {
+        'enabled': True,
+        'until': until.isoformat()
+    }
+    
+    # Save settings
+    try:
+        with open(config_path, 'w') as f:
+            json.dump(settings, f, indent=2)
+        
+        await log_event("info", f"🔕 Notifications snoozed until {until.strftime('%H:%M')}")
+        return {
+            "status": "success",
+            "message": f"Notifications snoozed for {duration_minutes} minutes",
+            "until": until.isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to set snooze: {str(e)}")
+
+@app.delete("/api/notifications/snooze")
+async def cancel_snooze(api_key: str = Depends(verify_api_key)):
+    """Cancel active snooze"""
+    import json
+    
+    config_path = CONFIG["notify_config_path"]
+    
+    # Load existing settings
+    settings = {}
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                settings = json.load(f)
+        except Exception:
+            pass
+    
+    # Clear snooze settings
+    settings['snooze'] = {
+        'enabled': False,
+        'until': None
+    }
+    
+    # Save settings
+    try:
+        with open(config_path, 'w') as f:
+            json.dump(settings, f, indent=2)
+        
+        await log_event("info", "🔔 Snooze cancelled, notifications re-enabled")
+        return {"status": "success", "message": "Snooze cancelled"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to cancel snooze: {str(e)}")
 
 if __name__ == "__main__":
     if not os.path.exists(os.path.dirname(CONFIG["db_path"])):

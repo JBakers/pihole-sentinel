@@ -16,14 +16,29 @@ if [ -f "$CONFIG_FILE" ]; then
     source "$CONFIG_FILE"
 fi
 
+# Function to escape special characters for JSON
+escape_json() {
+    local text="$1"
+    # Escape backslashes, quotes, and control characters
+    text="${text//\\/\\\\}"      # Backslash
+    text="${text//\"/\\\"}"      # Quote
+    text="${text//$'\n'/\\n}"    # Newline
+    text="${text//$'\r'/\\r}"    # Carriage return
+    text="${text//$'\t'/\\t}"    # Tab
+    echo "$text"
+}
+
 # Function to send Telegram notification
 send_telegram() {
     local message="$1"
     if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+        # URL-encode the message for safe transmission
+        local encoded_message
+        encoded_message=$(printf '%s' "$message" | curl -Gso /dev/null -w %{url_effective} --data-urlencode @- "" | cut -c 3-)
         curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d chat_id="${TELEGRAM_CHAT_ID}" \
-            -d text="${message}" \
-            -d parse_mode="HTML" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=${message}" \
+            -d "parse_mode=HTML" \
             > /dev/null 2>&1
     fi
 }
@@ -34,11 +49,14 @@ send_discord() {
     local color="$2"  # Decimal color (e.g., 16711680 for red, 65280 for green)
     
     if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+        # Escape message for JSON safety
+        local escaped_message
+        escaped_message=$(escape_json "$message")
         local json_payload=$(cat <<EOF
 {
   "embeds": [{
     "title": "🛡️ Pi-hole Sentinel Alert",
-    "description": "${message}",
+    "description": "${escaped_message}",
     "color": ${color},
     "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)",
     "footer": {
@@ -93,12 +111,17 @@ send_webhook() {
     local state="$2"
     
     if [ -n "$CUSTOM_WEBHOOK_URL" ]; then
+        # Escape message and hostname for JSON safety
+        local escaped_message
+        local escaped_hostname
+        escaped_message=$(escape_json "$message")
+        escaped_hostname=$(escape_json "$(hostname)")
         local json_payload=$(cat <<EOF
 {
   "service": "pihole-sentinel",
-  "hostname": "$(hostname)",
+  "hostname": "${escaped_hostname}",
   "state": "${state}",
-  "message": "${message}",
+  "message": "${escaped_message}",
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
 }
 EOF

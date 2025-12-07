@@ -1,6 +1,6 @@
 # Pi-hole Sentinel Documentation
 
-**Version:** 0.11.0-beta.6
+**Version:** 0.12.0-beta.6
 **Last Updated:** 2025-12-07
 
 Welcome to the Pi-hole Sentinel documentation hub.

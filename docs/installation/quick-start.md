@@ -24,8 +24,8 @@ Op je **lokale machine** of **monitor server**:
 git clone https://github.com/JBakers/pihole-sentinel.git
 cd pihole-sentinel
 
-# Checkout de branch met alle fixes
-git checkout claude/project-review-audit-01KcU4Da3NQyemv38xvUv4sF
+# Checkout the testing branch (latest features)
+git checkout testing
 ```
 
 ### Stap 2: Run Setup Script
