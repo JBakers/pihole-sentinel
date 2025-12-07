@@ -5,6 +5,24 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.15] - 2025-12-07
+
+### 🔧 Improved
+
+#### Notification System
+- **Updated test notification messages with default template examples:**
+  - Shows actual default templates instead of generic messages
+  - Helps users understand what notifications will look like
+  - Updated for all services: Telegram, Discord, Pushover, Ntfy, Webhook
+  - **Telegram:** HTML formatted with failover, recovery, fault, startup examples
+  - **Discord:** Embed fields with default template examples
+  - **Pushover:** Plain text format with template examples
+  - **Ntfy:** Compact format optimized for mobile
+  - **Webhook:** JSON payload with all template examples and metadata
+  - **Impact:** Users can see exactly how notifications will appear before enabling them
+
+---
+
 ## [0.10.0-beta.14] - 2025-12-07
 
 ### ✨ New
