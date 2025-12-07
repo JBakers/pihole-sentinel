@@ -17,6 +17,7 @@ import socket
 import secrets
 import string
 import subprocess
+import datetime
 from ipaddress import ip_network, ip_address
 from getpass import getpass
 
@@ -1466,6 +1467,261 @@ NODE_STATE=MASTER
 {Colors.YELLOW}Need help? Check the documentation or open an issue on GitHub.{Colors.END}
 """)
 
+
+class Uninstaller:
+    """Uninstall Pi-hole Sentinel components."""
+    
+    def __init__(self, keep_configs=False, dry_run=False):
+        self.keep_configs = keep_configs
+        self.dry_run = dry_run
+    
+    def run_cmd(self, cmd, description=""):
+        """Execute command with dry-run support."""
+        if self.dry_run:
+            print(f"  [DRY-RUN] Would run: {' '.join(cmd)}")
+            return True
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, timeout=30)
+            return True
+        except subprocess.CalledProcessError:
+            return False
+        except subprocess.TimeoutExpired:
+            print(f"  ⚠ Command timed out: {' '.join(cmd)}")
+            return False
+    
+    def uninstall_monitor(self):
+        """Uninstall monitor service from local machine."""
+        print(f"\n{Colors.CYAN}{Colors.BOLD}═══ Uninstalling Pi-hole Sentinel Monitor ═══{Colors.END}\n")
+        
+        # Stop and disable service
+        print("Stopping service...")
+        self.run_cmd(["systemctl", "stop", "pihole-monitor"])
+        self.run_cmd(["systemctl", "disable", "pihole-monitor"])
+        
+        # Remove service file
+        print("Removing systemd service...")
+        self.run_cmd(["rm", "-f", "/etc/systemd/system/pihole-monitor.service"])
+        self.run_cmd(["systemctl", "daemon-reload"])
+        
+        # Remove application files
+        print("Removing application files...")
+        if self.keep_configs:
+            print(f"  {Colors.YELLOW}(Keeping configuration files){Colors.END}")
+            self.run_cmd(["rm", "-rf", "/opt/pihole-monitor/venv"])
+            self.run_cmd(["rm", "-f", "/opt/pihole-monitor/monitor.py"])
+            self.run_cmd(["rm", "-f", "/opt/pihole-monitor/index.html"])
+            self.run_cmd(["rm", "-f", "/opt/pihole-monitor/settings.html"])
+        else:
+            self.run_cmd(["rm", "-rf", "/opt/pihole-monitor"])
+            self.run_cmd(["rm", "-rf", "/etc/pihole-sentinel"])
+        
+        self.run_cmd(["rm", "-f", "/opt/VERSION"])
+        
+        # Remove logs
+        print("Removing log files...")
+        self.run_cmd(["rm", "-f", "/var/log/pihole-monitor.log"])
+        self.run_cmd(["sh", "-c", "rm -f /var/log/pihole-monitor.log.*"])
+        
+        # Remove user
+        print("Removing service user...")
+        self.run_cmd(["userdel", "-r", "pihole-monitor"])
+        
+        print(f"\n{Colors.GREEN}✓ Monitor uninstalled{Colors.END}")
+    
+    def uninstall_keepalived_config(self):
+        """Remove keepalived configuration (not the package)."""
+        print(f"\n{Colors.CYAN}{Colors.BOLD}═══ Removing Keepalived Configuration ═══{Colors.END}\n")
+        
+        print("Stopping keepalived...")
+        self.run_cmd(["systemctl", "stop", "keepalived"])
+        
+        print("Removing configuration...")
+        if self.keep_configs:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            print(f"  {Colors.YELLOW}(Backing up config to keepalived.conf.backup_{timestamp}){Colors.END}")
+            self.run_cmd(["mv", "/etc/keepalived/keepalived.conf", 
+                         f"/etc/keepalived/keepalived.conf.backup_{timestamp}"])
+        else:
+            self.run_cmd(["rm", "-f", "/etc/keepalived/keepalived.conf"])
+            self.run_cmd(["rm", "-f", "/etc/keepalived/.env"])
+        
+        print("Removing scripts...")
+        scripts = [
+            "/usr/local/bin/check_pihole_service.sh",
+            "/usr/local/bin/check_dhcp_service.sh",
+            "/usr/local/bin/dhcp_control.sh",
+            "/usr/local/bin/keepalived_notify.sh",
+            "/usr/local/bin/notify.sh"
+        ]
+        for script in scripts:
+            self.run_cmd(["rm", "-f", script])
+        
+        self.run_cmd(["rm", "-f", "/var/log/keepalived-notify.log"])
+        
+        print(f"\n{Colors.GREEN}✓ Keepalived configuration removed{Colors.END}")
+        print(f"  {Colors.YELLOW}Note: keepalived package NOT removed (may be used elsewhere){Colors.END}")
+    
+    def uninstall_remote(self, host, user, port, password=None, ssh_key=None):
+        """Uninstall from remote host via SSH."""
+        print(f"\n{Colors.CYAN}{Colors.BOLD}═══ Uninstalling from {host} ═══{Colors.END}\n")
+        
+        keep_flag = "true" if self.keep_configs else "false"
+        
+        script = f'''
+#!/bin/bash
+KEEP_CONFIGS={keep_flag}
+
+echo "Stopping services..."
+systemctl stop pihole-monitor 2>/dev/null || true
+systemctl disable pihole-monitor 2>/dev/null || true
+systemctl stop keepalived 2>/dev/null || true
+
+echo "Removing systemd service..."
+rm -f /etc/systemd/system/pihole-monitor.service
+systemctl daemon-reload
+
+echo "Removing application files..."
+if [ "$KEEP_CONFIGS" = "false" ]; then
+    rm -rf /opt/pihole-monitor
+    rm -rf /etc/pihole-sentinel
+    rm -f /etc/keepalived/keepalived.conf
+    rm -f /etc/keepalived/.env
+else
+    rm -rf /opt/pihole-monitor/venv
+    rm -f /opt/pihole-monitor/monitor.py
+    rm -f /opt/pihole-monitor/index.html
+    rm -f /opt/pihole-monitor/settings.html
+    mv /etc/keepalived/keepalived.conf /etc/keepalived/keepalived.conf.backup_$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+fi
+
+rm -f /opt/VERSION
+
+echo "Removing scripts..."
+rm -f /usr/local/bin/check_pihole_service.sh
+rm -f /usr/local/bin/check_dhcp_service.sh
+rm -f /usr/local/bin/dhcp_control.sh
+rm -f /usr/local/bin/keepalived_notify.sh
+rm -f /usr/local/bin/notify.sh
+
+echo "Removing logs..."
+rm -f /var/log/pihole-monitor.log*
+rm -f /var/log/keepalived-notify.log
+
+echo "Removing service user..."
+userdel -r pihole-monitor 2>/dev/null || true
+
+echo "Done!"
+'''
+        
+        if self.dry_run:
+            print(f"  [DRY-RUN] Would execute uninstall script on {host}")
+            return True
+        
+        try:
+            # Build SSH command
+            if ssh_key:
+                ssh_cmd = ["ssh", "-i", ssh_key, "-p", port, "-o", "StrictHostKeyChecking=no"]
+            elif password:
+                ssh_cmd = ["sshpass", "-e", "ssh", "-p", port, "-o", "StrictHostKeyChecking=no"]
+            else:
+                ssh_cmd = ["ssh", "-p", port, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes"]
+            
+            env = os.environ.copy()
+            if password:
+                env['SSHPASS'] = password
+            
+            # Execute script
+            result = subprocess.run(
+                ssh_cmd + [f"{user}@{host}", "bash -s"],
+                input=script,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                env=env
+            )
+            
+            if result.returncode == 0:
+                print(f"{Colors.GREEN}✓ Uninstalled from {host}{Colors.END}")
+                return True
+            else:
+                raise Exception(result.stderr or "Unknown error")
+                
+        except Exception as e:
+            print(f"\n{Colors.RED}⚠️  Failed to uninstall from {host}: {e}{Colors.END}")
+            self._show_troubleshooting(host, user)
+            return False
+    
+    def _show_troubleshooting(self, host, user):
+        """Show troubleshooting tips for failed remote uninstall."""
+        print(f"""
+{Colors.YELLOW}╔══════════════════════════════════════════════════════════════════════╗
+║  TROUBLESHOOTING TIPS                                                 ║
+╠══════════════════════════════════════════════════════════════════════╣
+║  1. Check SSH access:     ssh {user}@{host}                          
+║  2. Verify root/sudo permissions                                     
+║  3. Check if host is reachable: ping {host}                          
+║  4. Try manual uninstall (commands below)                            
+╚══════════════════════════════════════════════════════════════════════╝{Colors.END}
+
+{Colors.CYAN}Manual uninstall commands:{Colors.END}
+  ssh {user}@{host}
+  systemctl stop pihole-monitor keepalived
+  rm -rf /opt/pihole-monitor /etc/pihole-sentinel
+  rm -f /usr/local/bin/check_*.sh /usr/local/bin/*notify*.sh
+  rm -f /etc/keepalived/keepalived.conf /etc/keepalived/.env
+  userdel -r pihole-monitor
+""")
+    
+    def run_interactive(self):
+        """Run interactive uninstall wizard."""
+        print(f"""
+{Colors.RED}{Colors.BOLD}
+╔═══════════════════════════════════════════════════════════════════════╗
+║                    PI-HOLE SENTINEL UNINSTALLER                       ║
+╚═══════════════════════════════════════════════════════════════════════╝
+{Colors.END}
+{Colors.YELLOW}This will remove Pi-hole Sentinel components from your system(s).{Colors.END}
+
+What would you like to uninstall?
+
+  {Colors.BOLD}1.{Colors.END} Monitor service (this machine)
+  {Colors.BOLD}2.{Colors.END} Keepalived config (this machine - for Pi-hole nodes)
+  {Colors.BOLD}3.{Colors.END} Both (this machine)
+  {Colors.BOLD}4.{Colors.END} Remote uninstall via SSH
+  {Colors.BOLD}5.{Colors.END} Cancel
+""")
+        choice = input(f"{Colors.BOLD}Enter choice (1-5): {Colors.END}").strip()
+        
+        if choice == '5' or not choice:
+            print("Cancelled.")
+            return
+        
+        if self.dry_run:
+            print(f"\n{Colors.YELLOW}═══ DRY-RUN MODE - No changes will be made ═══{Colors.END}")
+        
+        if choice in ['1', '2', '3']:
+            if choice in ['1', '3']:
+                self.uninstall_monitor()
+            if choice in ['2', '3']:
+                self.uninstall_keepalived_config()
+        elif choice == '4':
+            host = input("Remote host IP: ").strip()
+            if not host:
+                print("No host provided. Cancelled.")
+                return
+            user = input("SSH user [root]: ").strip() or "root"
+            port = input("SSH port [22]: ").strip() or "22"
+            use_password = input("Use password authentication? (y/N): ").strip().lower() == 'y'
+            
+            password = None
+            if use_password:
+                password = getpass("SSH password: ")
+            
+            self.uninstall_remote(host, user, port, password=password)
+        
+        print(f"\n{Colors.GREEN}{Colors.BOLD}Uninstallation complete!{Colors.END}")
+
+
 def check_command_exists(cmd):
     """Check if a command exists on the system."""
     try:
@@ -1473,6 +1729,50 @@ def check_command_exists(cmd):
         return result.returncode == 0
     except:
         return False
+
+def check_package_available(pkg):
+    """Check if a package is available in apt cache."""
+    try:
+        result = subprocess.run(["apt-cache", "show", pkg], 
+                               capture_output=True, text=True, timeout=5)
+        return result.returncode == 0
+    except:
+        return False
+
+def resolve_package_name(pkg):
+    """Resolve package name with version-specific fallbacks.
+    
+    For Python packages, tries version-specific names first, then generic.
+    E.g., python3-dev -> python3.13-dev (if available) -> python3-dev
+    """
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    
+    # Packages that might have version-specific variants
+    versioned_packages = {
+        'python3-dev': [f'python{py_version}-dev', 'python3-dev', 'libpython3-dev'],
+        'python3-venv': [f'python{py_version}-venv', 'python3-venv'],
+    }
+    
+    if pkg not in versioned_packages:
+        return pkg
+    
+    alternatives = versioned_packages[pkg]
+    for alt in alternatives:
+        if check_package_available(alt):
+            return alt
+    
+    # Fallback to original (will fail gracefully)
+    return pkg
+
+def resolve_all_packages(packages):
+    """Resolve all packages in list to available versions."""
+    resolved = []
+    for pkg in packages:
+        resolved_pkg = resolve_package_name(pkg)
+        if resolved_pkg != pkg:
+            print(f"  ℹ {pkg} → {resolved_pkg}")
+        resolved.append(resolved_pkg)
+    return resolved
 
 def check_package_installed(pkg, pkg_manager="apt"):
     """Check if a package is installed."""
@@ -1517,11 +1817,20 @@ def check_dependencies():
         if pkg_manager and platform.system() == "Linux":
             print("Checking system packages...")
             for pkg in sys_pkgs:
-                if not check_package_installed(pkg, pkg_manager):
-                    missing_system.append(pkg)
-                    print(f"  ✗ {pkg} - NOT INSTALLED")
+                # Resolve to version-specific package name if needed
+                resolved_pkg = resolve_package_name(pkg) if pkg_manager == "apt" else pkg
+                
+                if not check_package_installed(resolved_pkg, pkg_manager):
+                    missing_system.append(resolved_pkg)
+                    if resolved_pkg != pkg:
+                        print(f"  ✗ {pkg} ({resolved_pkg}) - NOT INSTALLED")
+                    else:
+                        print(f"  ✗ {pkg} - NOT INSTALLED")
                 else:
-                    print(f"  ✓ {pkg} - installed")
+                    if resolved_pkg != pkg:
+                        print(f"  ✓ {pkg} ({resolved_pkg}) - installed")
+                    else:
+                        print(f"  ✓ {pkg} - installed")
     
     # Check required commands
     print("\nChecking required commands...")
@@ -1603,9 +1912,24 @@ def main():
     parser = argparse.ArgumentParser(description='Pi-hole Sentinel High Availability Setup')
     parser.add_argument('-v', '--verbose', action='store_true', 
                        help='Show verbose output including all command details')
+    parser.add_argument('--uninstall', action='store_true',
+                       help='Uninstall Pi-hole Sentinel components')
+    parser.add_argument('--keep-configs', action='store_true',
+                       help='Keep configuration files during uninstall')
+    parser.add_argument('--dry-run', action='store_true',
+                       help='Show what would be done without making changes')
     args = parser.parse_args()
     
     VERBOSE = args.verbose
+    
+    # Handle uninstall mode
+    if args.uninstall:
+        uninstaller = Uninstaller(
+            keep_configs=args.keep_configs,
+            dry_run=args.dry_run
+        )
+        uninstaller.run_interactive()
+        sys.exit(0)
     
     if VERBOSE:
         print("═══ VERBOSE MODE ENABLED ═══\n")
@@ -1681,8 +2005,14 @@ def main():
                         result = subprocess.run(["apt-get", "update", "-qq"], 
                                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
                         print(f"│  [████░░░░░░░░░░░░░░░░] 20%  Package lists updated     ")
-                        print(f"│  [████░░░░░░░░░░░░░░░░] 20%  Installing packages...", end='\r')
-                        result = subprocess.run(["apt-get", "install", "-y", "-qq"] + pkgs,
+                        
+                        # Resolve version-specific package names
+                        print(f"│  [████░░░░░░░░░░░░░░░░] 20%  Resolving packages...", end='\r')
+                        resolved_pkgs = resolve_all_packages(pkgs)
+                        print(f"│  [██████░░░░░░░░░░░░░░] 30%  Packages resolved        ")
+                        
+                        print(f"│  [██████░░░░░░░░░░░░░░] 30%  Installing packages...", end='\r')
+                        result = subprocess.run(["apt-get", "install", "-y", "-qq"] + resolved_pkgs,
                                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
                         print(f"│  [████████████████████] 100% Installation complete!    ")
                     elif os.path.exists("/usr/bin/yum"):

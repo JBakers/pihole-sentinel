@@ -481,6 +481,58 @@
             display: block;
         }
         
+        /* Update notification banner */
+        .update-banner {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            animation: slideDown 0.3s ease-out;
+        }
+        
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .update-banner-text {
+            flex: 1;
+            font-weight: 500;
+        }
+        
+        .update-btn {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        
+        .update-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .update-dismiss {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            opacity: 0.7;
+            padding: 5px;
+        }
+        
+        .update-dismiss:hover {
+            opacity: 1;
+        }
+        
         /* Dark mode styles */
         body.dark-mode {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
@@ -722,6 +774,16 @@
 </head>
 <body>
     <div class="container">
+        <!-- Update Notification Banner (hidden by default) -->
+        <div id="update-banner" class="update-banner" style="display: none;">
+            <span>🚀</span>
+            <span class="update-banner-text">
+                New version available: <strong id="update-version"></strong>
+            </span>
+            <a id="update-link" href="#" target="_blank" class="update-btn">View Release</a>
+            <button class="update-dismiss" onclick="dismissUpdate()">✕</button>
+        </div>
+        
         <div class="header">
             <div>
                 <h1>
@@ -904,6 +966,42 @@
             document.body.classList.add('dark-mode');
             document.getElementById('dark-mode-icon').textContent = '☀️';
         }
+        
+        // Update notification functionality
+        async function checkForUpdates() {
+            try {
+                const response = await fetch(`${API_BASE}/api/check-update`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                
+                if (data.update_available && data.latest_version) {
+                    // Check if user dismissed this version
+                    const dismissed = localStorage.getItem('pihole-sentinel-update-dismissed');
+                    if (dismissed === data.latest_version) {
+                        return;
+                    }
+                    
+                    document.getElementById('update-version').textContent = 'v' + data.latest_version;
+                    document.getElementById('update-link').href = data.release_url || 'https://github.com/JBakers/pihole-sentinel/releases';
+                    document.getElementById('update-banner').style.display = 'flex';
+                }
+            } catch (error) {
+                console.error('Update check failed:', error);
+            }
+        }
+        
+        function dismissUpdate() {
+            const version = document.getElementById('update-version').textContent.replace('v', '');
+            localStorage.setItem('pihole-sentinel-update-dismissed', version);
+            document.getElementById('update-banner').style.display = 'none';
+        }
+        
+        // Check for updates after page load (delayed to not block initial load)
+        setTimeout(checkForUpdates, 5000);
         
         async function fetchStatus() {
             try {
