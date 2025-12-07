@@ -763,6 +763,46 @@
                 </div>
             </div>
             
+            <!-- Repeat Alerts -->
+            <div class="settings-card">
+                <h2>🔁 Repeat Alerts</h2>
+                <p style="opacity: 0.7; margin-bottom: 20px; font-size: 14px;">Send reminder notifications while issues persist</p>
+                
+                <div class="form-group">
+                    <label for="repeat-interval">Repeat interval</label>
+                    <select id="repeat-interval" style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px;">
+                        <option value="0">Off - No reminders</option>
+                        <option value="5">Every 5 minutes</option>
+                        <option value="10">Every 10 minutes</option>
+                        <option value="30">Every 30 minutes</option>
+                        <option value="60">Every hour</option>
+                    </select>
+                    <small>Sends reminders while a failover or fault condition is still active</small>
+                </div>
+            </div>
+            
+            <!-- Snooze -->
+            <div class="settings-card">
+                <h2>🔕 Snooze Notifications</h2>
+                <p style="opacity: 0.7; margin-bottom: 20px; font-size: 14px;">Temporarily disable all notifications (for maintenance)</p>
+                
+                <div id="snooze-status" style="display: none; margin-bottom: 20px; padding: 15px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong style="color: #f59e0b;">🔕 Snoozed</strong>
+                            <span id="snooze-until" style="margin-left: 10px; opacity: 0.8;"></span>
+                        </div>
+                        <button type="button" class="test-btn" onclick="cancelSnooze()" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: #ef4444;">Cancel</button>
+                    </div>
+                </div>
+                
+                <div id="snooze-buttons" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button type="button" class="test-btn" onclick="setSnooze(60)">🔕 1 hour</button>
+                    <button type="button" class="test-btn" onclick="setSnooze(240)">🔕 4 hours</button>
+                    <button type="button" class="test-btn" onclick="setSnooze(1440)">🔕 24 hours</button>
+                </div>
+            </div>
+            
             <div class="settings-card">
                 <button type="submit" class="save-btn" id="save-btn">💾 Save All Settings</button>
                 <div id="save-alert" class="alert"></div>
@@ -961,6 +1001,12 @@ Monitoring {primary} and {secondary}</textarea>
                 if (settings.templates.fault) document.getElementById('template-fault').value = settings.templates.fault;
                 if (settings.templates.startup) document.getElementById('template-startup').value = settings.templates.startup;
             }
+            
+            // Repeat settings
+            if (settings.repeat) {
+                const interval = settings.repeat.interval || 0;
+                document.getElementById('repeat-interval').value = interval.toString();
+            }
         }
         
         function toggleService(service) {
@@ -1069,6 +1115,10 @@ Monitoring {primary} and {secondary}</textarea>
                     recovery: document.getElementById('template-recovery').value,
                     fault: document.getElementById('template-fault').value,
                     startup: document.getElementById('template-startup').value
+                },
+                repeat: {
+                    enabled: parseInt(document.getElementById('repeat-interval').value) > 0,
+                    interval: parseInt(document.getElementById('repeat-interval').value)
                 }
             };
         }
@@ -1269,6 +1319,81 @@ Monitoring {primary} and {secondary}</textarea>
         });
         
         loadSettings();
+        loadSnoozeStatus();
+
+        // Snooze functions
+        async function loadSnoozeStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/api/notifications/snooze`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    updateSnoozeUI(data);
+                }
+            } catch (error) {
+                console.error('Failed to load snooze status:', error);
+            }
+        }
+        
+        function updateSnoozeUI(snooze) {
+            const statusDiv = document.getElementById('snooze-status');
+            const buttonsDiv = document.getElementById('snooze-buttons');
+            const untilSpan = document.getElementById('snooze-until');
+            
+            if (snooze.active && snooze.until) {
+                const until = new Date(snooze.until);
+                untilSpan.textContent = `until ${until.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                statusDiv.style.display = 'block';
+                buttonsDiv.style.display = 'none';
+            } else {
+                statusDiv.style.display = 'none';
+                buttonsDiv.style.display = 'flex';
+            }
+        }
+        
+        async function setSnooze(minutes) {
+            try {
+                const response = await fetch(`${API_BASE}/api/notifications/snooze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
+                    body: JSON.stringify({ duration: minutes })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`🔕 Notifications snoozed for ${minutes} minutes`);
+                    loadSnoozeStatus();
+                } else {
+                    const error = await response.json();
+                    alert(`❌ Failed: ${error.detail || 'Unknown error'}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        }
+        
+        async function cancelSnooze() {
+            try {
+                const response = await fetch(`${API_BASE}/api/notifications/snooze`, {
+                    method: 'DELETE',
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                
+                if (response.ok) {
+                    alert('🔔 Snooze cancelled, notifications re-enabled');
+                    loadSnoozeStatus();
+                } else {
+                    const error = await response.json();
+                    alert(`❌ Failed: ${error.detail || 'Unknown error'}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        }
 
         // Load and display version dynamically
         async function loadVersion() {
