@@ -5,6 +5,31 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0-beta.3] - 2025-12-07
+
+### 🎨 Improved
+
+#### Settings Page UI Overhaul
+- **Softer background colors**: Changed from bright white to subtle light gray (rgba 241,245,249)
+- **Compact notification cards**: Reduced padding and margins for cleaner look
+- **Descriptive text**: Each notifier now has helpful description text
+  - Telegram: "Receive instant alerts via Telegram bot"
+  - Discord: "Post alerts to a Discord channel via webhook"
+  - Pushover: "Push notifications to iOS/Android devices"
+  - Ntfy: "Open source push notifications (self-hosted or public)"
+  - Webhook: "Send JSON payloads to any endpoint"
+- **Dark mode improvements**: Better contrast with darker card backgrounds
+- **Version display fix**: Now properly fetches version from API with fallback
+
+### 🔧 Fixed
+
+- Version badge in README.md now shows correct version (v0.11.0-beta.2)
+- QUICKSTART.md now references correct branch (testing)
+- Added API_KEY example to .env.example
+- loadVersion() now uses API_BASE and includes API key header
+
+---
+
 ## [0.11.0-beta.2] - 2025-12-07
 
 ### ✨ New
