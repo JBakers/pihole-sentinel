@@ -283,6 +283,44 @@
             max-height: 1000px;
         }
         
+        .var-btn {
+            padding: 8px 14px;
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+        
+        .var-btn:hover {
+            background: rgba(102, 126, 234, 0.25);
+            transform: translateY(-1px);
+        }
+        
+        body.dark-mode .var-btn {
+            background: rgba(102, 126, 234, 0.2);
+            color: #a5b4fc;
+            border-color: rgba(165, 180, 252, 0.3);
+        }
+        
+        .template-area {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        
+        body.dark-mode .template-area {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
         .setup-instructions {
             background: rgba(102, 126, 234, 0.05);
             border: 1px solid rgba(102, 126, 234, 0.2);
@@ -383,6 +421,151 @@
         body.dark-mode .event-checkbox strong {
             color: rgba(255, 255, 255, 0.9);
         }
+        
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.2s ease;
+        }
+        
+        .modal-overlay.show {
+            display: flex;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateY(-20px) scale(0.95); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        
+        .modal-content {
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+            animation: slideIn 0.3s ease;
+        }
+        
+        body.dark-mode .modal-content {
+            background: rgba(30, 41, 59, 0.98);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            position: sticky;
+            top: -30px;
+            background: inherit;
+            z-index: 10;
+            margin: -30px -30px 10px -30px;
+            padding: 20px 30px 10px 30px;
+        }
+        
+        body.dark-mode .modal-header {
+            border-bottom-color: rgba(255,255,255,0.1);
+        }
+        
+        .variables-bar {
+            position: sticky;
+            top: 40px;
+            background: inherit;
+            z-index: 9;
+            padding: 10px 0;
+            margin: 0 -30px;
+            padding-left: 30px;
+            padding-right: 30px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        body.dark-mode .variables-bar {
+            border-bottom-color: rgba(255,255,255,0.05);
+        }
+        
+        body.dark-mode .variables-bar p {
+            color: rgba(255,255,255,0.7);
+        }
+        
+        .modal-label {
+            color: #1e293b;
+            margin: 0;
+        }
+        
+        body.dark-mode .modal-label {
+            color: rgba(255,255,255,0.9);
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            color: #1e293b;
+        }
+        
+        body.dark-mode .modal-header h2 {
+            color: #fff;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #64748b;
+            transition: color 0.2s;
+            padding: 0;
+            line-height: 1;
+        }
+        
+        .modal-close:hover {
+            color: #ef4444;
+        }
+        
+        .dark-mode-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: white;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            font-size: 24px;
+            transition: all 0.3s;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        body.dark-mode .dark-mode-toggle {
+            background: #0f3460;
+        }
+        
+        .dark-mode-toggle:hover {
+            transform: scale(1.1);
+        }
     </style>
 </head>
 <body>
@@ -392,7 +575,10 @@
                 <h1>⚙️ Notification Settings</h1>
                 <p style="margin-top: 5px; opacity: 0.7; font-size: 14px;">Pi-hole Sentinel <span id="version-display">v0.0.0</span></p>
             </div>
-            <a href="/" class="back-btn">← Back to Dashboard</a>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <button type="button" class="back-btn" onclick="openTemplatesModal()">📝 Templates</button>
+                <a href="/" class="back-btn">← Back to Dashboard</a>
+            </div>
         </div>
         
         <form id="settings-form">
@@ -583,10 +769,88 @@
             </div>
         </form>
     </div>
+    
+    <!-- Templates Modal -->
+    <div id="templates-modal" class="modal-overlay" onclick="if(event.target===this)closeTemplatesModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📝 Message Templates</h2>
+                <button type="button" class="modal-close" onclick="closeTemplatesModal()">×</button>
+            </div>
+            
+            <div class="variables-bar">
+                <p style="opacity: 0.7; margin-bottom: 10px; font-size: 13px;">Click to insert:</p>
+                <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                    <button type="button" class="var-btn" onclick="insertVar('{master}')" title="Current MASTER" style="padding:4px 8px; font-size:13px;">{master}</button>
+                    <button type="button" class="var-btn" onclick="insertVar('{backup}')" title="Current BACKUP" style="padding:4px 8px; font-size:13px;">{backup}</button>
+                    <button type="button" class="var-btn" onclick="insertVar('{reason}')" style="padding:4px 8px; font-size:13px;">{reason}</button>
+                    <button type="button" class="var-btn" onclick="insertVar('{time}')" style="padding:4px 8px; font-size:13px;">{time}</button>
+                    <span style="border-left:1px solid #ccc; margin:0 4px;"></span>
+                    <button type="button" class="var-btn" onclick="insertVar('⚔️')" style="padding:4px 8px;" title="Sentinel">⚔️</button>
+                    <button type="button" class="var-btn" onclick="insertVar('🚨')" style="padding:4px 8px;">🚨</button>
+                    <button type="button" class="var-btn" onclick="insertVar('🆘')" style="padding:4px 8px;" title="Red Alert">🆘</button>
+                    <button type="button" class="var-btn" onclick="insertVar('✅')" style="padding:4px 8px;">✅</button>
+                    <button type="button" class="var-btn" onclick="insertVar('⚠️')" style="padding:4px 8px;">⚠️</button>
+                    <button type="button" class="var-btn" onclick="insertVar('🔴')" style="padding:4px 8px;">🔴</button>
+                    <button type="button" class="var-btn" onclick="insertVar('🟢')" style="padding:4px 8px;">🟢</button>
+                </div>
+            </div>
+            
+            <div class="form-group" style="margin-top:15px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <label for="template-failover" class="modal-label"><strong>Failover</strong></label>
+                    <button type="button" class="var-btn" onclick="testSpecificTemplate('failover')" title="Test this template" style="padding:4px 10px; font-size:14px;">📤 Test</button>
+                </div>
+                <textarea id="template-failover" rows="3" class="template-area" onfocus="activeTemplate='template-failover'">🚨 Failover Alert!
+{master} is now MASTER
+{backup} issue: {reason}</textarea>
+            </div>
+            
+            <div class="form-group">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <label for="template-recovery" class="modal-label"><strong>Recovery</strong></label>
+                    <button type="button" class="var-btn" onclick="testSpecificTemplate('recovery')" title="Test this template" style="padding:4px 10px; font-size:14px;">📤 Test</button>
+                </div>
+                <textarea id="template-recovery" rows="2" class="template-area" onfocus="activeTemplate='template-recovery'">✅ Recovery: {primary} is back online
+{master} is now MASTER</textarea>
+            </div>
+            
+            <div class="form-group">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <label for="template-fault" class="modal-label"><strong>Fault</strong></label>
+                    <button type="button" class="var-btn" onclick="testSpecificTemplate('fault')" title="Test this template" style="padding:4px 10px; font-size:14px;">📤 Test</button>
+                </div>
+                <textarea id="template-fault" rows="2" class="template-area" onfocus="activeTemplate='template-fault'">⚠️ FAULT: Both Pi-holes may have issues!
+Check immediately!</textarea>
+            </div>
+            
+            <div class="form-group">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <label for="template-startup" class="modal-label"><strong>Startup</strong></label>
+                    <button type="button" class="var-btn" onclick="testSpecificTemplate('startup')" title="Test this template" style="padding:4px 10px; font-size:14px;">📤 Test</button>
+                </div>
+                <textarea id="template-startup" rows="2" class="template-area" onfocus="activeTemplate='template-startup'">🚀 Pi-hole Sentinel started
+Monitoring {primary} and {secondary}</textarea>
+            </div>
+            
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button type="button" class="save-btn" onclick="closeTemplatesModal()" style="flex:1;">Done</button>
+                <button type="button" class="test-btn" onclick="restoreDefaultTemplates()" style="padding:14px 20px;">🔄 Reset</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         const API_BASE = window.location.origin;
         const API_KEY = 'YOUR_API_KEY_HERE';
+        
+        // Default templates
+        const DEFAULT_TEMPLATES = {
+            failover: "🚨 Failover Alert!\n{master} is now MASTER\n{backup} issue: {reason}",
+            recovery: "✅ Recovery: {primary} is back online\n{master} is now MASTER",
+            fault: "⚠️ FAULT: Both Pi-holes may have issues!\nCheck immediately!",
+            startup: "🚀 Pi-hole Sentinel started\nMonitoring {primary} and {secondary}"
+        };
 
         // Store masked values to detect if user changed them
         const maskedValues = {};
@@ -688,6 +952,14 @@
                 document.getElementById('webhook-url').value = webhookUrl;
                 if (isMasked(webhookUrl)) maskedValues['webhook-url'] = webhookUrl;
                 toggleService('webhook');
+            }
+            
+            // Templates
+            if (settings.templates) {
+                if (settings.templates.failover) document.getElementById('template-failover').value = settings.templates.failover;
+                if (settings.templates.recovery) document.getElementById('template-recovery').value = settings.templates.recovery;
+                if (settings.templates.fault) document.getElementById('template-fault').value = settings.templates.fault;
+                if (settings.templates.startup) document.getElementById('template-startup').value = settings.templates.startup;
             }
         }
         
@@ -791,6 +1063,12 @@
                 webhook: {
                     enabled: document.getElementById('webhook-enabled').checked,
                     url: getValue('webhook-url')
+                },
+                templates: {
+                    failover: document.getElementById('template-failover').value,
+                    recovery: document.getElementById('template-recovery').value,
+                    fault: document.getElementById('template-fault').value,
+                    startup: document.getElementById('template-startup').value
                 }
             };
         }
@@ -835,7 +1113,160 @@
         // Load dark mode preference
         if (localStorage.getItem('darkMode') === 'enabled') {
             document.body.classList.add('dark-mode');
+            document.getElementById('dark-mode-icon').textContent = '☀️';
         }
+        
+        function toggleDarkMode() {
+            const icon = document.getElementById('dark-mode-icon');
+            if (document.body.classList.contains('dark-mode')) {
+                document.body.classList.remove('dark-mode');
+                localStorage.setItem('darkMode', 'disabled');
+                icon.textContent = '🌙';
+            } else {
+                document.body.classList.add('dark-mode');
+                localStorage.setItem('darkMode', 'enabled');
+                icon.textContent = '☀️';
+            }
+        }
+        
+        // Track active template textarea for variable insertion
+        let activeTemplate = 'template-failover';
+        
+        function openTemplatesModal() {
+            document.getElementById('templates-modal').classList.add('show');
+        }
+        
+        function closeTemplatesModal() {
+            document.getElementById('templates-modal').classList.remove('show');
+        }
+        
+        function insertVar(text) {
+            const textarea = document.getElementById(activeTemplate);
+            if (!textarea) return;
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const value = textarea.value;
+            textarea.value = value.substring(0, start) + text + value.substring(end);
+            textarea.selectionStart = textarea.selectionEnd = start + text.length;
+            textarea.focus();
+        }
+        
+        function restoreDefaultTemplates() {
+            if (confirm('Restore all templates to defaults?')) {
+                document.getElementById('template-failover').value = DEFAULT_TEMPLATES.failover;
+                document.getElementById('template-recovery').value = DEFAULT_TEMPLATES.recovery;
+                document.getElementById('template-fault').value = DEFAULT_TEMPLATES.fault;
+                document.getElementById('template-startup').value = DEFAULT_TEMPLATES.startup;
+            }
+        }
+        
+        async function testSpecificTemplate(templateType) {
+            // Check if any notification service is enabled
+            const telegramEnabled = document.getElementById('telegram-enabled').checked;
+            const discordEnabled = document.getElementById('discord-enabled').checked;
+            const pushoverEnabled = document.getElementById('pushover-enabled').checked;
+            const ntfyEnabled = document.getElementById('ntfy-enabled').checked;
+            const webhookEnabled = document.getElementById('webhook-enabled').checked;
+            
+            if (!telegramEnabled && !discordEnabled && !pushoverEnabled && !ntfyEnabled && !webhookEnabled) {
+                alert('⚠️ No notification services enabled!\n\nPlease enable at least one service (Telegram, Discord, etc.) and configure it before testing templates.');
+                return;
+            }
+            
+            // First save the current templates
+            const formData = collectFormData();
+            try {
+                const saveResponse = await fetch(`${API_BASE}/api/notifications/settings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (!saveResponse.ok) {
+                    const err = await saveResponse.json().catch(() => ({}));
+                    alert(`❌ Failed to save settings: ${err.detail || 'Unknown error'}`);
+                    return;
+                }
+                
+                // Send test notification for specific template
+                const response = await fetch(`${API_BASE}/api/notifications/test-template`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
+                    body: JSON.stringify({ template_type: templateType })
+                });
+                
+                if (response.ok) {
+                    alert(`✅ Test "${templateType}" notification sent!`);
+                } else {
+                    const error = await response.json();
+                    alert(`❌ Failed: ${error.detail || 'Unknown error'}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        }
+        
+        async function testTemplate() {
+            // Check if any notification service is enabled
+            const telegramEnabled = document.getElementById('telegram-enabled').checked;
+            const discordEnabled = document.getElementById('discord-enabled').checked;
+            const pushoverEnabled = document.getElementById('pushover-enabled').checked;
+            const ntfyEnabled = document.getElementById('ntfy-enabled').checked;
+            const webhookEnabled = document.getElementById('webhook-enabled').checked;
+            
+            if (!telegramEnabled && !discordEnabled && !pushoverEnabled && !ntfyEnabled && !webhookEnabled) {
+                alert('⚠️ No notification services enabled!\n\nPlease enable at least one service (Telegram, Discord, etc.) and configure it before testing templates.');
+                return;
+            }
+            
+            // First save the current templates
+            const formData = collectFormData();
+            try {
+                const saveResponse = await fetch(`${API_BASE}/api/notifications/settings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (!saveResponse.ok) {
+                    const err = await saveResponse.json().catch(() => ({}));
+                    alert(`❌ Failed to save settings: ${err.detail || 'Unknown error'}\n\nMake sure notification service credentials are configured.`);
+                    return;
+                }
+                
+                // Now send a test notification using the active template type
+                const templateType = activeTemplate.replace('template-', ''); // failover, recovery, or fault
+                const response = await fetch(`${API_BASE}/api/notifications/test-template`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
+                    body: JSON.stringify({ template_type: templateType })
+                });
+                
+                if (response.ok) {
+                    alert(`✅ Test "${templateType}" notification sent!`);
+                } else {
+                    const error = await response.json();                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        }
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeTemplatesModal();
+        });
         
         loadSettings();
 
@@ -860,5 +1291,9 @@
         // Load version on page load
         loadVersion();
     </script>
+    
+    <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle dark mode">
+        <span id="dark-mode-icon">🌙</span>
+    </button>
 </body>
 </html>

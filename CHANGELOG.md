@@ -5,6 +5,42 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0-beta.1] - 2025-12-07
+
+### ✨ New
+
+#### Custom Message Templates UI
+- **Templates Modal**: New popup modal for editing all 4 notification templates
+- **Template types**: Failover, Recovery, Fault, and Startup
+- **Clickable variables**: `{master}`, `{backup}`, `{primary}`, `{secondary}`, `{reason}`, `{time}`, `{date}`, `{vip}`
+- **Clickable emoji buttons**: ⚔️ 🚨 🆘 ✅ ⚠️ 🔴 🟢 with visual styling
+- **Per-template test buttons**: Test each template individually with sample data
+- **Reset to defaults**: Restore all templates to original values
+- **New API endpoint**: `/api/notifications/test-template` for template testing
+
+### 🎨 Improved
+
+#### UI/UX Enhancements
+- **Sticky header and variables bar**: Always visible when scrolling in templates modal
+- **Dark mode toggle button**: Floating button in bottom-right corner
+- **Dark mode fixes**: All modal labels and text now readable in dark mode
+- **Escape key support**: Close templates modal with Escape key
+- **Larger modal**: 90vh max height for better template editing
+
+#### Template Variables
+- Added `{master}` - current MASTER node name
+- Added `{backup}` - current BACKUP node name  
+- Added `{primary}` - Primary Pi-hole name
+- Added `{secondary}` - Secondary Pi-hole name
+- Added `{time}` and `{date}` - timestamp of event
+- Improved default templates with clearer messaging
+
+### 🔧 Fixed
+
+- Type hint fix: `http_session: aiohttp.ClientSession | None = None`
+
+---
+
 ## [0.10.0-beta.20] - 2025-12-07
 
 ### ✨ Improved
