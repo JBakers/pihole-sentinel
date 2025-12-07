@@ -36,23 +36,16 @@
             padding: 20px;
             transition: background 0.3s ease;
         }
-        
-        body.dark-mode {
-            background: #0f172a;
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(102, 126, 234, 0.2) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(118, 75, 162, 0.2) 0px, transparent 50%);
-        }
-        
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
         }
         
         .header {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(226, 232, 240, 0.95);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(203, 213, 225, 0.6);
             border-radius: 16px;
             padding: 30px;
             margin-bottom: 20px;
@@ -82,13 +75,7 @@
         .back-btn:hover {
             transform: translateY(-2px);
         }
-        
-        body.dark-mode .header {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-        
+
         .header h1 {
             color: #1e293b;
             margin-bottom: 10px;
@@ -99,11 +86,7 @@
             align-items: center;
             gap: 15px;
         }
-        
-        body.dark-mode .header h1 {
-            color: #ffffff;
-        }
-        
+
         .logo {
             width: 48px;
             height: 48px;
@@ -124,11 +107,7 @@
             width: 100%;
             flex-basis: 100%;
         }
-        
-        body.dark-mode .header-info {
-            color: rgba(255, 255, 255, 0.6);
-        }
-        
+
         .status-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
@@ -137,21 +116,15 @@
         }
         
         .node-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(226, 232, 240, 0.95);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(203, 213, 225, 0.6);
             border-radius: 16px;
             padding: 25px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
         }
-        
-        body.dark-mode .node-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 4px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-        
+
         .node-card.master {
             border: 4px solid #10b981;
             box-shadow: 0 8px 32px rgba(16, 185, 129, 0.5), 0 0 0 2px rgba(16, 185, 129, 0.2), 0 0 40px rgba(16, 185, 129, 0.3);
@@ -161,17 +134,7 @@
             border: 4px solid #64748b;
             box-shadow: 0 8px 32px rgba(100, 116, 139, 0.3), 0 0 0 2px rgba(100, 116, 139, 0.1), 0 0 40px rgba(100, 116, 139, 0.2);
         }
-        
-        body.dark-mode .node-card.master {
-            border: 4px solid #10b981;
-            box-shadow: 0 8px 32px rgba(16, 185, 129, 0.6), 0 0 0 2px rgba(16, 185, 129, 0.3), 0 0 40px rgba(16, 185, 129, 0.4);
-        }
-        
-        body.dark-mode .node-card.backup {
-            border: 4px solid #475569;
-            box-shadow: 0 8px 32px rgba(71, 85, 105, 0.4), 0 0 0 2px rgba(71, 85, 105, 0.2), 0 0 40px rgba(71, 85, 105, 0.3);
-        }
-        
+
         .node-card-header {
             display: flex;
             justify-content: space-between;
@@ -184,11 +147,7 @@
             font-size: 20px;
             font-weight: 600;
         }
-        
-        body.dark-mode .node-card h2 {
-            color: #ffffff;
-        }
-        
+
         .badge {
             padding: 8px 16px;
             border-radius: 20px;
@@ -214,11 +173,7 @@
             margin-bottom: 15px;
             font-size: 14px;
         }
-        
-        body.dark-mode .node-ip {
-            color: rgba(255, 255, 255, 0.6);
-        }
-        
+
         .status-items {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -236,13 +191,7 @@
             transition: all 0.3s ease;
             color: #334155;
         }
-        
-        body.dark-mode .status-item {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            color: rgba(255, 255, 255, 0.8);
-        }
-        
+
         .status-dot {
             width: 12px;
             height: 12px;
@@ -265,22 +214,16 @@
         }
         
         .chart-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(226, 232, 240, 0.95);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(203, 213, 225, 0.6);
             border-radius: 16px;
             padding: 25px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
             transition: all 0.3s ease;
         }
-        
-        body.dark-mode .chart-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-        
+
         .chart-card canvas {
             max-height: 300px !important;
         }
@@ -312,18 +255,7 @@
             background: #e2e8f0;
             color: #1e293b;
         }
-        
-        body.dark-mode .time-btn {
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.05);
-            color: rgba(255, 255, 255, 0.7);
-        }
-        
-        body.dark-mode .time-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-        }
-        
+
         .time-btn.active {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -332,21 +264,15 @@
         }
         
         .events-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(226, 232, 240, 0.95);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(203, 213, 225, 0.6);
             border-radius: 16px;
             padding: 25px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
         }
-        
-        body.dark-mode .events-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-        
+
         .event-item {
             display: flex;
             align-items: center;
@@ -359,13 +285,7 @@
             color: #334155;
             transition: all 0.3s ease;
         }
-        
-        body.dark-mode .event-item {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            color: rgba(255, 255, 255, 0.8);
-        }
-        
+
         .event-icon {
             width: 10px;
             height: 10px;
@@ -384,10 +304,6 @@
         .event-time {
             color: #9ca3af;
             font-size: 14px;
-        }
-        
-        body.dark-mode .event-time {
-            color: #64748b;
         }
 
         .collapsible-header {
@@ -436,18 +352,7 @@
             border-radius: 16px;
             transition: all 0.3s ease;
         }
-        
-        body.dark-mode .footer {
-            color: rgba(255, 255, 255, 0.5);
-            background: rgba(255, 255, 255, 0.03);
-        }
-        
-        body:not(.dark-mode) .footer {
-            color: #64748b;
-            background: rgba(255, 255, 255, 0.8);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-        
+
         .footer a {
             color: #667eea;
             text-decoration: none;
@@ -471,10 +376,6 @@
             font-size: 14px;
             margin-top: -10px;
             margin-bottom: 15px;
-        }
-
-        body.dark-mode .summary-info {
-            color: #cbd5e0;
         }
 
         .summary-info.visible {
@@ -532,7 +433,34 @@
         .update-dismiss:hover {
             opacity: 1;
         }
-        
+
+        .dark-mode-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: white;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            font-size: 24px;
+            transition: all 0.3s;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        body.dark-mode .dark-mode-toggle {
+            background: #0f3460;
+        }
+
+        .dark-mode-toggle:hover {
+            transform: scale(1.1);
+        }
+
         /* Dark mode styles */
         body.dark-mode {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
@@ -586,33 +514,6 @@
             color: white;
         }
 
-        .dark-mode-toggle {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: white;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            font-size: 24px;
-            transition: all 0.3s;
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        body.dark-mode .dark-mode-toggle {
-            background: #0f3460;
-        }
-
-        .dark-mode-toggle:hover {
-            transform: scale(1.1);
-        }
-        
         /* Blink animation for errors */
         @keyframes blink-red {
             0%, 50%, 100% { border-color: #ef4444; }
