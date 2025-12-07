@@ -2,7 +2,7 @@
 
 **Last Updated:** 2025-12-07
 
-**Version:** 0.12.0-beta.6
+**Version:** 0.12.0-beta.7
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
@@ -314,6 +314,147 @@ git commit -m "feat: add feature"
 - [ ] User given pull command
 
 **If you forget to push, you have FAILED the task.**
+
+---
+
+### Critical: NEVER Merge to Protected Branches (FOOLPROOF SAFEGUARD)
+
+**🚨 AI AGENTS MAY ONLY COMMIT TO THE DEVELOP BRANCH 🚨**
+
+**🚨 ONLY THE USER MAY MERGE TO TESTING/MAIN BRANCHES 🚨**
+
+#### Merge Restrictions (ABSOLUTE)
+
+**MANDATORY RULE - NO EXCEPTIONS:**
+
+- ✅ AI agents may **ONLY** commit to the `develop` branch
+- 🚫 AI agents may **NEVER** merge to the `testing` branch
+- 🚫 AI agents may **NEVER** merge to the `main` branch
+- 🚫 AI agents may **NEVER** push to the `testing` branch
+- 🚫 AI agents may **NEVER** push to the `main` branch
+- ✅ **Only the repository owner** may merge from `develop` → `testing` → `main`
+
+**In Dutch (for clarity):**
+> **User is de enige die mag mergen naar testing/main.**
+
+#### Foolproof Safeguard Installed
+
+**Git hook protection:**
+- ✅ Pre-merge-commit hook installed in `.githooks/pre-merge-commit`
+- ✅ Hook automatically blocks ALL merges to `testing` and `main` branches
+- ✅ Hook provides clear error messages when violation is attempted
+- ✅ User must manually override with `--no-verify` if needed
+
+**What happens if you try to merge:**
+
+```bash
+# If AI agent attempts this (FORBIDDEN):
+git checkout testing
+git merge develop
+
+# Hook will block with:
+# 🚫 MERGE GEBLOKKEERD: Beschermde Branch
+# ❌ FOUT: Kan niet mergen naar 'testing' branch
+```
+
+#### If You Accidentally Start a Merge
+
+**If you find yourself on `testing` or `main` branch with a merge in progress:**
+
+1. ✅ **STOP IMMEDIATELY**
+2. ✅ **Abort the merge:** `git merge --abort`
+3. ✅ **Switch to develop:** `git checkout develop`
+4. ✅ **Inform the user** you accidentally attempted a forbidden merge
+5. ✅ **Apologize** and explain what went wrong
+
+**Example response:**
+```
+❌ FOUT: Ik heb per ongeluk geprobeerd te mergen naar testing branch.
+Dit is in strijd met CLAUDE.md regels.
+
+Ik heb de merge afgebroken met: git merge --abort
+Ik ben teruggegaan naar develop branch: git checkout develop
+
+Alleen jij mag mergen van develop → testing → main.
+Sorry voor de fout!
+```
+
+#### When User Asks You to Merge
+
+**If user says something like "merge develop to testing":**
+
+1. ❌ **DO NOT** execute the merge yourself
+2. ✅ **Remind the user** they must do this themselves
+3. ✅ **Provide the exact commands** they should run locally
+
+**Example response:**
+```
+Volgens CLAUDE.md mag alleen jij mergen naar testing/main branches.
+
+Hier zijn de commando's die je lokaal kunt uitvoeren:
+
+```bash
+git checkout testing
+git pull origin testing
+git merge develop
+git push origin testing
+```
+
+Wil je dat ik iets anders doe voordat je gaat mergen?
+```
+
+#### Developer Branch Workflow
+
+**✅ CORRECT workflow for AI agents:**
+
+```bash
+# 1. Always work on develop branch
+git checkout develop
+
+# 2. Make changes to files
+[... make changes ...]
+
+# 3. Commit to develop (with user permission)
+git add [files]
+git commit -m "type: description"
+
+# 4. Push to develop
+git push origin develop
+
+# 5. STOP - User will merge to testing when ready
+```
+
+**❌ FORBIDDEN workflow:**
+
+```bash
+# NEVER do this as AI agent:
+git checkout testing          # ❌ FORBIDDEN
+git merge develop             # ❌ BLOCKED by hook
+git push origin testing       # ❌ FORBIDDEN
+
+# NEVER do this:
+git checkout main             # ❌ FORBIDDEN
+git merge testing             # ❌ BLOCKED by hook
+git push origin main          # ❌ FORBIDDEN
+```
+
+#### Installation Instructions (For User)
+
+**User should install the git hooks:**
+
+```bash
+# Easiest method (recommended)
+git config core.hooksPath .githooks
+
+# Or copy hooks manually
+cp .githooks/pre-commit .git/hooks/pre-commit
+cp .githooks/pre-merge-commit .git/hooks/pre-merge-commit
+chmod +x .git/hooks/pre-*
+```
+
+**This creates a foolproof barrier that prevents AI from violating merge rules.**
+
+See `.githooks/README.md` for complete hook documentation.
 
 ---
 
@@ -904,14 +1045,16 @@ systemctl enable pihole-sync.timer
 
 ### Initial Development Setup (REQUIRED)
 
-**Before making any commits, install the git pre-commit hook:**
+**Before making any commits, install the git hooks:**
 
 ```bash
-# Option 1: Copy hook to .git/hooks (Recommended)
+# Option 1: Copy hooks to .git/hooks
 cp .githooks/pre-commit .git/hooks/pre-commit
+cp .githooks/pre-merge-commit .git/hooks/pre-merge-commit
 chmod +x .git/hooks/pre-commit
+chmod +x .git/hooks/pre-merge-commit
 
-# Option 2: Configure git to use .githooks directory
+# Option 2: Configure git to use .githooks directory (Easiest - Recommended)
 git config core.hooksPath .githooks
 ```
 
@@ -922,21 +1065,31 @@ git config core.hooksPath .githooks
 - ✅ Checks for CRLF line endings in bash scripts
 - ✅ Allows documentation-only changes without version updates
 
-**Testing the hook:**
+**What the pre-merge-commit hook does (CRITICAL SECURITY):**
+- 🚫 **Blocks ALL merges to `testing` branch** (only user may merge)
+- 🚫 **Blocks ALL merges to `main` branch** (only user may merge)
+- ✅ Enforces CLAUDE.md mandatory rules for AI agents
+- ✅ Prevents accidental AI merges to production branches
+- ✅ Provides clear error messages and override instructions
+
+**Testing the hooks:**
 ```bash
-# Make a test change
+# Test pre-commit hook
 echo "# test" >> dashboard/monitor.py
 git add dashboard/monitor.py
-
-# Try to commit without updating VERSION (should fail)
 git commit -m "test: should fail"
+# Expected: ✗ ERROR: VERSION file not updated!
 
-# Expected output:
-# ✗ ERROR: VERSION file not updated!
-# ✗ ERROR: CHANGELOG.md not updated!
+# Test pre-merge-commit hook
+git checkout testing
+git merge develop
+# Expected: 🚫 MERGE GEBLOKKEERD: Beschermde Branch
 ```
 
-See `.githooks/README.md` for more details.
+**⚠️ CRITICAL for AI Assistants:**
+The `pre-merge-commit` hook is a **foolproof safeguard** that prevents you from merging to `testing` or `main` branches. This hook enforces the mandatory rule that **only the repository owner may merge to protected branches**. If you encounter this hook, you have violated project rules. You MUST abort the merge with `git merge --abort` and switch back to the `develop` branch.
+
+See `.githooks/README.md` for complete documentation.
 
 ### Making Changes to Monitor Service
 

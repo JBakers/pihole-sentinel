@@ -1,0 +1,102 @@
+#!/bin/bash
+#
+# Pre-merge-commit hook to prevent AI agents from merging to protected branches
+# This hook ensures ONLY the repository owner can merge to testing/main branches
+#
+# INSTALLATION:
+# cp .githooks/pre-merge-commit .git/hooks/pre-merge-commit
+# chmod +x .git/hooks/pre-merge-commit
+#
+# OR use git config:
+# git config core.hooksPath .githooks
+#
+# CRITICAL RULE from CLAUDE.md:
+# - Only the repository owner may merge to testing/main branches
+# - AI agents (Claude, Copilot, etc.) may ONLY commit to the develop branch
+# - User is de enige die mag mergen naar testing/main
+#
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Get current branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+# Protected branches that ONLY the user may merge to
+PROTECTED_BRANCHES=("testing" "main")
+
+# Check if current branch is protected
+for PROTECTED in "${PROTECTED_BRANCHES[@]}"; do
+    if [[ "$CURRENT_BRANCH" == "$PROTECTED" ]]; then
+        echo ""
+        echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${RED}  🚫 MERGE GEBLOKKEERD: Beschermde Branch${NC}"
+        echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+        echo -e "${RED}❌ FOUT: Kan niet mergen naar '$CURRENT_BRANCH' branch${NC}"
+        echo ""
+        echo -e "${YELLOW}KRITIEKE REGEL uit CLAUDE.md:${NC}"
+        echo -e "  • Alleen de repository eigenaar mag mergen naar testing/main"
+        echo -e "  • AI agents mogen ALLEEN committen naar de develop branch"
+        echo -e "  • User is de enige die mag mergen naar testing/main"
+        echo ""
+
+        # Try to detect merge source
+        if git rev-parse -q --verify MERGE_HEAD > /dev/null 2>&1; then
+            MERGE_SOURCE=$(git rev-parse --abbrev-ref MERGE_HEAD 2>/dev/null || echo "unknown")
+            echo -e "${CYAN}Poging om te mergen: '$MERGE_SOURCE' → '$CURRENT_BRANCH'${NC}"
+            echo ""
+        fi
+
+        echo -e "${YELLOW}Als je de repository eigenaar bent:${NC}"
+        echo -e "  1. Deze hook voorkomt onbedoelde AI merges"
+        echo -e "  2. Om te overrulen: ${CYAN}git merge --no-verify [branch]${NC}"
+        echo -e "  3. Of tijdelijk: ${CYAN}mv .git/hooks/pre-merge-commit{,.disabled}${NC}"
+        echo -e "  4. Merge voltooien: ${CYAN}git merge --continue --no-verify${NC}"
+        echo ""
+        echo -e "${YELLOW}Als je een AI agent bent:${NC}"
+        echo -e "  • Je hebt CLAUDE.md verplichte regels geschonden"
+        echo -e "  • Je mag NIET mergen naar testing of main"
+        echo -e "  • Merge afbreken: ${CYAN}git merge --abort${NC}"
+        echo -e "  • Schakel naar develop: ${CYAN}git checkout develop${NC}"
+        echo -e "  • Vraag gebruiker om expliciete toestemming voor ELKE merge"
+        echo ""
+        echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+        exit 1
+    fi
+done
+
+# Additional check: Detect if this is actually a merge commit
+if git rev-parse -q --verify MERGE_HEAD > /dev/null 2>&1; then
+    MERGE_SOURCE=$(git rev-parse --abbrev-ref MERGE_HEAD 2>/dev/null || echo "unknown")
+
+    # Double-check we're not merging to protected branches
+    for PROTECTED in "${PROTECTED_BRANCHES[@]}"; do
+        if [[ "$CURRENT_BRANCH" == "$PROTECTED" ]]; then
+            echo ""
+            echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+            echo -e "${RED}  🚫 MERGE DETECTIE: Beschermde Branch Merge${NC}"
+            echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+            echo ""
+            echo -e "${RED}❌ Poging om te mergen: '$MERGE_SOURCE' → '$CURRENT_BRANCH'${NC}"
+            echo ""
+            echo -e "${RED}Deze merge is VERBODEN volgens projectregels.${NC}"
+            echo ""
+            echo -e "${YELLOW}Om deze merge af te breken:${NC}"
+            echo -e "  ${CYAN}git merge --abort${NC}"
+            echo ""
+            echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+            echo ""
+            exit 1
+        fi
+    done
+fi
+
+# If we reach here, the merge is allowed
+exit 0
