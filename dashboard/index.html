@@ -269,23 +269,16 @@
             padding: 20px;
             transition: background 0.3s ease;
         }
-        
-        body.dark-mode {
-            background: #0f172a;
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(102, 126, 234, 0.2) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(118, 75, 162, 0.2) 0px, transparent 50%);
-        }
-        
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
         }
         
         .header {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(226, 232, 240, 0.95);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(203, 213, 225, 0.6);
             border-radius: 16px;
             padding: 30px;
             margin-bottom: 20px;
@@ -315,13 +308,7 @@
         .back-btn:hover {
             transform: translateY(-2px);
         }
-        
-        body.dark-mode .header {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-        
+
         .header h1 {
             color: #1e293b;
             margin-bottom: 10px;
@@ -332,11 +319,7 @@
             align-items: center;
             gap: 15px;
         }
-        
-        body.dark-mode .header h1 {
-            color: #ffffff;
-        }
-        
+
         .logo {
             width: 48px;
             height: 48px;
@@ -357,11 +340,7 @@
             width: 100%;
             flex-basis: 100%;
         }
-        
-        body.dark-mode .header-info {
-            color: rgba(255, 255, 255, 0.6);
-        }
-        
+
         .status-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
@@ -370,21 +349,15 @@
         }
         
         .node-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(226, 232, 240, 0.95);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(203, 213, 225, 0.6);
             border-radius: 16px;
             padding: 25px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
         }
-        
-        body.dark-mode .node-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 4px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-        
+
         .node-card.master {
             border: 4px solid #10b981;
             box-shadow: 0 8px 32px rgba(16, 185, 129, 0.5), 0 0 0 2px rgba(16, 185, 129, 0.2), 0 0 40px rgba(16, 185, 129, 0.3);
@@ -394,17 +367,7 @@
             border: 4px solid #64748b;
             box-shadow: 0 8px 32px rgba(100, 116, 139, 0.3), 0 0 0 2px rgba(100, 116, 139, 0.1), 0 0 40px rgba(100, 116, 139, 0.2);
         }
-        
-        body.dark-mode .node-card.master {
-            border: 4px solid #10b981;
-            box-shadow: 0 8px 32px rgba(16, 185, 129, 0.6), 0 0 0 2px rgba(16, 185, 129, 0.3), 0 0 40px rgba(16, 185, 129, 0.4);
-        }
-        
-        body.dark-mode .node-card.backup {
-            border: 4px solid #475569;
-            box-shadow: 0 8px 32px rgba(71, 85, 105, 0.4), 0 0 0 2px rgba(71, 85, 105, 0.2), 0 0 40px rgba(71, 85, 105, 0.3);
-        }
-        
+
         .node-card-header {
             display: flex;
             justify-content: space-between;
@@ -417,11 +380,7 @@
             font-size: 20px;
             font-weight: 600;
         }
-        
-        body.dark-mode .node-card h2 {
-            color: #ffffff;
-        }
-        
+
         .badge {
             padding: 8px 16px;
             border-radius: 20px;
@@ -447,11 +406,7 @@
             margin-bottom: 15px;
             font-size: 14px;
         }
-        
-        body.dark-mode .node-ip {
-            color: rgba(255, 255, 255, 0.6);
-        }
-        
+
         .status-items {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -469,13 +424,7 @@
             transition: all 0.3s ease;
             color: #334155;
         }
-        
-        body.dark-mode .status-item {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            color: rgba(255, 255, 255, 0.8);
-        }
-        
+
         .status-dot {
             width: 12px;
             height: 12px;
@@ -498,22 +447,16 @@
         }
         
         .chart-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(226, 232, 240, 0.95);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(203, 213, 225, 0.6);
             border-radius: 16px;
             padding: 25px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
             transition: all 0.3s ease;
         }
-        
-        body.dark-mode .chart-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-        
+
         .chart-card canvas {
             max-height: 300px !important;
         }
@@ -545,18 +488,7 @@
             background: #e2e8f0;
             color: #1e293b;
         }
-        
-        body.dark-mode .time-btn {
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.05);
-            color: rgba(255, 255, 255, 0.7);
-        }
-        
-        body.dark-mode .time-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-        }
-        
+
         .time-btn.active {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -565,21 +497,15 @@
         }
         
         .events-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(226, 232, 240, 0.95);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(203, 213, 225, 0.6);
             border-radius: 16px;
             padding: 25px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
         }
-        
-        body.dark-mode .events-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-        
+
         .event-item {
             display: flex;
             align-items: center;
@@ -592,13 +518,7 @@
             color: #334155;
             transition: all 0.3s ease;
         }
-        
-        body.dark-mode .event-item {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            color: rgba(255, 255, 255, 0.8);
-        }
-        
+
         .event-icon {
             width: 10px;
             height: 10px;
@@ -617,10 +537,6 @@
         .event-time {
             color: #9ca3af;
             font-size: 14px;
-        }
-        
-        body.dark-mode .event-time {
-            color: #64748b;
         }
 
         .collapsible-header {
@@ -669,18 +585,7 @@
             border-radius: 16px;
             transition: all 0.3s ease;
         }
-        
-        body.dark-mode .footer {
-            color: rgba(255, 255, 255, 0.5);
-            background: rgba(255, 255, 255, 0.03);
-        }
-        
-        body:not(.dark-mode) .footer {
-            color: #64748b;
-            background: rgba(255, 255, 255, 0.8);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-        
+
         .footer a {
             color: #667eea;
             text-decoration: none;
@@ -706,14 +611,89 @@
             margin-bottom: 15px;
         }
 
-        body.dark-mode .summary-info {
-            color: #cbd5e0;
-        }
-
         .summary-info.visible {
             display: block;
         }
         
+        /* Update notification banner */
+        .update-banner {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            animation: slideDown 0.3s ease-out;
+        }
+        
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .update-banner-text {
+            flex: 1;
+            font-weight: 500;
+        }
+        
+        .update-btn {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        
+        .update-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .update-dismiss {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            opacity: 0.7;
+            padding: 5px;
+        }
+        
+        .update-dismiss:hover {
+            opacity: 1;
+        }
+
+        .dark-mode-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: white;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            font-size: 24px;
+            transition: all 0.3s;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        body.dark-mode .dark-mode-toggle {
+            background: #0f3460;
+        }
+
+        .dark-mode-toggle:hover {
+            transform: scale(1.1);
+        }
+
         /* Dark mode styles */
         body.dark-mode {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
@@ -767,33 +747,6 @@
             color: white;
         }
 
-        .dark-mode-toggle {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: white;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            font-size: 24px;
-            transition: all 0.3s;
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        body.dark-mode .dark-mode-toggle {
-            background: #0f3460;
-        }
-
-        .dark-mode-toggle:hover {
-            transform: scale(1.1);
-        }
-        
         /* Blink animation for errors */
         @keyframes blink-red {
             0%, 50%, 100% { border-color: #ef4444; }
@@ -816,10 +769,155 @@
             border-width: 10px;
             border-style: solid;
         }
+        
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .container {
+                max-width: 100%;
+            }
+            
+            .header {
+                padding: 20px 15px;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .header h1 {
+                font-size: 24px;
+                gap: 10px;
+            }
+            
+            .logo {
+                width: 40px;
+                height: 40px;
+            }
+            
+            .header-info {
+                flex-direction: column;
+                gap: 10px;
+                align-items: flex-start;
+            }
+            
+            .back-btn {
+                padding: 8px 16px;
+                font-size: 14px;
+                margin-top: 10px;
+            }
+            
+            .status-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .node-card {
+                padding: 15px;
+            }
+            
+            .node-card h2 {
+                font-size: 18px;
+            }
+            
+            .status-items {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            
+            .status-item {
+                padding: 10px;
+                font-size: 14px;
+            }
+            
+            .badge {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+            
+            .vip-card {
+                padding: 15px;
+            }
+            
+            .vip-card h3 {
+                font-size: 16px;
+            }
+            
+            .chart-container {
+                padding: 15px;
+            }
+            
+            .chart-container h3 {
+                font-size: 16px;
+            }
+            
+            .events-container {
+                padding: 15px;
+            }
+            
+            .events-container h3 {
+                font-size: 16px;
+            }
+            
+            .event-item {
+                padding: 10px;
+                font-size: 13px;
+            }
+            
+            .event-time {
+                font-size: 11px;
+            }
+            
+            .dark-mode-toggle {
+                width: 44px;
+                height: 44px;
+                font-size: 20px;
+                bottom: 15px;
+                right: 15px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 20px;
+            }
+            
+            .logo {
+                width: 36px;
+                height: 36px;
+            }
+            
+            .node-card-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .status-item {
+                font-size: 13px;
+            }
+            
+            .event-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Update Notification Banner (hidden by default) -->
+        <div id="update-banner" class="update-banner" style="display: none;">
+            <span>🚀</span>
+            <span class="update-banner-text">
+                New version available: <strong id="update-version"></strong>
+            </span>
+            <a id="update-link" href="#" target="_blank" class="update-btn">View Release</a>
+            <button class="update-dismiss" onclick="dismissUpdate()">✕</button>
+        </div>
+        
         <div class="header">
             <div>
                 <h1>
@@ -831,7 +929,7 @@
                     </div>
                     Pi-hole Sentinel
                 </h1>
-                <p style="color: #666; margin-top: 5px; opacity: 0.7; font-size: 14px;">Keepalived System Monitor <span style="opacity: 0.7;">v0.9.0-beta.1</span></p>
+                <p style="color: #666; margin-top: 5px; opacity: 0.7; font-size: 14px;">Keepalived System Monitor <span id="version-header" style="opacity: 0.7;">v0.0.0</span></p>
             </div>
             <a href="settings.html" class="settings-icon" title="Settings" style="align-self: center; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2); border: none; cursor: pointer; transition: all 0.2s;">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1110,7 +1208,7 @@
                 <span class="footer-divider">•</span>
                 <a href="https://github.com/JBakers/pihole-sentinel" target="_blank">Pi-hole Sentinel</a>
                 <span class="footer-divider">•</span>
-                                <span style="opacity: 0.7;">v0.9.0-beta.1</span>
+                                <span id="version-footer" style="opacity: 0.7;">v0.0.0</span>
             </div>
             <div style="margin-top: 8px; opacity: 0.7;">
                 © 2025 JBakers <span class="footer-divider">•</span> Open Source Project
@@ -1183,6 +1281,42 @@
             document.body.classList.add('dark-mode');
             document.getElementById('dark-mode-icon').textContent = '☀️';
         }
+        
+        // Update notification functionality
+        async function checkForUpdates() {
+            try {
+                const response = await fetch(`${API_BASE}/api/check-update`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                
+                if (data.update_available && data.latest_version) {
+                    // Check if user dismissed this version
+                    const dismissed = localStorage.getItem('pihole-sentinel-update-dismissed');
+                    if (dismissed === data.latest_version) {
+                        return;
+                    }
+                    
+                    document.getElementById('update-version').textContent = 'v' + data.latest_version;
+                    document.getElementById('update-link').href = data.release_url || 'https://github.com/JBakers/pihole-sentinel/releases';
+                    document.getElementById('update-banner').style.display = 'flex';
+                }
+            } catch (error) {
+                console.error('Update check failed:', error);
+            }
+        }
+        
+        function dismissUpdate() {
+            const version = document.getElementById('update-version').textContent.replace('v', '');
+            localStorage.setItem('pihole-sentinel-update-dismissed', version);
+            document.getElementById('update-banner').style.display = 'none';
+        }
+        
+        // Check for updates after page load (delayed to not block initial load)
+        setTimeout(checkForUpdates, 5000);
         
         async function fetchStatus() {
             try {
@@ -1601,6 +1735,27 @@
             // DOM already loaded
             initializeApp();
         }
+
+        // Load and display version dynamically
+        async function loadVersion() {
+            try {
+                const response = await fetch('/api/version');
+                const data = await response.json();
+                const version = 'v' + (data.version || 'unknown');
+                
+                // Update all version display elements
+                const versionElements = ['version-header', 'version-footer', 'version-display'];
+                versionElements.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = version;
+                });
+            } catch (error) {
+                console.error('Failed to load version:', error);
+            }
+        }
+
+        // Load version on page load
+        loadVersion();
     </script>
 </body>
 </html>

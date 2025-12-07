@@ -15,6 +15,58 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0-beta.6] - 2025-12-07
+
+### 🔄 Merged from develop
+
+**Merged develop (0.10.0-beta.16) into testing**
+
+All features and improvements from develop branch (v0.10.0-beta.14 through v0.10.0-beta.16).
+
+Version: 0.12.0-beta.5 → 0.12.0-beta.6
+
+#### Commits from develop:
+- 66e9d35 docs: major documentation restructuring with docs/ directory
+- fe796be feat: improve merge helper commit message detail
+- 14d1199 feat: add Discord link in settings UI
+- 8b118e1 feat: add merge helper script for develop → testing
+- 2c75a84 docs: update version references to v0.10.0-beta.15
+- 480645e feat: improve test notification messages with default template examples
+- 97fa56a feat: add comprehensive unit test framework
+
+#### Major Changes:
+
+**📚 Documentation Restructuring (v0.10.0-beta.16):**
+- Created organized `docs/` directory structure
+- Moved all documentation to logical locations
+- README.md reduced from 749 to 410 lines (45% reduction)
+- Created central documentation hub (docs/README.md)
+- Better navigation and maintainability
+
+**🧪 Unit Test Framework (v0.10.0-beta.14):**
+- Added pytest framework with 100+ tests
+- Test coverage for validation, VIP detection, API handlers, DHCP parsing
+- Makefile for development commands
+- Comprehensive test documentation
+
+**📬 Improved Test Notifications (v0.10.0-beta.15):**
+- Test notifications now show default template examples
+- Updated for all services (Telegram, Discord, Pushover, Ntfy, Webhook)
+
+**🔧 Merge Helper Script (v0.10.0-beta.15):**
+- Automated develop → testing merge script
+- Auto-increments version numbers
+- Generates detailed commit messages
+
+**Resolved conflicts:**
+- VERSION: Updated to 0.12.0-beta.6
+- README.md: Used new structure with testing version/license
+- CHANGELOG.md: Merged entries
+- CLAUDE.md: Updated version references
+- Documentation files: Accepted docs/ structure from develop
+
+---
+
 ## [0.10.0-beta.16] - 2025-12-07
 
 ### 📚 Documentation

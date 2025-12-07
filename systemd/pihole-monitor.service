@@ -17,7 +17,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/pihole-monitor
+ReadWritePaths=/opt/pihole-monitor /etc/pihole-sentinel
 
 [Install]
 WantedBy=multi-user.target

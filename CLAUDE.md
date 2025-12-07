@@ -1,7 +1,9 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
 **Last Updated:** 2025-12-07
-**Version:** 0.11.0-beta.6
+
+**Version:** 0.12.0-beta.6
+
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
 
@@ -585,8 +587,8 @@ pihole-sentinel/
 │   └── troubleshooting/          # (Future: troubleshooting)
 ├── CHANGELOG.md                    # Version history
 ├── README.md                       # Project overview (concise, 410 lines)
-├── LICENSE                         # MIT License
-├── VERSION                         # Current version (0.10.0-beta.15)
+├── LICENSE                         # GPLv3 License
+├── VERSION                         # Current version (0.12.0-beta.6)
 ├── .gitignore                      # Git ignore rules
 ├── .markdownlint.json             # Markdown linting config
 ├── logo.svg                        # Project logo
