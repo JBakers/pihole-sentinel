@@ -1,3 +1,10 @@
+# CLI Tool
+
+See [docs/usage/cli-tool.md](docs/usage/cli-tool.md) for usage instructions.
+
+# Documentation
+
+See [docs/README.md](docs/README.md) for the documentation hub.
 <div align="center">
 
 <img src="logo.svg" alt="Pi-hole Sentinel Logo" width="200"/>
@@ -274,7 +281,7 @@ sudo python3 setup.py --uninstall
 ## Architecture
 
 ```
-┌──────────────┐         VIP          ┌──────────────┐
+┌──────────────┐         VIP           ┌──────────────┐
 │  Primary     │◄─────(Keepalived)────►│  Secondary   │
 │  Pi-hole     │                       │  Pi-hole     │
 │              │      VRRP Protocol    │              │
