@@ -49,7 +49,9 @@ Built for home networks and small businesses that need reliability without compl
    - Failover/failback detection and logging
    - Historical data and event timeline
    - Works on desktop and mobile
-   - Dark mode support
+   - Light mode with soft, eye-friendly colors (rgba 226,232,240)
+   - Dark mode with consistent blue gradient styling (#0f3460)
+   - Automatic database cleanup (30-day history, 90-day events retention)
 
 3. **Smart Notifications**
    - Web-based configuration interface
@@ -605,6 +607,74 @@ CREATE TABLE events (
 - `secondary.env` - Secondary Pi-hole environment variables
 
 **Security Note:** All generated config files are automatically deleted after deployment (overwritten with random data first).
+
+## Maintenance
+
+### Uninstalling
+
+Pi-hole Sentinel includes a comprehensive uninstaller:
+
+```bash
+# Interactive uninstaller with guided options
+sudo python3 setup.py --uninstall
+
+# Keep configuration files (preserves .env and notify settings)
+sudo python3 setup.py --uninstall --keep-configs
+
+# Preview what will be removed (dry-run mode)
+sudo python3 setup.py --uninstall --dry-run
+```
+
+**What gets removed:**
+- Systemd services (`pihole-monitor`, `pihole-sync`, keepalived)
+- Installed packages (keepalived, arping, etc.)
+- Pi-hole Sentinel files (`/opt/pihole-monitor`, `/usr/local/bin/*`)
+- SSH keys (optional)
+- Configuration files (unless `--keep-configs` is used)
+
+**Uninstall Options:**
+- **Local uninstall**: Removes Pi-hole Sentinel from the current machine
+- **Remote uninstall**: Removes from all servers via SSH (monitor + both Pi-holes)
+
+### Database Maintenance
+
+The monitor service automatically cleans old records to prevent database growth:
+
+**Default Retention Periods:**
+- Status history: 30 days
+- Events: 90 days
+
+**Customize Retention:**
+
+Edit `/opt/pihole-monitor/.env`:
+```bash
+# Keep status history for 60 days instead of 30
+RETENTION_DAYS_HISTORY=60
+
+# Keep events for 180 days instead of 90
+RETENTION_DAYS_EVENTS=180
+```
+
+Restart monitor service after changes:
+```bash
+sudo systemctl restart pihole-monitor
+```
+
+**Manual Database Cleanup:**
+```bash
+# Connect to database
+sqlite3 /opt/pihole-monitor/monitor.db
+
+# Check database size
+.dbinfo
+
+# Manually delete old records
+DELETE FROM status_history WHERE timestamp < datetime('now', '-30 days');
+DELETE FROM events WHERE timestamp < datetime('now', '-90 days');
+
+# Compact database
+VACUUM;
+```
 
 ## Troubleshooting
 
