@@ -1,11 +1,7 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
 **Last Updated:** 2025-12-07
-**Version:** 0.12.0-beta.5
-**Version:** 0.12.0-beta.4
-=======
-**Version:** 0.10.0-beta.15
->>>>>>> develop
+**Version:** 0.12.0-beta.6
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
 
@@ -572,13 +568,25 @@ pihole-sentinel/
 ├── sync-pihole-config.sh          # Configuration synchronization script
 ├── requirements.txt                # Main Python dependencies
 ├── system-requirements.txt         # System packages (apt/yum)
+├── docs/                           # Documentation directory
+│   ├── README.md                  # Documentation index/navigation
+│   ├── installation/
+│   │   ├── quick-start.md        # Quick installation guide
+│   │   └── existing-setup.md     # Add HA to existing Pi-holes
+│   ├── maintenance/
+│   │   └── sync.md               # Configuration synchronization
+│   ├── development/
+│   │   ├── README.md             # Development guide
+│   │   └── testing.md            # User testing procedures
+│   ├── api/
+│   │   └── README.md             # API documentation
+│   ├── configuration/            # (Future: config guides)
+│   ├── usage/                    # (Future: usage guides)
+│   └── troubleshooting/          # (Future: troubleshooting)
 ├── CHANGELOG.md                    # Version history
-├── README.md                       # User-facing documentation
-├── DEVELOPMENT.md                  # Development guide
-├── EXISTING-SETUP.md              # Guide for existing Pi-hole setups
-├── SYNC-SETUP.md                  # Configuration sync guide
-├── LICENSE                         # MIT License
-├── VERSION                         # Current version (0.12.0-beta.3)
+├── README.md                       # Project overview (concise, 410 lines)
+├── LICENSE                         # GPLv3 License
+├── VERSION                         # Current version (0.12.0-beta.6)
 ├── .gitignore                      # Git ignore rules
 ├── .markdownlint.json             # Markdown linting config
 ├── logo.svg                        # Project logo
@@ -1733,18 +1741,20 @@ cat /opt/pihole-monitor/.env         # View monitor config (sensitive!)
 
 ### User Documentation
 
-- **README.md** - User-facing documentation and installation guide
-- **QUICKSTART.md** - Quick start guide for rapid deployment
-- **EXISTING-SETUP.md** - Guide for adding HA to existing Pi-hole installations
-- **SYNC-SETUP.md** - Configuration synchronization guide
-- **TESTING-GUIDE.md** - User testing guide for production deployments
+- **[README.md](README.md)** - Project overview and quick start (concise, 410 lines)
+- **[docs/README.md](docs/README.md)** - Documentation index and navigation
+- **[docs/installation/quick-start.md](docs/installation/quick-start.md)** - Quick installation guide
+- **[docs/installation/existing-setup.md](docs/installation/existing-setup.md)** - Add HA to existing Pi-holes
+- **[docs/maintenance/sync.md](docs/maintenance/sync.md)** - Configuration synchronization
+- **[docs/api/README.md](docs/api/README.md)** - API documentation
 
 ### Developer Documentation
 
-- **DEVELOPMENT.md** - Development environment setup for contributors
-- **CLAUDE.md** - This file - AI assistant guide for codebase
-- **CHANGELOG.md** - Detailed version history and change log
-- **BRANCHING_STRATEGY.md** - Git workflow and branching strategy
+- **[docs/development/README.md](docs/development/README.md)** - Development environment setup
+- **[docs/development/testing.md](docs/development/testing.md)** - User testing procedures
+- **[CLAUDE.md](CLAUDE.md)** - This file - AI assistant guide for codebase
+- **[CHANGELOG.md](CHANGELOG.md)** - Detailed version history and change log
+- **[BRANCHING_STRATEGY.md](BRANCHING_STRATEGY.md)** - Git workflow and branching strategy
 
 ### Quality Assurance Documentation
 

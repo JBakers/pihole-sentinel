@@ -2,21 +2,130 @@
 
 All notable changes to Pi-hole Sentinel will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.0-beta.5] - 2025-12-07
+## [0.12.0-beta.6] - 2025-12-07
 
 ### 🔄 Merged from develop
 
-**Merged develop (0.10.0-beta.15) into testing**
+**Merged develop (0.10.0-beta.16) into testing**
 
-- All features and fixes from develop branch
-- See develop changelog entries below for details
+All features and improvements from develop branch (v0.10.0-beta.14 through v0.10.0-beta.16).
+
+Version: 0.12.0-beta.5 → 0.12.0-beta.6
+
+#### Commits from develop:
+- 66e9d35 docs: major documentation restructuring with docs/ directory
+- fe796be feat: improve merge helper commit message detail
+- 14d1199 feat: add Discord link in settings UI
+- 8b118e1 feat: add merge helper script for develop → testing
+- 2c75a84 docs: update version references to v0.10.0-beta.15
+- 480645e feat: improve test notification messages with default template examples
+- 97fa56a feat: add comprehensive unit test framework
+
+#### Major Changes:
+
+**📚 Documentation Restructuring (v0.10.0-beta.16):**
+- Created organized `docs/` directory structure
+- Moved all documentation to logical locations
+- README.md reduced from 749 to 410 lines (45% reduction)
+- Created central documentation hub (docs/README.md)
+- Better navigation and maintainability
+
+**🧪 Unit Test Framework (v0.10.0-beta.14):**
+- Added pytest framework with 100+ tests
+- Test coverage for validation, VIP detection, API handlers, DHCP parsing
+- Makefile for development commands
+- Comprehensive test documentation
+
+**📬 Improved Test Notifications (v0.10.0-beta.15):**
+- Test notifications now show default template examples
+- Updated for all services (Telegram, Discord, Pushover, Ntfy, Webhook)
+
+**🔧 Merge Helper Script (v0.10.0-beta.15):**
+- Automated develop → testing merge script
+- Auto-increments version numbers
+- Generates detailed commit messages
+
+**Resolved conflicts:**
+- VERSION: Updated to 0.12.0-beta.6
+- README.md: Used new structure with testing version/license
+- CHANGELOG.md: Merged entries
+- CLAUDE.md: Updated version references
+- Documentation files: Accepted docs/ structure from develop
 
 ---
 
+## [0.10.0-beta.16] - 2025-12-07
 
-## [0.12.0-beta.4] - 2025-12-07
+### 📚 Documentation
+
+#### Major Documentation Restructuring
+- **Created `docs/` directory structure** for organized documentation
+  - `docs/installation/` - Installation guides
+  - `docs/maintenance/` - Maintenance and sync guides
+  - `docs/development/` - Development and testing guides
+  - `docs/api/` - API documentation
+  - `docs/configuration/` - (Future) Configuration guides
+  - `docs/usage/` - (Future) Usage guides
+  - `docs/troubleshooting/` - (Future) Troubleshooting guides
+
+- **Moved existing documentation to docs/ structure:**
+  - `QUICKSTART.md` → `docs/installation/quick-start.md`
+  - `EXISTING-SETUP.md` → `docs/installation/existing-setup.md`
+  - `SYNC-SETUP.md` → `docs/maintenance/sync.md`
+  - `DEVELOPMENT.md` → `docs/development/README.md`
+  - `TESTING-GUIDE.md` → `docs/development/testing.md`
+  - `API.md` → `docs/api/README.md`
+
+- **Created `docs/README.md` navigation index:**
+  - Central documentation hub with clear navigation
+  - Links to all documentation sections
+  - Quick links to common resources
+  - Documentation map showing structure
+
+- **Restructured README.md (major improvement):**
+  - Reduced from **749 lines to 410 lines** (45% reduction)
+  - Focused on overview, features, and quick start
+  - Removed detailed content (moved to `docs/`)
+  - Improved readability and navigation
+  - Clear links to detailed documentation
+  - Maintained all essential information
+
+- **Updated CLAUDE.md:**
+  - Updated codebase structure section with `docs/` directory
+  - Updated Additional Resources with new file locations
+  - All documentation references now point to correct locations
+
+**Impact:**
+- ✅ Much easier to navigate documentation
+- ✅ README.md is concise and focused
+- ✅ Detailed guides in logical locations
+- ✅ Better documentation organization for future growth
+- ✅ Improved maintainability
+
+---
+
+## [0.10.0-beta.15] - 2025-12-07
+
+### 🔧 Improved
+
+#### Notification System
+- **Updated test notification messages with default template examples:**
+  - Shows actual default templates instead of generic messages
+  - Helps users understand what notifications will look like
+  - Updated for all services: Telegram, Discord, Pushover, Ntfy, Webhook
+  - **Telegram:** HTML formatted with failover, recovery, fault, startup examples
+  - **Discord:** Embed fields with default template examples
+  - **Pushover:** Plain text format with template examples
+  - **Ntfy:** Compact format optimized for mobile
+  - **Webhook:** JSON payload with all template examples and metadata
+  - **Impact:** Users can see exactly how notifications will appear before enabling them
+
+---
+
+## [0.10.0-beta.14] - 2025-12-07
 
 ### ✨ New
 
@@ -53,382 +162,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `make lint` - Run code linters
   - `make format` - Format code with black and isort
   - `make clean` - Remove generated files
-
-### 🧹 Repository Cleanup
-- **Removed obsolete markdown files:**
-  - Deleted AUDIT_REPORT_20251115.md (superseded by Nov 16 audit)
-  - Deleted TEST_WRONG_DIRECTION.md, .github/WORKFLOW_TEST.md, .github/TEST_MERGE_CHECK.md (empty test files)
-  - Deleted GITHUB_ABOUT.md (one-time setup instructions)
-  - Added dashboard/.env.test for Docker test environment
-
----
-
-## [0.12.0-beta.3] - 2025-12-07
-
-### ✨ New Features
-
-#### Database Maintenance
-- **Automatic database cleanup**: Prevents database growth over time
-  - Removes `status_history` records older than 30 days (configurable)
-  - Removes `events` older than 90 days (configurable)
-  - Runs on startup and then daily at 24-hour intervals
-  - Graceful error handling with retry logic (1-hour delay on error)
-
-#### Configuration
-- **New environment variables**:
-  - `RETENTION_DAYS_HISTORY` (default: 30) - Status history retention period
-  - `RETENTION_DAYS_EVENTS` (default: 90) - Events retention period
-- **Updated `.env.example`** with database cleanup configuration
-
-### 📝 Documentation
-
-- **Remote dashboard access**: Added comprehensive CORS configuration guide in README.md
-  - Step-by-step setup instructions for accessing dashboard remotely
-  - Security best practices (no wildcard CORS, HTTPS recommendations, firewall rules)
-  - nginx reverse proxy example for HTTPS setup
-  - Updated version badge to v0.12.0-beta.3
-
-### 🧹 Maintenance
-
-- **Repository cleanup**:
-  - Closed PR #12 (incorrect merge direction: testing → develop)
-  - Removed 11 stale branches (8 claude/* branches, 3 test/copilot branches)
-
-**Addresses:** Audit recommendation #5 (HIGH priority) - Database cleanup task
-
----
-
-## [0.12.0-beta.2] - 2025-12-07
-
-### 🎨 Improved
-
-#### UI/UX Enhancements
-- **Softer light mode colors**: Changed cards from bright white to subtle gray (rgba 226,232,240)
-- **Consistent dark mode**: Unified card backgrounds (#0f3460) across index.html and settings.html
-- **Better readability**: Softer colors reduce eye strain in light mode
-- **Improved modal styling**: Message templates popup now matches dark mode theme
-
-#### Text Quality
-- **Grammar fixes**: "POST'ed" → "posted" in webhook description
-- **Consistency**: Capitalized "Repeat Interval" label to match other labels
-- **Code review**: Verified all text strings for typos and proper English
-
-#### Deployment UX
-- **Progress indicators**: Added visual progress bars for remote deployment in setup.py
-- **File transfer feedback**: Shows real-time percentage and filename during copy operations
-- **Time estimates**: Python package installation now shows "this may take 1-2 minutes"
-- **Visual bars**: Unicode block characters (░ and █) provide clear visual feedback
-- **Virtual environment creation**: Shows progress for venv setup (0% → 20% → 100%)
-
-### 📝 Documentation
-
-- Added `plan-ui-improvements.md` to track completed and pending UI tasks
-
----
-
-## [0.12.0-beta.1] - 2025-12-07
-
-### ✨ New Features
-
-#### Debian 12/13 Compatibility
-- Dynamic Python package resolution (`python3-dev` → `python3.13-dev` on Debian 13)
-- `apt-cache show` check before installation to find available packages
-- Automatic fallback to generic package names
-
-#### Uninstaller
-- New CLI: `sudo python3 setup.py --uninstall`
-- Options: `--keep-configs` (preserve config files), `--dry-run` (preview mode)
-- Interactive wizard with local and remote uninstall options
-- Troubleshooting tips for failed remote uninstalls
-
-#### Update Notifications
-- New `/api/check-update` endpoint checks GitHub releases
-- Dashboard shows banner when new version is available
-- Cached checks (every 6 hours) to respect GitHub API limits
-- Dismiss button remembers version (won't show again for same version)
-
-### 🔧 Improved
-
-- Better package resolution error messages
-- Progress indicators during package resolution
-
----
-
-## [0.11.0-beta.4] - 2025-12-07
-
-### 🔒 Security Fixes
-
-#### Password Generation (CRITICAL)
-- **Fixed**: Removed special characters from generated passwords that broke keepalived config
-- Now uses only alphanumeric characters (a-z, A-Z, 0-9)
-- Prevents shell parsing issues in config files
-
-#### Shell Injection Prevention
-- **Fixed**: `escape_for_bash_config()` added to monitor.py for safe credential writing
-- **Fixed**: Timezone validation in setup.py to prevent command injection
-- **Fixed**: `.env` file value escaping in setup.py
-- **Fixed**: JSON escaping in notify.sh for Discord/webhook payloads
-- **Fixed**: Quoted shell variables in keepalived_notify.sh
-
-### 🔧 Improved
-
-- Added `escape_json()` function to notify.sh for safe JSON construction
-- Added `validate_timezone()` method to setup.py
-- Added `escape_for_env_file()` method to setup.py
-- Better variable quoting in keepalived_notify.sh (arping command)
-
-### 📝 Audit
-
-Completed comprehensive security audit covering:
-- Password/secret generation
-- Config file writing
-- Shell command construction
-- Template variable substitution
-
----
-
-## [0.11.0-beta.3] - 2025-12-07
-
-### 🎨 Improved
-
-#### Settings Page UI Overhaul
-- **Softer background colors**: Changed from bright white to subtle light gray (rgba 241,245,249)
-- **Compact notification cards**: Reduced padding and margins for cleaner look
-- **Descriptive text**: Each notifier now has helpful description text
-  - Telegram: "Receive instant alerts via Telegram bot"
-  - Discord: "Post alerts to a Discord channel via webhook"
-  - Pushover: "Push notifications to iOS/Android devices"
-  - Ntfy: "Open source push notifications (self-hosted or public)"
-  - Webhook: "Send JSON payloads to any endpoint"
-- **Dark mode improvements**: Better contrast with darker card backgrounds
-- **Version display fix**: Now properly fetches version from API with fallback
-
-### 🔧 Fixed
-
-- Version badge in README.md now shows correct version (v0.11.0-beta.2)
-- QUICKSTART.md now references correct branch (testing)
-- Added API_KEY example to .env.example
-- loadVersion() now uses API_BASE and includes API key header
-
----
-
-## [0.11.0-beta.2] - 2025-12-07
-
-### ✨ New
-
-#### Repeat/Reminder Notifications (Fase 2)
-- **Repeat alerts**: Send reminder notifications while issues persist
-- Configurable intervals: Off / 5 min / 10 min / 30 min / 60 min
-- Automatic tracking of active issues (failover, fault)
-- Reminders include "🔔 REMINDER:" prefix
-
-#### Snooze Notifications (Fase 3)
-- **Snooze functionality**: Temporarily disable notifications (for maintenance)
-- Quick snooze buttons: 1 hour / 4 hours / 24 hours
-- Visual snooze status display with cancel button
-- New API endpoints:
-  - `GET /api/notifications/snooze` - Get snooze status
-  - `POST /api/notifications/snooze` - Set snooze (duration in minutes)
-  - `DELETE /api/notifications/snooze` - Cancel snooze
-
-### 🎨 Improved
-
-- Settings UI now includes Repeat Alerts section
-- Settings UI now includes Snooze section with status display
-- Better notification state tracking in monitor loop
-
----
-
-## [0.11.0-beta.1] - 2025-12-07
-
-### ✨ New
-
-#### Custom Message Templates UI
-- **Templates Modal**: New popup modal for editing all 4 notification templates
-- **Template types**: Failover, Recovery, Fault, and Startup
-- **Clickable variables**: `{master}`, `{backup}`, `{primary}`, `{secondary}`, `{reason}`, `{time}`, `{date}`, `{vip}`
-- **Clickable emoji buttons**: ⚔️ 🚨 🆘 ✅ ⚠️ 🔴 🟢 with visual styling
-- **Per-template test buttons**: Test each template individually with sample data
-- **Reset to defaults**: Restore all templates to original values
-- **New API endpoint**: `/api/notifications/test-template` for template testing
-
-### 🎨 Improved
-
-#### UI/UX Enhancements
-- **Sticky header and variables bar**: Always visible when scrolling in templates modal
-- **Dark mode toggle button**: Floating button in bottom-right corner
-- **Dark mode fixes**: All modal labels and text now readable in dark mode
-- **Escape key support**: Close templates modal with Escape key
-- **Larger modal**: 90vh max height for better template editing
-
-#### Template Variables
-- Added `{master}` - current MASTER node name
-- Added `{backup}` - current BACKUP node name  
-- Added `{primary}` - Primary Pi-hole name
-- Added `{secondary}` - Secondary Pi-hole name
-- Added `{time}` and `{date}` - timestamp of event
-- Improved default templates with clearer messaging
-
-### 🔧 Fixed
-
-- Type hint fix: `http_session: aiohttp.ClientSession | None = None`
-
----
-
-## [0.10.0-beta.20] - 2025-12-07
-
-### ✨ Improved
-
-#### Setup Quick IP Flow
-- Added auto-detection of local IP range for quick setup; falls back to manual range entry if detection fails.
-- Quick setup now remembers the chosen range and reuses it for subsequent prompts.
-- Monitor server IP prompt reuses the detected/selected range and only asks for the last octet (no auto .50 default).
-- Validation and prompts now use colored output and explicit error messages.
-
-#### Banner & Version Display
-- Setup banner now reads version from `VERSION` via `_get_version_banner()`.
-- Updated ASCII banner to match logo style.
-
----
-
-## [0.10.0-beta.19] - 2025-12-06
-
-### ✨ New
-
-#### Advanced Notification Features - Phase 1
-- **Custom message templates:**
-  - Templates support variable substitution: `{node_name}`, `{reason}`, `{vip_address}`
-  - Default templates for: failover, recovery, fault events
-  - Editable via settings interface (planned in UI update)
-  - Example: `"🛡️ Pi-hole Sentinel Alert\n\n<b>{node_name} became MASTER</b>\n\nReason: {reason}\nVIP: {vip_address}"`
-- **Event logging for notifications:**
-  - Logs when notifications are sent: `✉️ Notification sent: failover (1 service)`
-  - Logs failed notifications: `⚠️ Notification failed for: Telegram (HTTP 500)`
-  - Visible in System Events timeline
-- **Multi-service notification support:**
-  - Telegram (with HTML formatting)
-  - Discord (with markdown conversion)
-  - Pushover (plain text)
-  - Ntfy (plain text)
-  - Custom webhooks (JSON with full context)
-  - All services can be enabled simultaneously
-  - Tracks success/failure per service
-
-### 🐛 Fixed
-
-#### VIP Address Configuration
-- **Fixed incorrect config key:**
-  - Changed `CONFIG['vip_address']` → `CONFIG['vip']` in failover notification code
-  - Prevents KeyError when sending failover notifications
-  - Aligns with actual CONFIG structure (line 66)
-
-### 📝 Technical Details
-
-#### Code Changes
-- **`dashboard/monitor.py` (lines 154-327):**
-  - Completely rewritten `send_notification()` function
-  - Changed signature: `(event_type: str, message: str)` → `(event_type: str, template_vars: dict)`
-  - Loads templates from JSON settings file
-  - Supports all notification services (not just Telegram)
-  - Logs success/failure to events database
-  - Format conversion for Discord (HTML → Markdown) and Pushover/Ntfy (HTML tags removed)
-- **`dashboard/monitor.py` (lines 738-744):**
-  - Updated failover detection to pass template variables
-  - Sends `{node_name, reason, vip_address}` dict to notification function
-
-### 🔮 Coming Next
-
-- **Phase 2:** Repeat/reminder logic (5/10/30/60 min intervals)
-- **Phase 3:** Snooze functionality
-- Settings UI update to edit message templates
-
----
-
-## [0.10.0-beta.18] - 2025-12-06
-
-### ✨ Improved
-
-#### Notification Architecture
-- **Centralized notifications on monitor service:**
-  - **Change:** Notifications now handled entirely by monitor service instead of by keepalived on Pi-holes
-  - **Benefit:** Simpler architecture, no configuration sync needed between servers
-  - Monitor detects failover events and sends notifications (Telegram, Discord, Pushover, etc.)
-  - `notify.conf` only needs to exist on monitor server (not on Pi-holes)
-  - Notifications sent within 10 seconds of failover (previous polling interval)
-  - Removed `notify.sh` calls from `keepalived_notify.sh` (Pi-holes only log events)
-  - Updated `setup.py` to NOT deploy `notify.sh` and `notify.conf` to Pi-holes
-  - Added `send_notification()` function in `monitor.py` with Telegram support
-  - **Impact:** Easier to manage, no sync issues, cleaner separation of concerns
-  - Updated files:
-    - `keepalived/scripts/keepalived_notify.sh` - removed notify.sh calls
-    - `setup.py` deploy_keepalived_remote() - removed notify.sh/conf deployment
-    - `dashboard/monitor.py` - added send_notification() and failover notifications
-
----
-
-## [0.10.0-beta.17] - 2025-12-06
-
-### 🐛 Fixed
-
-#### Keepalived Deployment
-- **Fixed missing notification infrastructure on Pi-holes:**
-  - **Issue:** Failover events were detected but no Telegram/Discord/Pushover notifications were sent
-  - **Root cause:** `notify.sh` script was not deployed to Pi-holes, `/etc/pihole-sentinel/` directory didn't exist
-  - Creates `/etc/pihole-sentinel/` directory on Pi-holes during deployment
-  - Deploys `notify.sh` script to `/usr/local/bin/` (required by keepalived_notify.sh)
-  - Deploys `notify.conf` template to `/etc/pihole-sentinel/` (placeholder for user credentials)
-  - Sets proper permissions (755 for directory, 644 for notify.conf, 755 for notify.sh)
-  - **Impact:** Notifications now work correctly when failover events occur
-  - **Note:** Users must configure notification credentials via web interface
-  - Updated `setup.py` deploy_keepalived_remote() function (lines 1082-1086, 1102-1103, 1124, 1131-1133)
-
----
-
-## [0.10.0-beta.16] - 2025-12-06
-
-### ✨ Improved
-
-#### Setup Script
-- **Added pre-deployment directory and file checks:**
-  - Creates `/etc/pihole-sentinel` directory before systemd service starts
-  - **Prevents:** systemd NAMESPACE error (`Failed to set up mount namespacing: /etc/pihole-sentinel: No such file or directory`)
-  - Deploys VERSION file to `/opt/VERSION` (correct location for monitor.py to read)
-  - Sets proper ownership (pihole-monitor:pihole-monitor) and permissions (755/644)
-  - **Impact:** Robust deployment that prevents common systemd mount namespace failures
-  - Updated `setup.py` deploy_monitor_remote() function (lines 902-906, 921, 953, 982-984)
-
----
-
-## [0.10.0-beta.15] - 2025-12-06
-
-### 🐛 Fixed
-
-#### Monitor Service
-- **Fixed notification settings save error (500 Internal Server Error):**
-  - **Issue:** Settings page returned "Failed to save settings" with HTTP 500 error
-  - **Root cause:** systemd's `ProtectSystem=strict` made `/etc/` read-only for the service
-  - Added `/etc/pihole-sentinel` to `ReadWritePaths` in systemd service file
-  - Added detailed error logging with stack traces for easier debugging
-  - **Impact:** Notification settings (Telegram, Discord, Pushover, etc.) can now be saved via web interface
-  - Updated `systemd/pihole-monitor.service` (line 20)
-  - Updated `dashboard/monitor.py` (line 824) to log save errors with full traceback
-
----
-
-## [0.10.0-beta.14] - 2025-12-05
-
-### ✨ Improved
-
-#### Setup Script
-- **Improved network interface selection UX:**
-  - Filters out virtual interfaces (docker, veth*, br-*, tailscale*, etc.)
-  - Shows only physical network interfaces by default
-  - Prioritizes common interface names (eth0, ens18, enp3s0, eno1)
-  - Numbered list display with max 5 interfaces shown
-  - Colorized output with clear default indication
-  - Better confirmation prompt for non-standard interfaces
-  - **Impact:** Much clearer interface selection, especially on systems with many virtual interfaces
-  - Fixed issue where docker-debian showed 12+ interfaces (mostly virtual)
 
 ---
 
