@@ -133,7 +133,7 @@ async def rate_limit_check(request: Request):
 
 # Global aiohttp ClientSession for connection pooling
 # Reusing sessions improves performance and prevents connection exhaustion
-http_session: aiohttp.ClientSession = None
+http_session: aiohttp.ClientSession | None = None
 
 async def get_http_session() -> aiohttp.ClientSession:
     """Get or create global HTTP session for connection pooling."""
@@ -736,10 +736,26 @@ async def monitor_loop():
                         await log_event("info", f"Failback reason: {reason}")
 
                 # Send notification
+                # Determine which node is master and which is backup
+                if current_master == "Primary":
+                    master_node = CONFIG.get('primary_name', 'Primary-Pi-hole')
+                    backup_node = CONFIG.get('secondary_name', 'Secondary-Pi-hole')
+                else:
+                    master_node = CONFIG.get('secondary_name', 'Secondary-Pi-hole')
+                    backup_node = CONFIG.get('primary_name', 'Primary-Pi-hole')
+                
                 template_vars = {
                     "node_name": master_name,
+                    "node": master_name,
+                    "master": master_node,
+                    "backup": backup_node,
+                    "primary": CONFIG.get('primary_name', 'Primary-Pi-hole'),
+                    "secondary": CONFIG.get('secondary_name', 'Secondary-Pi-hole'),
                     "reason": reason if reason else "Unknown",
-                    "vip_address": CONFIG['vip']
+                    "vip_address": CONFIG['vip'],
+                    "vip": CONFIG['vip'],
+                    "time": datetime.now().strftime("%H:%M:%S"),
+                    "date": datetime.now().strftime("%Y-%m-%d")
                 }
                 await send_notification("failover", template_vars)
             
@@ -874,9 +890,10 @@ async def get_notification_settings(api_key: str = Depends(verify_api_key)):
         "ntfy": {"enabled": False, "topic": "", "server": "https://ntfy.sh"},
         "webhook": {"enabled": False, "url": ""},
         "templates": {
-            "failover": "🛡️ Pi-hole Sentinel Alert\n\n<b>{node_name} became MASTER</b>\n\nReason: {reason}\nVIP: {vip_address}",
-            "recovery": "✅ Pi-hole Sentinel\n\n<b>{node_name} recovered</b>\n\nThe issue has been resolved.",
-            "fault": "⚠️ Pi-hole Sentinel Warning\n\n<b>{node_name} is in FAULT state</b>\n\nVIP: {vip_address}"
+            "failover": "🚨 Failover Alert!\n{master} is now MASTER\n{backup} issue: {reason}",
+            "recovery": "✅ Recovery: {primary} is back online\n{master} is now MASTER",
+            "fault": "⚠️ FAULT: Both Pi-holes may have issues!\nCheck immediately!",
+            "startup": "🚀 Pi-hole Sentinel started\nMonitoring {primary} and {secondary}"
         },
         "repeat": {
             "enabled": False,
@@ -1218,6 +1235,43 @@ async def test_notification(
     
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
+
+@app.post("/api/notifications/test-template")
+async def test_template_notification(
+    request: Request,
+    data: dict,
+    api_key: str = Depends(verify_api_key),
+    _rate_limit: bool = Depends(rate_limit_check)
+):
+    """Test a template notification with sample data"""
+    template_type = data.get('template_type', 'failover')
+    
+    if template_type not in ['failover', 'recovery', 'fault', 'startup']:
+        raise HTTPException(status_code=400, detail="Invalid template type")
+    
+    # Sample data for testing - use configured names or defaults
+    primary_name = CONFIG.get('primary_name', 'Primary-Pi-hole')
+    secondary_name = CONFIG.get('secondary_name', 'Secondary-Pi-hole')
+    
+    sample_vars = {
+        "node_name": secondary_name,
+        "node": secondary_name,
+        "master": secondary_name,
+        "backup": primary_name,
+        "primary": primary_name,
+        "secondary": secondary_name,
+        "reason": "Test notification - simulated failover",
+        "vip_address": CONFIG.get('vip', '192.168.1.100'),
+        "vip": CONFIG.get('vip', '192.168.1.100'),
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "date": datetime.now().strftime("%Y-%m-%d")
+    }
+    
+    try:
+        await send_notification(template_type, sample_vars)
+        return {"status": "success", "message": f"Test {template_type} notification sent"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
 
