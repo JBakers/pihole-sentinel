@@ -5,6 +5,34 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0-beta.2] - 2025-12-07
+
+### 🎨 Improved
+
+#### UI/UX Enhancements
+- **Softer light mode colors**: Changed cards from bright white to subtle gray (rgba 226,232,240)
+- **Consistent dark mode**: Unified card backgrounds (#0f3460) across index.html and settings.html
+- **Better readability**: Softer colors reduce eye strain in light mode
+- **Improved modal styling**: Message templates popup now matches dark mode theme
+
+#### Text Quality
+- **Grammar fixes**: "POST'ed" → "posted" in webhook description
+- **Consistency**: Capitalized "Repeat Interval" label to match other labels
+- **Code review**: Verified all text strings for typos and proper English
+
+#### Deployment UX
+- **Progress indicators**: Added visual progress bars for remote deployment in setup.py
+- **File transfer feedback**: Shows real-time percentage and filename during copy operations
+- **Time estimates**: Python package installation now shows "this may take 1-2 minutes"
+- **Visual bars**: Unicode block characters (░ and █) provide clear visual feedback
+- **Virtual environment creation**: Shows progress for venv setup (0% → 20% → 100%)
+
+### 📝 Documentation
+
+- Added `plan-ui-improvements.md` to track completed and pending UI tasks
+
+---
+
 ## [0.12.0-beta.1] - 2025-12-07
 
 ### ✨ New Features
