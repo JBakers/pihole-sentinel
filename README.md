@@ -8,13 +8,13 @@
 
 *Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
 
-[![Version](https://img.shields.io/badge/version-v0.10.0--beta.15-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-v0.10.0--beta.16-blue.svg)](VERSION)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
 [![Made by JBakers](https://img.shields.io/badge/Made%20by-JBakers-667eea)](https://github.com/JBakers)
 
-[Features](#what-does-it-do) • [Installation](#installation) • [Notifications](#notifications) • [Documentation](#setup-options)
+[Features](#features) • [Quick Start](#quick-start) • [Installation](#installation) • [Documentation](docs/README.md)
 
 </div>
 
@@ -22,600 +22,389 @@
 
 ## Introduction
 
-Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS infrastructure. If you rely on Pi-hole for network-wide ad blocking and DNS filtering, you know the frustration when your Pi-hole goes down - suddenly your entire network loses DNS resolution.
+Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS infrastructure. When your primary Pi-hole fails, the backup takes over instantly using a Virtual IP (VIP) that seamlessly switches between servers - no manual intervention, no DNS changes on your devices.
 
-Pi-hole Sentinel solves this with automatic failover using a Virtual IP (VIP) that seamlessly switches between your primary and backup Pi-hole servers. When your primary Pi-hole fails, the backup takes over instantly without any manual intervention or DNS changes on your devices. Optional DHCP failover ensures uninterrupted network services.
+**Built for home networks and small businesses** that need reliability without complexity. Works with your existing Pi-hole setup - no special configuration required.
 
-Built for home networks and small businesses that need reliability without complexity. Works with your existing Pi-hole setup - no special configuration required.
+### Why Pi-hole Sentinel?
 
-## What does it do?
+- 🚫 **No more network outages** when Pi-hole fails
+- ⚡ **Instant automatic failover** (< 3 seconds)
+- 📊 **Beautiful web dashboard** with real-time monitoring
+- 🔔 **Smart notifications** via Telegram, Discord, Pushover, Ntfy, webhooks
+- 🔧 **Simple setup** with automated deployment script
+- 🔄 **Works with existing Pi-holes** - no reconfiguration needed
 
-1. **Automatic Failover** 
-   - Virtual IP (VIP) that switches automatically
-   - Seamless DNS service during outages
-   - Optional DHCP failover with automatic activation/deactivation
-   - DHCP misconfiguration detection and warnings
-   - Compatible with existing sync solutions (Nebula-sync, etc.)
+---
 
-2. **Real-time Monitoring**
-   - Beautiful web dashboard with live updates
-   - Real-time status indicators for all services
-   - Server connectivity monitoring via TCP
-   - DNS resolution testing
-   - DHCP server status monitoring
-   - VIP detection via MAC address comparison
-   - Failover/failback detection and logging
-   - Historical data and event timeline
-   - Works on desktop and mobile
-   - Dark mode support
+## Features
 
-3. **Smart Notifications**
-   - Web-based configuration interface
-   - Multiple notification services supported
-   - Test notifications before saving
-   - Alerts for state changes (MASTER/BACKUP/FAULT)
-   - DHCP misconfiguration warnings
+### 🔄 Automatic Failover
+- **Virtual IP (VIP)** that switches automatically between Pi-holes
+- **DNS failover** - always enabled, zero downtime
+- **Optional DHCP failover** - automatic activation/deactivation
+- **DHCP misconfiguration detection** - warns about split-brain scenarios
+- **Compatible** with existing sync solutions (Nebula-sync, Gravity-sync, etc.)
 
-## Setup Options
+### 📊 Real-time Monitoring
+- **Live web dashboard** - desktop and mobile responsive
+- **Service health checks** - connectivity, DNS resolution, DHCP status
+- **VIP detection** - knows which Pi-hole has the VIP at all times
+- **Historical data** - event timeline and failover history
+- **Dark mode support** - easy on the eyes
 
-### Features
-- **DNS Failover**: Always enabled
-- **DHCP Failover**: Optional, if you use DHCP on your Pi-holes
-- **Configuration Sync**: Built-in sync script (includes DHCP leases)
-- **Monitoring**: Choose between separate server or on primary Pi-hole
-- **Notifications**: Web-based setup for Telegram, Discord, Pushover, Ntfy, and webhooks
-- **Compatible**: Works alongside existing sync solutions (Nebula-sync, etc.)
+### 🔔 Smart Notifications
+- **Web-based configuration** - no config file editing
+- **Multiple services** - Telegram, Discord, Pushover, Ntfy, custom webhooks
+- **Event-based alerts** - failover, recovery, fault, startup
+- **Test notifications** - verify before saving settings
 
-### Prerequisites
-- ✅ 2 working Pi-holes (with DNS)
-- ✅ SSH root access to all servers (passwords asked once for SSH key setup)
-- ✅ Pi-hole web interface passwords
-- ✅ Separate server for monitoring (recommended, or install on primary)
-
-### Required Information
-- 📝 Primary Pi-hole IP
-- 📝 Secondary Pi-hole IP
-- 📝 Free IP for VIP (Virtual IP)
-- 📝 Router/gateway IP
-- 📝 Network interface name (usually eth0 or ens18)
-- 📝 DHCP status (if you want failover)
-- 📝 SSH user and port (defaults: root, 22)
-- 📝 SSH passwords (asked once to setup passwordless access)
-
-## Components
-
-### Pi-hole Servers
-- Keepalived (automatic installation)
-  - Manages VIP failover
-  - Monitors Pi-hole service
-  - Handles DHCP failover (if enabled)
-- arping (automatic installation)
-  - Network connectivity checks
-  - ARP table updates
-
-### Monitor Server
-- Python 3.8+ (required packages auto-installed)
-- Web dashboard
-  - Real-time status monitoring
-  - Failover history
-  - Service health checks
-
-## System Requirements
-
-### Pi-hole Servers
-- Pi-hole v6.0 or newer (2024+)
-- Debian/Ubuntu based system
-- Root/sudo access
-- Static IP addresses
-- No special Pi-hole settings needed
-- Works with existing configuration
-
-**System Packages (auto-installed by setup.py):**
-- `build-essential` - Compiler toolchain for Python packages
-- `python3.11-dev` - Python 3.11 development headers (required for C extensions)
-- `python3-pip` - Python package manager (pip)
-- `iproute2` - Network configuration utilities
-- `iputils-ping` - Ping command for connectivity checks
-- `dnsutils` - DNS testing utilities (dig command)
-- `arping` - ARP ping utility
-- `keepalived` - VRRP implementation for failover
-- `sqlite3` - Database for monitoring
-- `python3.11-venv` - Python virtual environment support
-- `sshpass` - SSH password authentication utility (for remote deployment)
-
-**Note:** Setup script automatically detects and configures timezone from your system using `timedatectl`, with fallback to Europe/Amsterdam if detection fails. NTP synchronization is also configured automatically.
-
-### Monitor Server
-- Any Linux system (Debian/Ubuntu recommended)
-- Root/sudo access
-- 512MB RAM minimum
-- 1GB free disk space
-- Network access to both Pi-holes
-- Python 3.8+ available
-
-**Python Packages (auto-installed by setup.py):**
-- `fastapi` - Web framework for monitoring API
-- `uvicorn` - ASGI server
-- `aiohttp` - Async HTTP client for Pi-hole communication
-- `aiosqlite` - Async SQLite database
-- `aiofiles` - Async file operations
-- `python-dotenv` - Environment variable management
-- `python-dateutil` - Date/time utilities
-- `setuptools` - Python package development tools
-- `wheel` - Python package build tool
+---
 
 ## Quick Start
 
-- **📋 Existing Pi-holes**: See [`EXISTING-SETUP.md`](EXISTING-SETUP.md) for adding HA to your current setup
-- **🔄 Configuration Sync**: See [`SYNC-SETUP.md`](SYNC-SETUP.md) for keeping Pi-holes in sync
-- **🔔 Notifications**: Configure alerts via web interface at `http://monitor-ip:8080/settings.html`
-- **⚙️ Automated Setup**: Use `setup.py` to generate all configurations automatically
+### Prerequisites
 
-## Installation
+- ✅ **2 Pi-holes** - v6.0+, Debian/Ubuntu, static IPs
+- ✅ **SSH root access** - passwords asked once for SSH key setup
+- ✅ **Pi-hole passwords** - for web interface API access
+- ✅ **Monitor server** - separate server recommended (or install on primary Pi-hole)
+- ✅ **Free IP address** - for the Virtual IP (VIP)
 
-> **✨ NEW:** Fully automated setup with SSH key generation!
-> 
-> **Simple setup:** Run setup.py once on ANY machine with network access to your servers.
-> No manual SSH key setup required - everything is automated!
+### Installation
 
-### Quick Installation (Recommended)
-
-**One-Command Automated Setup:**
+**1. Clone the repository:**
 
 ```bash
 git clone https://github.com/JBakers/pihole-sentinel.git
 cd pihole-sentinel
-sudo python3 setup.py
 ```
 
-The setup script will:
-1. ✅ Check and install system dependencies
-2. ✅ Ask for your network configuration (IPs, VIP, gateway, etc.)
-3. ✅ Ask for DHCP configuration (if enabled)
-4. ✅ Ask for SSH details (user and port - same for all servers)
-5. ✅ Ask for SSH passwords (once, to distribute keys)
-6. ✅ **Automatically generate SSH keys** (~/.ssh/id_pihole_sentinel)
-7. ✅ **Distribute keys to all servers** (passwordless access!)
-8. ✅ Generate secure passwords for keepalived
-9. ✅ Create all configuration files
-10. ✅ **Automatically inject Pi-hole API keys into dashboard** (v0.9.0+)
-11. ✅ **Deploy to all servers via SSH** (choose option 2)
-12. ✅ Auto-detect and configure timezone with NTP on all servers
-13. ✅ **Securely cleanup sensitive files** after deployment
+**2. Run the setup script:**
 
-**Features:**
-- 🔐 Automatic SSH key generation and distribution
-- 🚀 One-click deployment to all servers
-- 🔑 Automatic API key injection into dashboard (v0.9.0+)
-- 🔒 Automatic cleanup of sensitive configuration files
-- 🎨 Beautiful colored output with ASCII art logo
-- 📊 Progress indicators for all operations
-- ⏰ Automatic timezone detection from system (with fallback support)
-- 🔍 Verbose mode available (--verbose flag)
-
-**No Prerequisites Needed:**
-- ❌ No manual SSH key setup required
-- ❌ No sshpass needed (keys are automatically distributed)
-- ✅ Just SSH password access to your servers
-
-### Alternative: Manual Deployment
-
-If you prefer not to use SSH deployment:
-
-**Option 1: Generate configs, deploy manually**
 ```bash
 sudo python3 setup.py
-# Choose option 1, then copy files to each server manually
 ```
 
-**Option 2: Run setup on each server individually**
-- Clone repo on each server
-- Run setup.py with option 3, 4, or 5 on respective servers
+**3. Follow the interactive wizard:**
 
-### What the Setup Does
+The script will guide you through:
+- Network configuration (IPs, VIP, interface name)
+- DHCP failover setup (optional)
+- SSH key generation and distribution
+- Automated deployment to all servers
+- Service startup and verification
 
-The automated setup script will:
-   - ✅ Check and install all system dependencies (with your approval)
-   - ✅ Collect network configuration interactively
-   - ✅ Validate all IP addresses and network settings
-   - ✅ Generate SSH keys automatically
-   - ✅ Distribute SSH keys to all servers
-   - ✅ Generate secure random passwords for keepalived
-   - ✅ Create all configuration files
-   - ✅ Deploy monitor service (FastAPI + SQLite database)
-   - ✅ Deploy keepalived on both Pi-holes
-   - ✅ Auto-detect and configure timezone with NTP synchronization
-   - ✅ Set proper file permissions (600 for .env files)
-   - ✅ Enable and start all services
-   - ✅ Securely cleanup sensitive files from local machine
-   - ✅ Show helpful commands for verification
+**4. Access the dashboard:**
 
-### Security Features
+```
+http://<monitor-ip>:8080
+```
 
-🔒 **Automatic Security Measures:**
-- SSH passwords are cleared from memory after key distribution
-- Generated config files are overwritten with random data before deletion
-- Automatic cleanup on success, error, or keyboard interrupt
-- SSH keys use ed25519 encryption
-- Configuration files on servers have proper permissions (chmod 600)
-- No sensitive data remains on the machine that ran setup
+That's it! Your Pi-hole infrastructure now has automatic failover.
 
-### Dashboard Features
+### What Gets Installed
 
-📊 **Real-time Monitoring Dashboard:**
-- Live status indicators (Server Online, Pi-hole Service, Virtual IP, DNS, DHCP)
-- Color-coded states: Green for MASTER, Red for BACKUP
-- Equal-thickness borders (4px) for clear visual distinction
-- Descriptive status labels with hover tooltips
-- DHCP misconfiguration detection with warning indicators
-- Dark mode support with enhanced glows
-- Node IP addresses displayed on cards
-- Historical graphs with 1h/6h/24h/7d/30d time ranges
-- Event timeline with detailed failover history
-- Collapsible sections for better organization
-- Responsive design for mobile and desktop
+**On Pi-hole servers:**
+- Keepalived (VRRP failover daemon)
+- Health check scripts (FTL monitoring, DHCP control)
+- Notification scripts (state change alerts)
 
-### Verification
+**On monitor server:**
+- FastAPI monitoring service
+- SQLite database (status history)
+- Web dashboard (HTML/CSS/JS)
 
-**After Deployment, the setup shows helpful commands:**
+---
 
-1. **Access Monitor Dashboard**
-   ```bash
-   # Open in browser
-   http://<monitor-ip>:8080
-   ```
+## Documentation
 
-2. **Check Services**
-   ```bash
-   # On monitor server
-   systemctl status pihole-monitor
-   journalctl -u pihole-monitor -f
-   
-   # On both Pi-holes
-   systemctl status keepalived
-   systemctl status pihole-FTL
-   
-   # Check which server has the VIP
-   ip addr show | grep <vip-address>
-   ```
+### 📚 [Complete Documentation](docs/README.md)
 
-3. **Test Failover**
-   ```bash
-   # On the MASTER server (the one with VIP)
-   systemctl stop pihole-FTL
-   
-   # Watch VIP move to BACKUP server
-   # Check dashboard for status changes
-   
-   # Restore service
-   systemctl start pihole-FTL
-   ```
+- **[Quick Start Guide](docs/installation/quick-start.md)** - Fast deployment with defaults
+- **[Existing Pi-hole Setup](docs/installation/existing-setup.md)** - Add HA to existing Pi-holes
+- **[Configuration Sync](docs/maintenance/sync.md)** - Keep Pi-holes synchronized
+- **[Development Guide](docs/development/README.md)** - Setup dev environment
+- **[Testing Guide](docs/development/testing.md)** - User testing procedures
+- **[API Documentation](docs/api/README.md)** - REST API reference
 
-4. **Configure Notifications (Optional)**
-   - Open settings: `http://<monitor-ip>:8080/settings.html`
-   - Enable and configure your preferred notification service
-   - Test notifications before saving
-   - Supported: Telegram, Discord, Pushover, Ntfy, Custom Webhooks
+### 📖 Additional Guides
 
-### Monitoring Features
+- **[CLAUDE.md](CLAUDE.md)** - Comprehensive guide for AI assistants and advanced users
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history
+- **[LICENSE](LICENSE)** - MIT License
 
-**Real-time Status Checks:**
-- ✅ **Server Online** - TCP connectivity test (port 80)
-- ✅ **Pi-hole Service** - FTL daemon status via API
-- ✅ **Virtual IP Active** - MAC address comparison via ARP table
-- ✅ **DNS Resolver** - Actual DNS query test (dig)
-- ✅ **DHCP Server** - Configuration status via /api/config/dhcp
-- ⚠️ **DHCP Misconfiguration** - Warns if MASTER has DHCP off or BACKUP has DHCP on
+---
 
-**Technical Details:**
-- Connectivity: TCP socket tests instead of ICMP ping (no special capabilities needed)
-- VIP Detection: Creates TCP connections to populate ARP table, then compares MAC addresses
-- DHCP Monitoring: Uses `/api/config/dhcp` endpoint for accurate status
-- Database: SQLite with history tracking (primary_dhcp, secondary_dhcp columns)
-- Update Interval: 10 seconds (configurable via .env)
+## System Requirements
 
-See `EXISTING-SETUP.md` for detailed steps
+### Pi-hole Servers
+- **Pi-hole:** v6.0+ (2024+)
+- **OS:** Debian 11+/Ubuntu 20.04+
+- **Access:** Root/sudo
+- **Network:** Static IP addresses
+- **Compatibility:** Works with existing configuration
+
+**Auto-installed packages:** `keepalived`, `arping`, `iproute2`, `dnsutils`, `build-essential`
+
+### Monitor Server
+- **OS:** Any Linux (Debian/Ubuntu recommended)
+- **Python:** 3.8+ (tested with 3.11-3.13)
+- **RAM:** 512MB minimum
+- **Disk:** 1GB free space
+- **Network:** Access to both Pi-holes
+
+**Auto-installed packages:** Python packages via pip (`fastapi`, `uvicorn`, `aiohttp`, `aiosqlite`, etc.)
+
+---
 
 ## Management
 
 ### Daily Operations
-- Monitor dashboard: `http://<monitor-ip>:8080`
-- Notification settings: `http://<monitor-ip>:8080/settings.html`
-- Check VIP status: `ping <vip-address>`
-- View Keepalived status: `systemctl status keepalived`
+
+**Check monitor status:**
+```bash
+systemctl status pihole-monitor
+journalctl -u pihole-monitor -f
+```
+
+**Check keepalived (on Pi-holes):**
+```bash
+systemctl status keepalived
+tail -f /var/log/keepalived-notify.log
+```
+
+**Access dashboard:**
+```
+http://<monitor-ip>:8080
+```
 
 ### Logs
-- **Monitor logs:** `journalctl -u pihole-monitor -f` or `/var/log/pihole-monitor.log`
-- **Keepalived events:** `/var/log/keepalived-notify.log`
-- **System logs:** `journalctl -u keepalived`
 
-### Troubleshooting
-- **Monitor issues:**
-  - Check service: `systemctl status pihole-monitor`
-  - View logs: `journalctl -u pihole-monitor -f`
-  - Check connectivity: `curl http://<pihole-ip>/api/stats/summary`
-
-- **Keepalived issues:**
-  - Check config: `keepalived -t -f /etc/keepalived/keepalived.conf`
-  - View VRRP traffic: `tcpdump -n -i any vrrp`
-  - Check VIP assignment: `ip addr show | grep <vip>`
-
-- **Sync issues:**
-  - Test SSH: `ssh root@<other-pihole> echo OK`
-  - Manual sync: `/usr/local/bin/sync-pihole-config.sh`
-  - Check logs in sync output
-
-### Upgrading
-
-**Upgrading to latest version:**
-
-Follow these steps to upgrade your installation:
-
-1. **Backup your current setup:**
-   ```bash
-   # On monitor server
-   sudo systemctl stop pihole-monitor
-   sudo cp -r /opt/pihole-monitor /opt/pihole-monitor.backup
-   ```
-
-2. **Pull latest code:**
-   ```bash
-   cd pihole-sentinel
-   git pull origin main
-   ```
-
-3. **Update dependencies on monitor server:**
-   ```bash
-   # Via SSH or directly on monitor
-   cd /opt/pihole-monitor
-   source venv/bin/activate
-   pip install --upgrade -r /path/to/pihole-sentinel/requirements.txt
-   deactivate
-   ```
-
-4. **Update monitor.py:**
-   ```bash
-   sudo cp /path/to/pihole-sentinel/dashboard/monitor.py /opt/pihole-monitor/monitor.py
-   sudo chown pihole-monitor:pihole-monitor /opt/pihole-monitor/monitor.py
-   ```
-
-5. **Restart services:**
-   ```bash
-   sudo systemctl restart pihole-monitor
-   ```
-
-6. **Verify:**
-   ```bash
-   sudo systemctl status pihole-monitor
-   sudo tail -f /var/log/pihole-monitor.log
-   ```
-
-**Notes:**
-- Configuration files (.env) remain compatible across versions
-- Keepalived configs are backward compatible
-- Check CHANGELOG.md for version-specific changes
-
-### Maintenance
-- Check for updates: `git pull origin main` and review `CHANGELOG.md`
-- Update Pi-hole normally - failover handles it automatically
-- Keep system packages updated: `apt update && apt upgrade`
-- Review logs weekly for any warnings or errors
-
-## Monitoring & Maintenance
-
-### Monitor Dashboard
-- Access web interface: `http://<monitor-ip>:8080`
-- View logs: `sudo journalctl -u pihole-monitor`
-- Restart service: `sudo systemctl restart pihole-monitor`
-
-### Keepalived Status
+**Monitor logs:**
 ```bash
-# Check service status
-sudo systemctl status keepalived
+journalctl -u pihole-monitor -f
+```
 
-# View logs
+**Keepalived logs (on Pi-holes):**
+```bash
 tail -f /var/log/keepalived-notify.log
-tail -f /var/log/syslog | grep keepalived
-
-# Check VIP assignment
-ip addr show
+journalctl -u keepalived -f
 ```
 
 ### Testing Failover
-1. On master node:
+
+**Stop Pi-hole on current MASTER:**
 ```bash
-sudo systemctl stop pihole-FTL
-# Monitor dashboard for failover
+systemctl stop pihole-FTL
 ```
 
-2. On backup node:
+**Monitor dashboard** will show:
+- VIP moving to other server
+- Failover event logged
+- Notification sent (if configured)
+
+**Start Pi-hole to restore:**
 ```bash
-# Verify VIP assignment
-ip addr show
+systemctl start pihole-FTL
 ```
+
+### Upgrading
+
+**On monitor server:**
+```bash
+cd /opt/pihole-monitor
+git pull
+source venv/bin/activate
+pip install --upgrade -r requirements.txt
+sudo systemctl restart pihole-monitor
+```
+
+**On Pi-hole servers:**
+```bash
+sudo systemctl restart keepalived
+```
+
+### Uninstalling
+
+**Interactive uninstaller:**
+```bash
+sudo python3 setup.py --uninstall
+```
+
+**Options:**
+- `--keep-configs` - Keep configuration files
+- `--dry-run` - Show what would be removed
+
+---
 
 ## Notifications
 
-Pi-hole Sentinel can send notifications when failover events occur. Configure via the web interface:
+### Setup
 
-### Setup Notifications
+1. **Open dashboard:** `http://<monitor-ip>:8080`
+2. **Click Settings** in navigation
+3. **Configure services:**
+   - Telegram: Bot token + Chat ID
+   - Discord: Webhook URL
+   - Pushover: User key + App token
+   - Ntfy: Topic name (optional: custom server)
+   - Webhook: Custom endpoint URL
 
-1. Open settings page: `http://<monitor-ip>:8080/settings.html`
-2. Choose your notification service(s)
-3. Fill in credentials/tokens
-4. Click "Send Test Message" to verify
-5. Save settings
+4. **Test notifications** before saving
+5. **Save settings**
 
 ### Supported Services
 
-- **📱 Telegram**: Create a bot with [@BotFather](https://t.me/BotFather) and get your chat ID
-- **💬 Discord**: Create a webhook in your channel settings
-- **🔔 Pushover**: Sign up at [pushover.net](https://pushover.net/) and create an app
-- **🔕 Ntfy**: Choose a topic at [ntfy.sh](https://ntfy.sh) or use your own server
-- **🔗 Custom Webhook**: POST JSON to any endpoint
+- **Telegram** - Bot API with HTML formatting
+- **Discord** - Webhooks with rich embeds
+- **Pushover** - Priority-based notifications
+- **Ntfy** - Self-hosted or ntfy.sh
+- **Custom Webhooks** - JSON POST to any endpoint
 
-### What Gets Notified
+### Notification Events
 
-- 🟢 **MASTER** - Node becomes active (VIP assigned, DHCP enabled)
-- 🟡 **BACKUP** - Node goes to standby (DHCP disabled)
-- 🔴 **FAULT** - Node has issues (service problems detected)
+- **Failover** - Secondary becomes MASTER (primary failed)
+- **Recovery** - Primary becomes MASTER again (back online)
+- **Fault** - Server entered FAULT state (service issues)
+- **Startup** - Monitoring service started (optional, disabled by default)
 
-All notifications include timestamp, hostname, and status details.
+---
 
-## Technical Details
+## Architecture
 
-### Architecture
-
-**Components:**
-- **Keepalived (VRRP)** - Manages VIP failover between Pi-holes
-- **Monitor Service** - FastAPI application with real-time monitoring
-- **SQLite Database** - Stores status history and events
-- **Health Check Scripts** - Monitors Pi-hole FTL and DHCP services
-
-**Network Flow:**
-1. Both Pi-holes run keepalived with VRRP protocol
-2. MASTER holds VIP and enables DHCP (if configured)
-3. Monitor polls both Pi-holes every 10 seconds
-4. Health checks determine if services are running
-5. Automatic failover on service failure
-6. DHCP automatically disabled on BACKUP
-
-### Monitoring Technology
-
-**Connectivity Detection:**
-- Uses TCP socket connection tests (port 80) instead of ICMP ping
-- No special Linux capabilities (CAP_NET_RAW) required
-- Faster and more reliable than ping in container environments
-
-**VIP Detection Method:**
 ```
-1. Create TCP connections to VIP and both servers
-2. Wait for ARP table to populate (200ms)
-3. Extract MAC addresses from 'ip neigh show'
-4. Compare VIP MAC with both server MACs
-5. Determine which server currently holds the VIP
+┌──────────────┐         VIP          ┌──────────────┐
+│  Primary     │◄─────(Keepalived)────►│  Secondary   │
+│  Pi-hole     │                       │  Pi-hole     │
+│              │      VRRP Protocol    │              │
+│  + FTL       │                       │  + FTL       │
+│  + Keepalived│                       │  + Keepalived│
+└──────┬───────┘                       └───────┬──────┘
+       │                                       │
+       │            ┌──────────────┐           │
+       └────────────►   Monitor    ◄───────────┘
+                    │   Server     │
+                    │              │
+                    │  + FastAPI   │
+                    │  + SQLite    │
+                    │  + Dashboard │
+                    └──────────────┘
 ```
 
-**DHCP Monitoring:**
-- Uses Pi-hole v6 API endpoint: `/api/config/dhcp`
-- Parses `config.dhcp.active` boolean value
-- Detects misconfigurations (MASTER without DHCP / BACKUP with DHCP)
-- Automatic warnings and notifications
+### How It Works
 
-**Pi-hole v6 API Compatibility:**
-- Fixed authentication to use `session.sid` path
-- Proper handling of new API response structure
-- Backward compatible error handling
+1. **Keepalived (VRRP)** - Runs on both Pi-holes, manages VIP assignment
+2. **Health Checks** - Monitors Pi-hole FTL service every 2 seconds
+3. **Automatic Failover** - VIP moves to backup when primary fails (< 3s)
+4. **Monitor Service** - Polls both Pi-holes every 10 seconds
+5. **Web Dashboard** - Real-time status, history, notifications
 
-### Database Schema
-
-```sql
-CREATE TABLE status_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    primary_state TEXT,          -- MASTER or BACKUP
-    secondary_state TEXT,        -- MASTER or BACKUP
-    primary_has_vip BOOLEAN,     -- VIP detection
-    secondary_has_vip BOOLEAN,   -- VIP detection
-    primary_online BOOLEAN,      -- Connectivity
-    secondary_online BOOLEAN,    -- Connectivity
-    primary_pihole BOOLEAN,      -- FTL service
-    secondary_pihole BOOLEAN,    -- FTL service
-    primary_dns BOOLEAN,         -- DNS queries working
-    secondary_dns BOOLEAN,       -- DNS queries working
-    dhcp_leases INTEGER,         -- Active DHCP leases
-    primary_dhcp BOOLEAN,        -- DHCP enabled
-    secondary_dhcp BOOLEAN       -- DHCP enabled
-);
-
-CREATE TABLE events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp DATETIME DEFAULT CURRENT_timestamp,
-    event_type TEXT,             -- info, warning, error, success
-    message TEXT
-);
-```
-
-### Configuration Files
-
-**Generated by setup.py:**
-- `primary_keepalived.conf` - Keepalived config for primary
-- `secondary_keepalived.conf` - Keepalived config for secondary
-- `monitor.env` - Monitor service environment variables
-- `primary.env` - Primary Pi-hole environment variables
-- `secondary.env` - Secondary Pi-hole environment variables
-
-**Security Note:** All generated config files are automatically deleted after deployment (overwritten with random data first).
+---
 
 ## Troubleshooting
 
 ### Monitor Issues
-1. Check service status:
+
+**Service won't start:**
 ```bash
-sudo systemctl status pihole-monitor
+# Check logs
+journalctl -u pihole-monitor -n 50
+
+# Verify environment
+cat /opt/pihole-monitor/.env
+
+# Test manually
+cd /opt/pihole-monitor
+source venv/bin/activate
+python monitor.py
 ```
 
-2. Verify connectivity:
-```bash
-ping <pihole-ip>
-curl -X POST http://<pihole-ip>/api/auth
-```
+**Dashboard not accessible:**
+- Check firewall: `sudo ufw allow 8080/tcp`
+- Verify service: `systemctl status pihole-monitor`
+- Check binding: `ss -tlnp | grep 8080`
 
 ### Keepalived Issues
-1. Check configuration:
+
+**VIP not assigned:**
 ```bash
-sudo keepalived -t -f /etc/keepalived/keepalived.conf
+# Check keepalived status
+systemctl status keepalived
+journalctl -u keepalived -n 50
+
+# Check VIP
+ip addr show | grep <VIP>
+
+# Check VRRP state
+tail -f /var/log/keepalived-notify.log
 ```
 
-2. Monitor VRRP messages:
-```bash
-sudo tcpdump -n -i any vrrp
-```
+**Split-brain (both MASTER):**
+- Check network connectivity between Pi-holes
+- Verify interface name in `/etc/keepalived/keepalived.conf`
+- Check firewall allows VRRP (protocol 112)
 
 ### Notification Issues
-1. Test notification from settings page
-2. Check notification config: `/etc/pihole-sentinel/notify.conf`
-3. Check keepalived logs: `tail -f /var/log/keepalived-notify.log`
+
+**Notifications not working:**
+1. **Test in dashboard** - Settings → Test notification
+2. **Check credentials** - Verify tokens/keys are correct
+3. **Check logs** - `tail -f /var/log/keepalived-notify.log`
+4. **Network access** - Ensure Pi-holes can reach notification services
+
+---
 
 ## Security Considerations
 
-**Automated Security Measures:**
+- **API Keys** - Monitor dashboard protected by API key
+- **Pi-hole Passwords** - Stored in `.env` files (chmod 600)
+- **SSH Keys** - Ed25519 keys generated automatically
+- **VRRP Auth** - Keepalived uses password authentication
+- **File Permissions** - Secrets stored with restrictive permissions (600)
+- **Network Security** - Deploy on trusted network (isolated VLAN recommended)
 
-1. **SSH Key Security**
-   - Setup generates ed25519 SSH keys automatically
-   - Keys stored in `~/.ssh/id_pihole_sentinel`
-   - Passwords only used once to distribute keys
-   - Passwords cleared from memory after use
+**Best Practices:**
+- Use strong Pi-hole passwords (16+ characters)
+- Restrict dashboard access (firewall rules)
+- Regular system updates (`apt update && apt upgrade`)
+- Monitor logs weekly
+- Backup configurations
 
-2. **Configuration File Cleanup**
-   - Generated configs contain Pi-hole passwords and keepalived secrets
-   - Automatically overwritten with random data after deployment
-   - Directory removed completely
-   - Cleanup occurs on success, error, or keyboard interrupt
-
-3. **Remote Server Security**
-   - `.env` files have chmod 600 permissions (root only)
-   - Keepalived configs have chmod 644 permissions
-   - Scripts have chmod 755 permissions (executable)
-   - Service runs as dedicated `pihole-monitor` user
-
-4. **Best Practices**
-   - Use strong Pi-hole web passwords
-   - Keep systems updated
-   - Monitor logs regularly
-   - Use firewall rules to restrict access
-   - Review notification settings regularly
-
-**No Sensitive Data Left Behind:**
-- ✅ SSH passwords cleared from memory
-- ✅ Config files securely deleted
-- ✅ Only SSH keys remain (standard Unix security)
-- ✅ Remote configs have proper permissions
+---
 
 ## Contributing
 
-Feel free to submit issues and pull requests.
+Contributions welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+**See:** [CLAUDE.md - Contributing Changes](CLAUDE.md#contributing-changes) for detailed guidelines.
+
+---
 
 ## License
 
-MIT License - see LICENSE file for details
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## Acknowledgments
+
+- **Pi-hole Team** - For the amazing DNS/ad-blocking software
+- **Keepalived** - For robust VRRP implementation
+- **Community** - For feedback, testing, and contributions
+
+---
+
+<div align="center">
+
+**Made with ❤️ by [JBakers](https://github.com/JBakers)**
+
+[⬆ Back to Top](#pi-hole-sentinel)
+
+</div>

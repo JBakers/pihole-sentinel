@@ -5,6 +5,56 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0-beta.16] - 2025-12-07
+
+### 📚 Documentation
+
+#### Major Documentation Restructuring
+- **Created `docs/` directory structure** for organized documentation
+  - `docs/installation/` - Installation guides
+  - `docs/maintenance/` - Maintenance and sync guides
+  - `docs/development/` - Development and testing guides
+  - `docs/api/` - API documentation
+  - `docs/configuration/` - (Future) Configuration guides
+  - `docs/usage/` - (Future) Usage guides
+  - `docs/troubleshooting/` - (Future) Troubleshooting guides
+
+- **Moved existing documentation to docs/ structure:**
+  - `QUICKSTART.md` → `docs/installation/quick-start.md`
+  - `EXISTING-SETUP.md` → `docs/installation/existing-setup.md`
+  - `SYNC-SETUP.md` → `docs/maintenance/sync.md`
+  - `DEVELOPMENT.md` → `docs/development/README.md`
+  - `TESTING-GUIDE.md` → `docs/development/testing.md`
+  - `API.md` → `docs/api/README.md`
+
+- **Created `docs/README.md` navigation index:**
+  - Central documentation hub with clear navigation
+  - Links to all documentation sections
+  - Quick links to common resources
+  - Documentation map showing structure
+
+- **Restructured README.md (major improvement):**
+  - Reduced from **749 lines to 410 lines** (45% reduction)
+  - Focused on overview, features, and quick start
+  - Removed detailed content (moved to `docs/`)
+  - Improved readability and navigation
+  - Clear links to detailed documentation
+  - Maintained all essential information
+
+- **Updated CLAUDE.md:**
+  - Updated codebase structure section with `docs/` directory
+  - Updated Additional Resources with new file locations
+  - All documentation references now point to correct locations
+
+**Impact:**
+- ✅ Much easier to navigate documentation
+- ✅ README.md is concise and focused
+- ✅ Detailed guides in logical locations
+- ✅ Better documentation organization for future growth
+- ✅ Improved maintainability
+
+---
+
 ## [0.10.0-beta.15] - 2025-12-07
 
 ### 🔧 Improved
