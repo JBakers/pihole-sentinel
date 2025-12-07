@@ -1070,9 +1070,16 @@ NODE_STATE=MASTER
                 ("requirements.txt", "/tmp/pihole-sentinel-deploy/requirements.txt"),
                 ("VERSION", "/tmp/pihole-sentinel-deploy/VERSION"),
             ]
-            
-            for local, remote in files_to_copy:
+
+            total_files = len(files_to_copy)
+            for idx, (local, remote) in enumerate(files_to_copy, 1):
+                progress = int((idx / total_files) * 20)
+                bar = "█" * progress + "░" * (20 - progress)
+                percent = int((idx / total_files) * 100)
+                filename = os.path.basename(local)
+                print(f"├─ [{bar}] {percent:3d}% {filename:30s}", end='\r')
                 self.remote_copy(local, host, user, port, remote, password)
+            print(f"├─ [████████████████████] 100% All files copied{' ' * 30}")
             
             # Execute installation commands
             print("Installing monitor service...")
@@ -1081,17 +1088,22 @@ NODE_STATE=MASTER
             
             print("├─ Setting up directories...")
             self.remote_exec(host, user, port, "mkdir -p /opt/pihole-monitor", password)
+
+            print("├─ [░░░░░░░░░░░░░░░░░░░░] 0%   Creating virtual environment...", end='\r')
             self.remote_exec(host, user, port, "python3 -m venv /opt/pihole-monitor/venv", password)
-            
-            print("├─ Installing Python packages (this may take a moment)...")
+            print("├─ [████░░░░░░░░░░░░░░░░] 20%  Virtual environment created   ")
+
+            print("├─ [████░░░░░░░░░░░░░░░░] 20%  Installing Python packages (this may take 1-2 minutes)...", end='\r')
             if VERBOSE:
-                self.remote_exec(host, user, port, 
-                    "cd /tmp/pihole-sentinel-deploy && /opt/pihole-monitor/venv/bin/pip install -r requirements.txt", 
+                self.remote_exec(host, user, port,
+                    "cd /tmp/pihole-sentinel-deploy && /opt/pihole-monitor/venv/bin/pip install -r requirements.txt",
                     password)
+                print("├─ [████████████████████] 100% Python packages installed{' ' * 20}")
             else:
-                self.remote_exec(host, user, port, 
-                    "cd /tmp/pihole-sentinel-deploy && /opt/pihole-monitor/venv/bin/pip install -q -r requirements.txt >/dev/null 2>&1", 
+                self.remote_exec(host, user, port,
+                    "cd /tmp/pihole-sentinel-deploy && /opt/pihole-monitor/venv/bin/pip install -q -r requirements.txt >/dev/null 2>&1",
                     password)
+                print("├─ [████████████████████] 100% Python packages installed{' ' * 20}")
             
             print("├─ Copying application files...")
             commands = [
@@ -1246,9 +1258,16 @@ NODE_STATE=MASTER
                 ("keepalived/scripts/dhcp_control.sh", "/tmp/pihole-sentinel-deploy/dhcp_control.sh"),
                 ("keepalived/scripts/keepalived_notify.sh", "/tmp/pihole-sentinel-deploy/keepalived_notify.sh"),
             ]
-            
-            for local, remote in files_to_copy:
+
+            total_files = len(files_to_copy)
+            for idx, (local, remote) in enumerate(files_to_copy, 1):
+                progress = int((idx / total_files) * 20)
+                bar = "█" * progress + "░" * (20 - progress)
+                percent = int((idx / total_files) * 100)
+                filename = os.path.basename(local)
+                print(f"├─ [{bar}] {percent:3d}% {filename:30s}", end='\r')
                 self.remote_copy(local, host, user, port, remote, password)
+            print(f"├─ [████████████████████] 100% All files copied{' ' * 30}")
             
             # Execute installation commands
             print("Installing keepalived...")

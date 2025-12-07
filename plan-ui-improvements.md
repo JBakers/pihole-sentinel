@@ -53,10 +53,19 @@ None currently.
 - [x] Verified all placeholder text and help text
 - [x] Confirmed proper English grammar throughout
 
-## To Do 📋
+## Completed ✅ (continued)
 
 ### 7. Remote Install Progress Indicator
-- [ ] Add progress bar/spinner to setup.py during remote deployment
+- [x] Added progress bars for file copying in deploy_monitor_remote()
+- [x] Added progress bars for file copying in deploy_keepalived_remote()
+- [x] Added progress indicator for virtual environment creation
+- [x] Added progress indicator for Python package installation (with time estimate)
+- [x] Shows real-time percentage and filename during file transfers
+- [x] Visual progress bars using Unicode block characters (░ and █)
+
+## To Do 📋
+
+### Future Improvements (Optional)
 - [ ] Show progress for:
   - SSH key distribution
   - Package installation
