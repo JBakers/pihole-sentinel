@@ -15,7 +15,7 @@ See [docs/README.md](docs/README.md) for the documentation hub.
 
 *Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
 
-[![Version](https://img.shields.io/badge/version-v0.12.0--beta.6-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-v0.12.0--beta.7-blue.svg)](VERSION)
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
@@ -24,6 +24,26 @@ See [docs/README.md](docs/README.md) for the documentation hub.
 [Features](#features) • [Quick Start](#quick-start) • [Installation](#installation) • [Documentation](docs/README.md)
 
 </div>
+
+---
+
+> [!WARNING]
+> **🚧 ACTIVE DEVELOPMENT - BETA STATUS**
+>
+> Pi-hole Sentinel is currently in **active beta development** (v0.12.0-beta.7).
+>
+> While the codebase has passed quality audits (89/100 - Excellent) and is well-tested, it is **still in beta** and may receive breaking changes before the v1.0.0 stable release.
+>
+> **Recommended for:**
+> - ✅ Home labs and testing environments
+> - ✅ Tech enthusiasts who want to contribute feedback
+> - ✅ Non-critical production environments (with testing first)
+>
+> **Not recommended for:**
+> - ❌ Critical production environments without thorough testing
+> - ❌ Users who need guaranteed stability
+>
+> **Your feedback and testing help make Pi-hole Sentinel production-ready!** Please [report any issues](https://github.com/JBakers/pihole-sentinel/issues) you encounter.
 
 ---
 
