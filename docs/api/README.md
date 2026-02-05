@@ -1,8 +1,16 @@
 # Pi-hole Sentinel API Documentation
 
-**Version:** 0.10.0-beta.15
-**Last Updated:** 2025-12-07
+**Version:** 0.12.0-beta.7  
+**Last Updated:** 2025-12-07  
 **Base URL:** `http://<monitor-ip>:8080`
+
+---
+
+## Quick Links
+
+- **Interactive Docs:** `http://monitor-ip:8080/api/docs` (Swagger UI)
+- **Alternative Docs:** `http://monitor-ip:8080/api/redoc` (ReDoc)
+- **OpenAPI Schema:** `http://monitor-ip:8080/api/openapi.json`
 
 ---
 
@@ -10,9 +18,8 @@
 
 - [Authentication](#authentication)
 - [Rate Limiting](#rate-limiting)
-- [UI Endpoints](#ui-endpoints)
-- [Status & Monitoring](#status--monitoring)
-- [Notification Management](#notification-management)
+- [Endpoints Overview](#endpoints-overview)
+- [Detailed Endpoints](#detailed-endpoints)
 - [Error Responses](#error-responses)
 - [Examples](#examples)
 
@@ -65,39 +72,403 @@ HTTP Status: `403 Forbidden`
 
 ## Rate Limiting
 
-**Protection:** Test notification endpoint is rate-limited
+**Protection:** Test notification endpoints are rate-limited
 
 **Limits:**
 - **3 requests per 60 seconds** per IP address
-- Applies only to `POST /api/notifications/test`
+- Applies to:
+  - `POST /api/notifications/test`
+  - `POST /api/notifications/test-template`
 
 **Error Response (Rate Limit Exceeded):**
 ```json
 {
-  "detail": "Rate limit exceeded. Try again in 60 seconds."
+  "detail": "Rate limit exceeded. Max 3 requests per 60 seconds."
 }
 ```
 HTTP Status: `429 Too Many Requests`
 
 ---
 
-## UI Endpoints
+## Endpoints Overview
 
-### Dashboard
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/version` | No | Get current version |
+| GET | `/api/check-update` | Yes | Check for available updates |
+| GET | `/api/status` | Yes | Get real-time system status |
+| GET | `/api/history` | Yes | Get historical data (24h default) |
+| GET | `/api/events` | Yes | Get events & failover history |
+| GET | `/api/notifications/settings` | Yes | Get notification config |
+| POST | `/api/notifications/settings` | Yes | Update notification config |
+| POST | `/api/notifications/test` | Yes | Send test notification |
+| POST | `/api/notifications/test-template` | Yes | Preview template (no send) |
+| GET | `/api/notifications/snooze` | Yes | Get snooze status |
+| POST | `/api/notifications/snooze` | Yes | Start snooze |
+| DELETE | `/api/notifications/snooze` | Yes | Cancel snooze |
 
+---
+
+## Detailed Endpoints
+
+### System Information
+
+#### Get Version
 ```http
-GET /
-GET /index.html
+GET /api/version
 ```
 
-**Description:** Serves the main monitoring dashboard
+**Description:** Get current Pi-hole Sentinel version
 
-**Authentication:** None required
+**Authentication:** No
 
-**Response:** HTML page
+**Response:**
+```json
+{
+  "version": "0.12.0-beta.7"
+}
+```
 
-**Features:**
-- Real-time status display
+#### Check for Updates
+```http
+GET /api/check-update
+X-API-Key: your-api-key
+```
+
+**Description:** Check GitHub for available updates. Results cached 6 hours.
+
+**Authentication:** Yes
+
+**Response:**
+```json
+{
+  "current_version": "0.12.0-beta.7",
+  "latest_version": "0.13.0-beta.1",
+  "update_available": true,
+  "release_url": "https://github.com/JBakers/pihole-sentinel/releases/tag/0.13.0-beta.1",
+  "cached": false
+}
+```
+
+---
+
+### Status and Monitoring
+
+#### Get Current Status
+```http
+GET /api/status
+X-API-Key: your-api-key
+```
+
+**Description:** Get real-time status of both Pi-holes and VIP location
+
+**Authentication:** Yes
+
+**Response:**
+```json
+{
+  "master": "Primary Pi-hole",
+  "backup": "Secondary Pi-hole",
+  "vip_address": "192.168.1.100",
+  "primary": {
+    "name": "Primary Pi-hole",
+    "ip": "192.168.1.10",
+    "ftl_running": true,
+    "dns_working": true,
+    "dhcp_running": true,
+    "last_check": "2025-12-07T14:32:15.123456"
+  },
+  "secondary": {
+    "name": "Secondary Pi-hole",
+    "ip": "192.168.1.11",
+    "ftl_running": true,
+    "dns_working": true,
+    "dhcp_running": false,
+    "last_check": "2025-12-07T14:32:15.123456"
+  },
+  "uptime_seconds": 86400,
+  "last_check": "2025-12-07T14:32:15.123456"
+}
+```
+
+#### Get Historical Data
+```http
+GET /api/history?hours=24
+X-API-Key: your-api-key
+```
+
+**Description:** Get status history for dashboard graphs
+
+**Authentication:** Yes
+
+**Query Parameters:**
+- `hours` (float, default: 24, max: 720): Hours of history to retrieve
+
+**Response:**
+```json
+[
+  {
+    "time": "2025-12-07T00:00:00",
+    "primary": 1,
+    "secondary": 0
+  },
+  {
+    "time": "2025-12-07T01:00:00",
+    "primary": 0,
+    "secondary": 1
+  }
+]
+```
+
+#### Get Events
+```http
+GET /api/events?limit=50
+X-API-Key: your-api-key
+```
+
+**Description:** Get recent system events and failover history
+
+**Authentication:** Yes
+
+**Query Parameters:**
+- `limit` (int, default: 50, max: 500): Maximum events to return
+
+**Response:**
+```json
+{
+  "total_events": 147,
+  "recent_events": [
+    {
+      "timestamp": "2025-12-07T14:30:00",
+      "event_type": "failover",
+      "description": "Secondary Pi-hole is now MASTER",
+      "details": {
+        "reason": "Primary service stopped",
+        "vip_moved_to": "192.168.1.11"
+      }
+    }
+  ],
+  "failover_count": 3,
+  "last_failover": "2025-12-07T14:30:00"
+}
+```
+
+---
+
+### Notification Management
+
+#### Get Notification Settings
+```http
+GET /api/notifications/settings
+X-API-Key: your-api-key
+```
+
+**Description:** Get current notification configuration (sensitive data masked)
+
+**Authentication:** Yes
+
+**Response:**
+```json
+{
+  "enabled": true,
+  "events": {
+    "failover": true,
+    "recovery": true,
+    "fault": true,
+    "startup": false
+  },
+  "telegram": {
+    "enabled": true,
+    "bot_token": "••••••••1234",
+    "chat_id": "••••5678"
+  },
+  "discord": {
+    "enabled": false,
+    "webhook_url": null
+  },
+  "templates": {
+    "failover": "🚨 {node} is now MASTER\nReason: {reason}",
+    "recovery": "✅ {node} recovered"
+  },
+  "repeat": {
+    "enabled": true,
+    "interval": 60
+  },
+  "snooze": {
+    "enabled": false,
+    "until": null
+  }
+}
+```
+
+#### Update Notification Settings
+```http
+POST /api/notifications/settings
+X-API-Key: your-api-key
+Content-Type: application/json
+
+{
+  "enabled": true,
+  "events": {
+    "failover": true,
+    "recovery": true
+  },
+  "telegram": {
+    "enabled": true,
+    "bot_token": "123456:ABCdef-GHIJ...",
+    "chat_id": "987654321"
+  },
+  "templates": {
+    "failover": "🚨 FAILOVER: {node} is now MASTER"
+  }
+}
+```
+
+**Description:** Save notification service configuration
+
+**Authentication:** Yes (required)
+
+**Security:** Masked values from previous GET are not overwritten
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Settings saved successfully"
+}
+```
+
+#### Test Notification Service
+```http
+POST /api/notifications/test
+X-API-Key: your-api-key
+Content-Type: application/json
+
+{
+  "service": "telegram",
+  "event_type": "failover"
+}
+```
+
+**Description:** Send a test notification to verify service configuration
+
+**Authentication:** Yes (required)
+
+**Rate Limited:** Yes (3 per 60 seconds)
+
+**Request Parameters:**
+- `service` (required): `telegram`, `discord`, `pushover`, `ntfy`, or `webhook`
+- `event_type` (optional): Event type for template selection
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Test notification sent via telegram",
+  "service": "telegram"
+}
+```
+
+#### Preview Notification Template
+```http
+POST /api/notifications/test-template
+X-API-Key: your-api-key
+Content-Type: application/json
+
+{
+  "template": "Failover: {node} is MASTER",
+  "variables": {
+    "node": "Primary Pi-hole"
+  }
+}
+```
+
+**Description:** Preview rendered template without sending notification
+
+**Authentication:** Yes (required)
+
+**Rate Limited:** Yes (3 per 60 seconds)
+
+**Response:**
+```json
+{
+  "rendered": "Failover: Primary Pi-hole is MASTER",
+  "status": "success"
+}
+```
+
+---
+
+### Notification Snooze
+
+#### Get Snooze Status
+```http
+GET /api/notifications/snooze
+X-API-Key: your-api-key
+```
+
+**Description:** Get current notification snooze status
+
+**Authentication:** Yes
+
+**Response:**
+```json
+{
+  "snoozed": true,
+  "until": "2025-12-07T15:30:00",
+  "remaining_seconds": 1800
+}
+```
+
+#### Start Snooze
+```http
+POST /api/notifications/snooze
+X-API-Key: your-api-key
+Content-Type: application/json
+
+{
+  "minutes": 60
+}
+```
+
+**Description:** Snooze all notifications for specified duration
+
+**Authentication:** Yes
+
+**Request Parameters:**
+- `minutes` (required): Duration in minutes (1-1440, max 24 hours)
+
+**Response:**
+```json
+{
+  "snoozed": true,
+  "until": "2025-12-07T15:30:00",
+  "remaining_seconds": 3600
+}
+```
+
+#### Cancel Snooze
+```http
+DELETE /api/notifications/snooze
+X-API-Key: your-api-key
+```
+
+**Description:** Immediately cancel active snooze and re-enable notifications
+
+**Authentication:** Yes
+
+**Response:**
+```json
+{
+  "snoozed": false,
+  "until": null,
+  "remaining_seconds": null
+}
+```
+
+---
+
+
 - Historical graphs (1h/6h/24h/7d/30d)
 - Event timeline
 - Dark mode support
@@ -506,26 +877,25 @@ HTTP Status: `429 Too Many Requests`
 
 ## Error Responses
 
-### Common Error Codes
+### HTTP Status Codes
 
-| Status Code | Meaning |
-|-------------|---------|
-| `200 OK` | Request successful |
-| `400 Bad Request` | Invalid request parameters or body |
-| `403 Forbidden` | Missing or invalid API key |
-| `404 Not Found` | Endpoint does not exist |
-| `429 Too Many Requests` | Rate limit exceeded |
-| `500 Internal Server Error` | Server-side error |
+| Status | Description | Example |
+|--------|-------------|---------|
+| **200** | Request successful | Status retrieved |
+| **400** | Bad request parameters | Invalid duration (must be 1-1440) |
+| **403** | Authentication required/failed | Invalid or missing X-API-Key |
+| **429** | Rate limit exceeded | Too many test requests in 60s |
+| **500** | Server error | Database error, file I/O error |
 
-### Error Response Format
+### Standard Error Response Format
+
+All errors return JSON with details:
 
 ```json
 {
-  "detail": "Error message describing what went wrong"
+  "detail": "Human-readable error message"
 }
 ```
-
----
 
 ## Examples
 
