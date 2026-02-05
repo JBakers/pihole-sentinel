@@ -3,9 +3,8 @@
 #
 # Quick commands for common development tasks
 
-.PHONY: help install install-dev test test-unit test-integration test-cov test-fast clean lint format check-security
+.PHONY: help install install-dev test test-unit test-integration test-cov test-fast clean lint format check-security docker-build docker-up docker-down docker-test docker-logs
 
-# Default target
 help:
 	@echo "Pi-hole Sentinel Development Commands"
 	@echo "======================================"
@@ -25,6 +24,19 @@ help:
 	@echo "  make lint             Run linters (pylint, flake8)"
 	@echo "  make format           Format code with black and isort"
 	@echo "  make check-security   Run security checks (bandit, safety)"
+	@echo ""
+	@echo "Docker Testing:"
+	@echo "  make docker-build     Build test Docker image"
+	@echo "  make docker-up        Start docker-compose test environment"
+	@echo "  make docker-down      Stop docker-compose test environment"
+	@echo "  make docker-test      Run full test suite in Docker"
+	@echo "  make docker-logs      View Docker container logs"
+	@echo ""
+	@echo "Automated Tests:"
+	@echo "  make run-all-tests         Run all automated test scripts"
+	@echo "  make run-syntax-checks     Validate Python/Bash syntax"
+	@echo "  make run-quality-checks    Check code quality"
+	@echo "  make run-security-scans    Security audit"
 	@echo ""
 	@echo "Cleanup:"
 	@echo "  make clean            Remove generated files"
@@ -77,3 +89,40 @@ clean:
 	find . -type f -name "*.pyc" -delete
 	find . -type f -name "*.pyo" -delete
 	find . -type f -name ".coverage.*" -delete
+
+# Docker Testing
+docker-build:
+	docker-compose -f docker-compose.test.yml build
+
+docker-up:
+	docker-compose -f docker-compose.test.yml up -d
+	@echo "Waiting for services to start..."
+	@sleep 5
+	@echo "Monitor API available at: http://localhost:8080/api/docs"
+
+docker-down:
+	docker-compose -f docker-compose.test.yml down -v
+
+docker-test: docker-down docker-build docker-up
+	@echo "🧪 Running tests in Docker environment..."
+	@sleep 3
+	docker exec sentinel-monitor ./.github/scripts/run-all-tests.sh || true
+	@echo "✅ Docker environment ready at http://localhost:8080"
+	@echo "📊 View logs with: make docker-logs"
+
+docker-logs:
+	docker-compose -f docker-compose.test.yml logs -f
+
+# Automated Test Scripts
+run-all-tests:
+	@./.github/scripts/run-all-tests.sh
+
+run-syntax-checks:
+	@./.github/scripts/run-syntax-checks.sh
+
+run-quality-checks:
+	@./.github/scripts/run-quality-checks.sh
+
+run-security-scans:
+	@./.github/scripts/run-security-scans.sh
+
