@@ -17,13 +17,15 @@ import logging
 import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Dict
+from typing import Dict, Optional, List
 from collections import defaultdict
+from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException, Security, Depends, Request
 from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.openapi.utils import get_openapi
 from dotenv import load_dotenv
 import secrets
 
@@ -89,6 +91,107 @@ if missing_vars:
     logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
     sys.exit(1)
 
+# ============================================================================
+# Pydantic Models for OpenAPI/Swagger Documentation
+# ============================================================================
+
+class VersionResponse(BaseModel):
+    """Version information response"""
+    version: str = Field(..., description="Current Pi-hole Sentinel version (e.g., 0.12.0-beta.7)")
+
+
+class UpdateCheckResponse(BaseModel):
+    """Update availability check response"""
+    current_version: str = Field(..., description="Currently installed version")
+    latest_version: Optional[str] = Field(None, description="Latest available version from GitHub")
+    update_available: bool = Field(..., description="Whether an update is available")
+    release_url: Optional[str] = Field(None, description="URL to the latest release")
+    cached: bool = Field(False, description="Whether this result was cached from recent check")
+    message: Optional[str] = Field(None, description="Additional message if applicable")
+
+
+class PiHoleStatus(BaseModel):
+    """Status of a single Pi-hole instance"""
+    name: str = Field(..., description="Pi-hole instance name (Primary or Secondary)")
+    ip: str = Field(..., description="IP address of the Pi-hole instance")
+    ftl_running: bool = Field(..., description="Whether pihole-FTL service is running")
+    dns_working: bool = Field(..., description="Whether DNS resolution is working")
+    dhcp_running: Optional[bool] = Field(None, description="Whether DHCP server is running (if enabled)")
+    last_check: str = Field(..., description="ISO timestamp of last health check")
+
+
+class StatusResponse(BaseModel):
+    """Overall system status response"""
+    master: str = Field(..., description="Name of master (has VIP)")
+    backup: str = Field(..., description="Name of backup server")
+    vip_address: str = Field(..., description="Virtual IP address")
+    primary: PiHoleStatus = Field(..., description="Primary Pi-hole status")
+    secondary: PiHoleStatus = Field(..., description="Secondary Pi-hole status")
+    uptime_seconds: float = Field(..., description="Monitor uptime in seconds")
+    last_check: str = Field(..., description="ISO timestamp of last status update")
+
+
+class HistoryEntry(BaseModel):
+    """Single history event entry"""
+    timestamp: str = Field(..., description="ISO timestamp of event")
+    event_type: str = Field(..., description="Type of event (failover, recovery, fault, etc.)")
+    description: str = Field(..., description="Human-readable event description")
+    details: Optional[Dict] = Field(None, description="Additional event details")
+
+
+class EventsResponse(BaseModel):
+    """Events and history response"""
+    total_events: int = Field(..., description="Total number of events in history")
+    recent_events: List[HistoryEntry] = Field(..., description="List of recent events")
+    failover_count: int = Field(..., description="Total number of failovers")
+    last_failover: Optional[str] = Field(None, description="ISO timestamp of last failover")
+
+
+class NotificationSettingsRequest(BaseModel):
+    """Notification settings update request"""
+    enabled: bool = Field(True, description="Enable or disable notifications")
+    events: Dict[str, bool] = Field(default_factory=dict, description="Which event types to notify on")
+    telegram: Optional[Dict] = Field(None, description="Telegram bot configuration")
+    discord: Optional[Dict] = Field(None, description="Discord webhook configuration")
+    pushover: Optional[Dict] = Field(None, description="Pushover service configuration")
+    ntfy: Optional[Dict] = Field(None, description="Ntfy service configuration")
+    webhook: Optional[Dict] = Field(None, description="Custom webhook configuration")
+    templates: Optional[Dict[str, str]] = Field(None, description="Custom message templates per event")
+    repeat: Optional[Dict] = Field(None, description="Reminder/repeat notification settings")
+    snooze: Optional[Dict] = Field(None, description="Snooze settings")
+
+
+class NotificationTestRequest(BaseModel):
+    """Request to send a test notification"""
+    service: str = Field(..., description="Service to test (telegram, discord, pushover, ntfy, webhook)")
+    event_type: str = Field(default="test", description="Event type for template selection")
+
+
+class NotificationTestResponse(BaseModel):
+    """Response from test notification request"""
+    success: bool = Field(..., description="Whether notification was sent")
+    message: str = Field(..., description="Status message")
+    service: str = Field(..., description="Service that was tested")
+
+
+class SnoozeRequest(BaseModel):
+    """Request to snooze notifications"""
+    minutes: int = Field(..., description="Duration to snooze in minutes (1-480)")
+
+
+class SnoozeResponse(BaseModel):
+    """Snooze status response"""
+    snoozed: bool = Field(..., description="Whether notifications are currently snoozed")
+    until: Optional[str] = Field(None, description="ISO timestamp when snooze expires")
+    remaining_seconds: Optional[int] = Field(None, description="Seconds remaining in snooze")
+
+
+class ErrorResponse(BaseModel):
+    """Standard error response"""
+    error: str = Field(..., description="Error message")
+    detail: Optional[str] = Field(None, description="Additional error details")
+    status_code: int = Field(..., description="HTTP status code")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
@@ -106,7 +209,31 @@ async def lifespan(app: FastAPI):
     await close_http_session()
     logger.info("Monitor stopped, HTTP session closed")
 
-app = FastAPI(title="Pi-hole Keepalived Monitor", lifespan=lifespan)
+app = FastAPI(
+    title="Pi-hole Keepalived Monitor API",
+    description="REST API for Pi-hole Sentinel high availability monitoring and management",
+    version="0.12.0-beta.7",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan,
+    servers=[
+        {
+            "url": "http://localhost:8080",
+            "description": "Local monitor server"
+        },
+        {
+            "url": "http://{monitor_ip}:8080",
+            "description": "Remote monitor server",
+            "variables": {
+                "monitor_ip": {
+                    "description": "IP address of monitor server",
+                    "default": "192.168.1.100"
+                }
+            }
+        }
+    ]
+)
 
 # Security: API Key authentication
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
@@ -153,6 +280,98 @@ async def rate_limit_check(request: Request):
 # Global aiohttp ClientSession for connection pooling
 # Reusing sessions improves performance and prevents connection exhaustion
 http_session: aiohttp.ClientSession | None = None
+
+# ============================================================================
+# Custom Exception Classes for Better Error Handling
+# ============================================================================
+
+class PiholeSentinelException(Exception):
+    """Base exception for Pi-hole Sentinel errors"""
+    def __init__(self, message: str, status_code: int = 500, details: Optional[Dict] = None):
+        self.message = message
+        self.status_code = status_code
+        self.details = details or {}
+        super().__init__(self.message)
+
+
+class ConfigurationError(PiholeSentinelException):
+    """Raised when configuration is invalid or missing"""
+    def __init__(self, message: str, details: Optional[Dict] = None):
+        super().__init__(message, status_code=400, details=details)
+
+
+class AuthenticationError(PiholeSentinelException):
+    """Raised when authentication fails"""
+    def __init__(self, message: str = "Invalid or missing API key", details: Optional[Dict] = None):
+        super().__init__(message, status_code=403, details=details)
+
+
+class RateLimitError(PiholeSentinelException):
+    """Raised when rate limit is exceeded"""
+    def __init__(self, message: str = "Too many requests", details: Optional[Dict] = None):
+        super().__init__(message, status_code=429, details=details)
+
+
+class NotificationError(PiholeSentinelException):
+    """Raised when notification sending fails"""
+    def __init__(self, message: str, service: str = "", details: Optional[Dict] = None):
+        if details is None:
+            details = {}
+        details['service'] = service
+        super().__init__(f"Notification failed ({service}): {message}", status_code=500, details=details)
+
+
+class DatabaseError(PiholeSentinelException):
+    """Raised when database operation fails"""
+    def __init__(self, message: str, details: Optional[Dict] = None):
+        super().__init__(f"Database error: {message}", status_code=500, details=details)
+
+
+# ============================================================================
+# Global Exception Handlers
+# ============================================================================
+
+async def handle_pihole_exception(request: Request, exc: PiholeSentinelException):
+    """Handle Pi-hole Sentinel exceptions with standard error response"""
+    logger.error(f"PiholeSentinelException: {exc.message}", extra=exc.details)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": exc.message,
+            "details": exc.details if exc.details else None,
+            "status_code": exc.status_code
+        }
+    )
+
+
+async def handle_http_exception(request: Request, exc: HTTPException):
+    """Handle FastAPI HTTPException with standardized format"""
+    # Log the error
+    logger.warning(f"HTTP {exc.status_code}: {exc.detail}")
+    
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": f"HTTP {exc.status_code}",
+            "details": exc.detail,
+            "status_code": exc.status_code
+        }
+    )
+
+
+async def handle_generic_exception(request: Request, exc: Exception):
+    """Handle unexpected exceptions with safe error response"""
+    logger.error(f"Unhandled exception: {type(exc).__name__}: {str(exc)}", exc_info=True)
+    
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal Server Error",
+            "details": "An unexpected error occurred. Check server logs for details.",
+            "status_code": 500
+        }
+    )
+
 
 async def get_http_session() -> aiohttp.ClientSession:
     """Get or create global HTTP session for connection pooling."""
@@ -452,9 +671,17 @@ app.add_middleware(
         # "http://your-monitor-ip:8080"
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["X-API-Key", "Content-Type"],
 )
+
+# ============================================================================
+# Register Custom Exception Handlers
+# ============================================================================
+
+app.add_exception_handler(PiholeSentinelException, handle_pihole_exception)
+app.add_exception_handler(HTTPException, handle_http_exception)
+app.add_exception_handler(Exception, handle_generic_exception)
 
 # Serve HTML files
 @app.get("/")
@@ -465,9 +692,17 @@ async def serve_index():
 async def serve_settings():
     return FileResponse("settings.html")
 
-@app.get("/api/version")
+@app.get("/api/version", response_model=VersionResponse, tags=["System"])
 async def get_version():
-    """Get current Pi-hole Sentinel version from VERSION file"""
+    """
+    Get current Pi-hole Sentinel version.
+    
+    Returns the version number from the VERSION file. Checks multiple locations
+    including dev environment and production paths.
+    
+    Returns:
+        VersionResponse: Contains the current version string
+    """
     try:
         # Check multiple locations for VERSION file
         possible_paths = [
@@ -499,11 +734,20 @@ _update_cache = {
     "check_interval": 6 * 60 * 60  # 6 hours in seconds
 }
 
-@app.get("/api/check-update")
+@app.get("/api/check-update", response_model=UpdateCheckResponse, tags=["System"])
 async def check_for_updates(api_key: str = Security(verify_api_key)):
-    """Check GitHub for available updates.
+    """
+    Check GitHub for available Pi-hole Sentinel updates.
     
-    Returns cached result if checked within last 6 hours.
+    Queries the GitHub API to find the latest release version. Results are cached
+    for 6 hours to avoid rate limiting. Requires valid API key authentication.
+    
+    Security:
+        - X-API-Key header required
+        - GitHub API calls are rate-limited
+    
+    Returns:
+        UpdateCheckResponse: Current version, latest version, and update URL
     """
     global _update_cache
     
@@ -1119,8 +1363,23 @@ async def monitor_loop():
             await log_event("error", f"Monitor error: {str(e)}")
         await asyncio.sleep(CONFIG["check_interval"])
 
-@app.get("/api/status")
+@app.get("/api/status", response_model=StatusResponse, tags=["Status"])
 async def get_status(api_key: str = Depends(verify_api_key)):
+    """
+    Get current Pi-hole Sentinel system status.
+    
+    Returns real-time status of both Pi-hole instances including FTL service,
+    DNS resolution, DHCP status, and Virtual IP location.
+    
+    Security:
+        - X-API-Key header required
+    
+    Returns:
+        StatusResponse: Master/backup status, health of both nodes, VIP location
+    
+    Raises:
+        HTTPException: 403 if API key invalid, 500 if database error
+    """
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
         async with db.execute("SELECT * FROM status_history ORDER BY timestamp DESC LIMIT 1") as cursor:
             row = await cursor.fetchone()
@@ -1152,15 +1411,48 @@ async def get_status(api_key: str = Depends(verify_api_key)):
                 "dhcp_leases": row[12] if len(row) > 12 else row[10]  # Adjust for new column
             }
 
-@app.get("/api/history")
-async def get_history(hours: float = 24, api_key: str = Depends(verify_api_key)):
+@app.get("/api/history", response_model=List[dict], tags=["History"])
+async def get_history(
+    hours: float = 24,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get historical status data for graph visualization.
+    
+    Retrieves status history for the specified time period. Useful for plotting
+    VIP location changes and identifying failover patterns.
+    
+    Security:
+        - X-API-Key header required
+    
+    Parameters:
+        hours: Number of hours of history to retrieve (default: 24, max: 720)
+    
+    Returns:
+        List of history entries with timestamps and master/backup status flags
+    """
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
         async with db.execute("SELECT timestamp, primary_state, secondary_state FROM status_history WHERE timestamp > datetime('now', '-' || ? || ' hours') ORDER BY timestamp ASC", (hours,)) as cursor:
             rows = await cursor.fetchall()
             return [{"time": row[0], "primary": 1 if row[1] == "MASTER" else 0, "secondary": 1 if row[2] == "MASTER" else 0} for row in rows]
 
-@app.get("/api/events")
+@app.get("/api/events", response_model=EventsResponse, tags=["History"])
 async def get_events(limit: int = 50, api_key: str = Depends(verify_api_key)):
+    """
+    Get recent system events and failover history.
+    
+    Returns a list of system events including failovers, recoveries, faults,
+    and other significant state changes. Includes statistics about failover history.
+    
+    Security:
+        - X-API-Key header required
+    
+    Parameters:
+        limit: Maximum number of events to return (default: 50, max: 500)
+    
+    Returns:
+        EventsResponse: Recent events, failover count, and last failover timestamp
+    """
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
         async with db.execute("SELECT timestamp, event_type, message FROM events ORDER BY timestamp DESC LIMIT ?", (limit,)) as cursor:
             rows = await cursor.fetchall()
@@ -1176,9 +1468,22 @@ async def root():
     else:
         return HTMLResponse(content=f"<h1>Error: index.html not found</h1>", status_code=404)
 
-@app.get("/api/notifications/settings")
+@app.get("/api/notifications/settings", tags=["Notifications"])
 async def get_notification_settings(api_key: str = Depends(verify_api_key)):
-    """Get current notification settings (with masked sensitive data)"""
+    """
+    Get current notification settings configuration.
+    
+    Returns the notification settings with sensitive data masked (tokens replaced
+    with asterisks). Useful for the settings UI to display current configuration
+    without exposing secrets.
+    
+    Security:
+        - X-API-Key header required
+        - Sensitive tokens are masked in response
+    
+    Returns:
+        dict: Notification settings with masked sensitive values
+    """
     import json
     
     config_path = CONFIG["notify_config_path"]
@@ -1280,9 +1585,31 @@ def merge_settings(existing, new):
 
     return merged
 
-@app.post("/api/notifications/settings")
-async def save_notification_settings(settings: dict, api_key: str = Depends(verify_api_key)):
-    """Save notification settings (preserving masked values)"""
+@app.post("/api/notifications/settings", tags=["Notifications"])
+async def save_notification_settings(
+    settings: dict,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Save notification service configuration.
+    
+    Updates notification settings for services like Telegram, Discord, Pushover, Ntfy,
+    and custom webhooks. Supports templated messages and event-based delivery.
+    
+    Security:
+        - X-API-Key header required
+        - Masked values (from GET request) are not overwritten
+        - All settings stored securely
+    
+    Request Body:
+        Settings dictionary with service configurations and templates
+    
+    Returns:
+        dict: Operation status and message
+    
+    Raises:
+        HTTPException: 403 if API key invalid, 400 if settings invalid, 500 on save error
+    """
     import json
     
     config_path = CONFIG["notify_config_path"]
@@ -1366,14 +1693,34 @@ async def save_notification_settings(settings: dict, api_key: str = Depends(veri
         logger.error(f"Failed to save notification settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to save settings: {str(e)}")
 
-@app.post("/api/notifications/test")
+@app.post("/api/notifications/test", response_model=NotificationTestResponse, tags=["Notifications"])
 async def test_notification(
     request: Request,
     data: dict,
     api_key: str = Depends(verify_api_key),
     _rate_limit: bool = Depends(rate_limit_check)
 ):
-    """Test a notification service - loads settings from server to avoid masked values"""
+    """
+    Test a notification service by sending a test message.
+    
+    Sends a test notification to the specified service to verify configuration.
+    Loads unmasked settings from server, so masked values from UI are not used.
+    
+    Security:
+        - X-API-Key header required
+        - Rate limited: max 3 requests per 60 seconds per IP
+        - Only unmasked credentials used for testing
+    
+    Request Body:
+        service: Service to test (telegram, discord, pushover, ntfy, webhook)
+        event_type: Optional event type for template selection
+    
+    Returns:
+        NotificationTestResponse: Success status and message
+    
+    Raises:
+        HTTPException: 403 if auth fails, 429 if rate limited, 400 if service invalid
+    """
     import json
 
     service = data.get('service')
@@ -1564,13 +1911,33 @@ async def test_notification(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
 
-@app.post("/api/notifications/test-template")
+@app.post("/api/notifications/test-template", tags=["Notifications"])
 async def test_template_notification(
     request: Request,
     data: dict,
     api_key: str = Depends(verify_api_key),
     _rate_limit: bool = Depends(rate_limit_check)
 ):
+    """
+    Preview a custom notification template without sending.
+    
+    Takes a template string and template variables, performs variable substitution,
+    and returns the rendered message. Useful for testing custom templates in the UI.
+    
+    Security:
+        - X-API-Key header required
+        - Rate limited: max 3 requests per 60 seconds per IP
+    
+    Request Body:
+        template: Template string with {variable} placeholders
+        variables: Dictionary of variables to substitute
+    
+    Returns:
+        dict: Rendered message and status
+    
+    Raises:
+        HTTPException: 403 if auth fails, 429 if rate limited, 400 if template invalid
+    """
     """Test a template notification with sample data"""
     template_type = data.get('template_type', 'failover')
     
@@ -1601,9 +1968,20 @@ async def test_template_notification(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
 
-@app.get("/api/notifications/snooze")
+@app.get("/api/notifications/snooze", response_model=SnoozeResponse, tags=["Notifications"])
 async def get_snooze_status(api_key: str = Depends(verify_api_key)):
-    """Get current snooze status"""
+    """
+    Get current notification snooze status.
+    
+    Returns whether notifications are currently snoozed and when the snooze
+    will expire. Automatically clears expired snoozes.
+    
+    Security:
+        - X-API-Key header required
+    
+    Returns:
+        SnoozeResponse: Snooze status, expiration time, and remaining duration
+    """
     import json
     
     config_path = CONFIG["notify_config_path"]
@@ -1637,9 +2015,26 @@ async def get_snooze_status(api_key: str = Depends(verify_api_key)):
     
     return {"enabled": False, "until": None, "active": False}
 
-@app.post("/api/notifications/snooze")
+@app.post("/api/notifications/snooze", response_model=SnoozeResponse, tags=["Notifications"])
 async def set_snooze(data: dict, api_key: str = Depends(verify_api_key)):
-    """Set snooze for notifications"""
+    """
+    Snooze notifications for a specified duration.
+    
+    Temporarily disables all notifications for the requested time period.
+    Useful when performing maintenance or when receiving too many alerts.
+    
+    Security:
+        - X-API-Key header required
+    
+    Request Body:
+        duration: Minutes to snooze (1-1440, max 24 hours)
+    
+    Returns:
+        SnoozeResponse: Updated snooze status and expiration time
+    
+    Raises:
+        HTTPException: 403 if auth fails, 400 if duration invalid
+    """
     import json
     
     duration_minutes = data.get('duration', 60)  # Default 1 hour
@@ -1683,9 +2078,22 @@ async def set_snooze(data: dict, api_key: str = Depends(verify_api_key)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to set snooze: {str(e)}")
 
-@app.delete("/api/notifications/snooze")
+@app.delete("/api/notifications/snooze", response_model=SnoozeResponse, tags=["Notifications"])
 async def cancel_snooze(api_key: str = Depends(verify_api_key)):
-    """Cancel active snooze"""
+    """
+    Cancel active notification snooze.
+    
+    Immediately re-enables notifications if they were previously snoozed.
+    
+    Security:
+        - X-API-Key header required
+    
+    Returns:
+        SnoozeResponse: Updated snooze status (should now be enabled=false)
+    
+    Raises:
+        HTTPException: 403 if API key invalid, 500 on save error
+    """
     import json
     
     config_path = CONFIG["notify_config_path"]
