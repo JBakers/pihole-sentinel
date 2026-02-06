@@ -18,7 +18,7 @@ services:
       DHCP_ENABLED: "true"
       IS_PRIMARY: "true"
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost/api/version"]
+      test: [ "CMD", "curl", "-sf", "http://localhost/api/version" ]
       interval: 5s
       timeout: 2s
       retries: 3
@@ -66,7 +66,7 @@ services:
       DHCP_ENABLED: "false"
       IS_PRIMARY: "false"
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost/api/version"]
+      test: [ "CMD", "curl", "-sf", "http://localhost/api/version" ]
       interval: 5s
       timeout: 2s
       retries: 3

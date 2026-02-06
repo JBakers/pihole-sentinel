@@ -1,7 +1,7 @@
 FROM alpine:3.21
 
 LABEL maintainer="JBakers" \
-      description="Pi-hole Sentinel Node - Keepalived + Sync Agent sidecar"
+    description="Pi-hole Sentinel Node - Keepalived + Sync Agent sidecar"
 
 # ── System packages ─────────────────────────────────────────
 RUN apk add --no-cache \
