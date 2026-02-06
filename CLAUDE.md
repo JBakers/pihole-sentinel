@@ -559,6 +559,83 @@ git diff                               # Show unstaged changes
 
 ---
 
+## 📚 Terminologie (Teach User Correct Terms)
+
+**Bij elke interactie, gebruik de correcte terminologie:**
+
+### Git & Version Control
+
+| Term | Betekenis |
+|------|------------|
+| **Repository (repo)** | Git database met alle versies van de code |
+| **Working tree** | Lokale kopie van bestanden op disk |
+| **Staging area / Index** | Bestanden klaar voor commit (`git add`) |
+| **Commit** | Snapshot van staged changes met message |
+| **Push** | Lokale commits uploaden naar remote (GitHub) |
+| **Pull** | Remote changes downloaden naar lokaal |
+| **Branch** | Parallelle versie van de code |
+| **Merge** | Branches samenvoegen |
+
+### Testing
+
+| Term | Betekenis |
+|------|------------|
+| **Unit test** | Test van één functie/component |
+| **Integration test** | Test van meerdere componenten samen |
+| **Test suite** | Verzameling van alle tests |
+| **Test coverage** | Percentage code gedekt door tests |
+
+---
+
+## 🗣️ Communicatie & Taal
+
+**CRITICAL RULE: Taalgebruik moet consistent zijn:**
+
+- **Communicatie met gebruiker:** Altijd in het **Nederlands**
+  - Antwoorden, uitleg, vragen, errors
+  - Git commit messages mogen Engels of Nederlands (user preference)
+  
+- **Code & strings:** Altijd in het **Engels**
+  - Code comments
+  - Variable/function names
+  - User-facing tekst in dashboard/UI
+  - Log messages
+  - API responses
+  - Documentation strings
+
+**Voorbeelden:**
+
+✅ **CORRECT:**
+```python
+# Dutch communication, English code
+AI: "Ik ga nu de monitor service updaten..."
+
+# English code
+def check_pihole_status(ip: str) -> bool:
+    """Check if Pi-hole FTL service is running."""
+    logger.info(f"Checking Pi-hole status at {ip}")
+    ...
+```
+
+❌ **WRONG:**
+```python
+# English communication (should be Dutch)
+AI: "I will now update the monitor service..."
+
+# Dutch code (should be English)
+def controleer_pihole_status(ip: str) -> bool:
+    """Controleer of Pi-hole FTL service draait."""
+    logger.info(f"Controleren van Pi-hole status op {ip}")
+    ...
+```
+
+**Why this matters:**
+- User prefers Dutch communication for better understanding
+- English code ensures international collaboration and maintenance
+- Consistency prevents confusion
+
+---
+
 ## Table of Contents
 
 - [Mandatory Rules](#️-mandatory-rules---read-first)
