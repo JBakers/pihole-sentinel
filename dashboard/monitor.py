@@ -198,7 +198,8 @@ async def lifespan(app: FastAPI):
     # Startup
     await init_db()
     await get_http_session()
-    await log_event("info", "Monitor started")
+    # Duplicate log removed here - log_event is called inside monitor_loop startup logic
+    # await log_event("info", "Monitor started") 
     asyncio.create_task(monitor_loop())
     asyncio.create_task(daily_cleanup_loop())
     logger.info("Pi-hole Sentinel Monitor started")
@@ -1265,6 +1266,12 @@ async def monitor_loop():
                 dhcp_leases = primary_data.get("dhcp_leases", 0)
             elif secondary_state == "MASTER":
                 dhcp_leases = secondary_data.get("dhcp_leases", 0)
+            else:
+                # Fallback: if no master (splitting brain or transition), take max lease count
+                # This prevents graph dips to 0 during short transitions
+                p_leases = primary_data.get("dhcp_leases", 0)
+                s_leases = secondary_data.get("dhcp_leases", 0)
+                dhcp_leases = max(p_leases, s_leases)
             
             async with aiosqlite.connect(CONFIG["db_path"]) as db:
                 await db.execute("""
@@ -1300,19 +1307,19 @@ async def monitor_loop():
                 # Send notification
                 # Determine which node is master and which is backup
                 if current_master == "Primary":
-                    master_node = CONFIG.get('primary_name', 'Primary-Pi-hole')
-                    backup_node = CONFIG.get('secondary_name', 'Secondary-Pi-hole')
+                    master_node = CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole')
+                    backup_node = CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole')
                 else:
-                    master_node = CONFIG.get('secondary_name', 'Secondary-Pi-hole')
-                    backup_node = CONFIG.get('primary_name', 'Primary-Pi-hole')
+                    master_node = CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole')
+                    backup_node = CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole')
                 
                 template_vars = {
                     "node_name": master_name,
                     "node": master_name,
                     "master": master_node,
                     "backup": backup_node,
-                    "primary": CONFIG.get('primary_name', 'Primary-Pi-hole'),
-                    "secondary": CONFIG.get('secondary_name', 'Secondary-Pi-hole'),
+                    "primary": CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole'),
+                    "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole'),
                     "reason": reason if reason else "Unknown",
                     "vip_address": CONFIG['vip'],
                     "vip": CONFIG['vip'],
@@ -1349,25 +1356,41 @@ async def monitor_loop():
             previous_primary_has_vip = primary_has_vip
             previous_secondary_has_vip = secondary_has_vip
             
-            # Check DHCP misconfiguration
+            # Check DHCP misconfiguration (with debounce)
+            # Only warn every 5 minutes to avoid log spam
+            current_time = time.time()
+            if not hasattr(monitor_loop, "last_dhcp_warning"):
+                 monitor_loop.last_dhcp_warning = 0
+            
+            should_warn = (current_time - monitor_loop.last_dhcp_warning) > 300
+
             primary_dhcp = primary_data.get("dhcp_enabled", False)
             secondary_dhcp = secondary_data.get("dhcp_enabled", False)
             
             # MASTER should have DHCP enabled, BACKUP should have it disabled
+            misconfigured = False
+            msg = ""
+            
             if primary_state == "MASTER" and not primary_dhcp:
-                await log_event("warning", "⚠️ DHCP misconfiguration: Primary is MASTER but DHCP is DISABLED")
-                logger.warning("DHCP misconfiguration: Primary is MASTER but DHCP is DISABLED")
+                msg = "⚠️ DHCP misconfiguration: Primary is MASTER but DHCP is DISABLED"
+                misconfigured = True
             elif primary_state == "BACKUP" and primary_dhcp:
-                await log_event("warning", "⚠️ DHCP misconfiguration: Primary is BACKUP but DHCP is ENABLED")
-                logger.warning("DHCP misconfiguration: Primary is BACKUP but DHCP is ENABLED")
-            
-            if secondary_state == "MASTER" and not secondary_dhcp:
-                await log_event("warning", "⚠️ DHCP misconfiguration: Secondary is MASTER but DHCP is DISABLED")
-                logger.warning("DHCP misconfiguration: Secondary is MASTER but DHCP is DISABLED")
+                msg = "⚠️ DHCP misconfiguration: Primary is BACKUP but DHCP is ENABLED"
+                misconfigured = True
+            elif secondary_state == "MASTER" and not secondary_dhcp:
+                msg = "⚠️ DHCP misconfiguration: Secondary is MASTER but DHCP is DISABLED"
+                misconfigured = True
             elif secondary_state == "BACKUP" and secondary_dhcp:
-                await log_event("warning", "⚠️ DHCP misconfiguration: Secondary is BACKUP but DHCP is ENABLED")
-                logger.warning("DHCP misconfiguration: Secondary is BACKUP but DHCP is ENABLED")
+                msg = "⚠️ DHCP misconfiguration: Secondary is BACKUP but DHCP is ENABLED"
+                misconfigured = True
             
+            if misconfigured and should_warn:
+                await log_event("warning", msg)
+                logger.warning(msg)
+                monitor_loop.last_dhcp_warning = current_time
+            elif misconfigured and not should_warn:
+                logger.debug(f"Suppressing DHCP warning (debounce): {msg}")
+
             logger.debug(f"[{datetime.now()}] Primary: {primary_state}, Secondary: {secondary_state}, Leases: {dhcp_leases}")
             
         except Exception as e:
@@ -1728,6 +1751,73 @@ async def save_notification_settings(
         logger.error(f"Failed to save notification settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to save settings: {str(e)}")
 
+class CommandRequest(BaseModel):
+    command: str
+
+@app.post("/api/commands/{command_name}", tags=["System"])
+async def execute_command(command_name: str, api_key: str = Depends(verify_api_key)):
+    """
+    Execute a predefined system command.
+    
+    Supported commands:
+    - monitor_status: Check monitor service status
+    - monitor_logs: Get recent monitor logs
+    - keepalived_status: Check keepalived status
+    - keepalived_logs: Get recent keepalived logs
+    - vip_check: Check VIP connectivity
+    - db_recent_events: Get recent DB events
+    """
+    import subprocess
+    
+    commands = {
+        "monitor_status": ["systemctl", "status", "pihole-monitor", "--no-pager"],
+        "monitor_logs": ["journalctl", "-u", "pihole-monitor", "-n", "50", "--no-pager"],
+        "keepalived_status": ["systemctl", "status", "keepalived", "--no-pager"],
+        "keepalived_logs": ["tail", "-n", "50", "/var/log/keepalived-notify.log"],
+        "vip_check": ["ip", "addr", "show"],
+        "db_recent_events": None  # Special case
+    }
+    
+    if command_name not in commands:
+        raise HTTPException(status_code=400, detail=f"Invalid command: {command_name}")
+        
+    try:
+        if command_name == "db_recent_events":
+            # Reuse get_events logic but format as text
+            async with aiosqlite.connect(CONFIG["db_path"]) as db:
+                async with db.execute("SELECT timestamp, event_type, message FROM events ORDER BY timestamp DESC LIMIT 20") as cursor:
+                    rows = await cursor.fetchall()
+                    output = "\n".join([f"{r[0]} [{r[1]}] {r[2]}" for r in rows])
+                    return JSONResponse({"output": output})
+                    
+        cmd = commands[command_name]
+        
+        # Security check: ensure command is not empty
+        if not cmd:
+            raise HTTPException(status_code=500, detail="Command configuration error")
+            
+        process = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        output = process.stdout
+        if process.stderr:
+            output += "\n--- STDERR ---\n" + process.stderr
+            
+        if not output.strip():
+            output = "(No output)"
+            
+        return JSONResponse({"output": output})
+        
+    except subprocess.TimeoutExpired:
+        return JSONResponse({"output": "Command timed out after 5 seconds"})
+    except Exception as e:
+        logger.error(f"Command execution error: {e}", exc_info=True)
+        return JSONResponse({"output": f"Error executing command: {str(e)}"})
+
 @app.post("/api/notifications/test", response_model=NotificationTestResponse, tags=["Notifications"])
 async def test_notification(
     request: Request,
@@ -1980,8 +2070,8 @@ async def test_template_notification(
         raise HTTPException(status_code=400, detail="Invalid template type")
     
     # Sample data for testing - use configured names or defaults
-    primary_name = CONFIG.get('primary_name', 'Primary-Pi-hole')
-    secondary_name = CONFIG.get('secondary_name', 'Secondary-Pi-hole')
+    primary_name = CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole')
+    secondary_name = CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole')
     
     sample_vars = {
         "node_name": secondary_name,

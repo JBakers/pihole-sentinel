@@ -1,0 +1,43 @@
+#!/bin/bash
+# Dummy systemctl for Docker container
+# Emulates systemctl commands used by pisen tool and monitor
+
+LOG_FILE="/var/log/systemctl_mock.log"
+
+log_cmd() {
+    echo "$(date) - systemctl $@" >> "$LOG_FILE"
+}
+
+command=$1
+service=$2
+
+case $command in
+    status)
+        log_cmd "status $service"
+        echo "● $service - Mock Service"
+        echo "   Loaded: loaded (/lib/systemd/system/$service; enabled; vendor preset: enabled)"
+        echo "   Active: active (running) since Fri 2026-02-06 12:00:00 UTC; 1h ago"
+        echo " Main PID: 1234 (python3)"
+        echo "    Tasks: 1 (limit: 1000)"
+        echo "   Memory: 10.0M"
+        echo "   CGroup: /system.slice/$service"
+        exit 0
+        ;;
+    start|stop|restart)
+        log_cmd "$command $service"
+        echo "Mock systemctl: $command $service executed"
+        exit 0
+        ;;
+    is-active)
+        echo "active"
+        exit 0
+        ;;
+    enable|disable)
+        log_cmd "$command $service"
+        exit 0
+        ;;
+    *)
+        echo "Mock systemctl: command '$command' not implemented"
+        exit 1
+        ;;
+esac
