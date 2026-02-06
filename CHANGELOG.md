@@ -5,6 +5,30 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0-beta.8] - 2026-02-06
+
+### Fixed
+- **🐛 index.html: System Commands JS buiten `<script>` tag** — ~120 regels JS stond als raw tekst in de HTML body, nu verplaatst naar het hoofd `<script>` blok
+- **🐛 index.html: System Commands card genest in footer** — Commands card en modal uit `<div class="footer">` gehaald, correct geplaatst als eigen sectie
+- **🐛 monitor.py: SnoozeResponse 500 error** — GET/POST/DELETE `/api/notifications/snooze` retourneerde velden die niet matchten met het Pydantic model (`enabled`/`active` vs `snoozed`/`remaining_seconds`)
+- **🐛 index.html: Events API response parsing** — Frontend verwachtte platte array maar API retourneert `{total_events, recent_events, ...}`. JS aangepast naar `data.recent_events` en veldnamen `event_type`/`description`/`timestamp`
+
+### Added
+- **✨ Runtime API key injection** — `serve_index()` en `serve_settings()` vervangen nu `YOUR_API_KEY_HERE` met `CONFIG['api_key']` via `HTMLResponse`. Dashboard werkt nu direct in Docker zonder `sed`
+- **✨ Docker: 12 fake network clients** — `docker/fake-client/` met ARP-gebaseerde lease discovery, `docker-compose.test.yml` uitgebreid naar 17 containers
+- **✨ Mock Pi-hole ARP auto-discovery** — `mock_pihole.py` leest `ip neigh show` voor automatische DHCP lease simulatie
+- **✨ Makefile: docker-status/failover/recover targets** — Nieuwe commando's voor eenvoudig Docker test management
+- **✨ `.dockerignore`** — Voorkomt dat venv, htmlcov, .git etc. in Docker image komen
+- **✨ `.github/copilot-instructions.md`** — AI agent instructies voor GitHub Copilot
+
+### Changed
+- **📝 TODO_USER.md compleet herschreven** — Master bug/fix lijst met 10 bugs (B1-B10), 5 features (F1-F5), 4 docs items (D1-D4), pisen CLI analyse, Docker test status
+- **📝 Events API response** — Retourneert nu `{total_events, recent_events, failover_count, last_failover}` i.p.v. platte array
+
+**Version:** 0.12.0-beta.7 → 0.12.0-beta.8
+
+---
+
 ## [0.12.0-beta.7] - 2025-12-07
 
 ### Security

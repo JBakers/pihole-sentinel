@@ -28,6 +28,7 @@ import uuid
 import time
 import random
 import logging
+import subprocess
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
@@ -79,7 +80,69 @@ state = {
             "expires": int(time.time()) + 43200,
         },
     ],
+    "auto_discover_leases": True,  # auto-discover network neighbors as DHCP leases
 }
+
+# Device names for auto-discovered clients
+_DEVICE_NAMES = [
+    "desktop-pc", "laptop", "phone", "tablet", "smart-tv", "printer",
+    "gaming-console", "smart-speaker", "thermostat", "doorbell",
+    "security-cam", "nas-server", "media-player", "robot-vacuum",
+    "smart-plug", "light-hub", "baby-monitor", "garage-opener",
+]
+_ip_hostname_map = {}  # cache: ip → hostname
+
+
+def discover_arp_leases() -> list:
+    """Discover network neighbors via ARP table and return as DHCP leases.
+
+    Reads `ip neigh show` output, filters for REACHABLE/STALE entries on the
+    Docker bridge subnet, and returns them as Pi-hole v6 style lease objects.
+    Excludes the gateway (.1) and well-known infra IPs (.10, .11, .20, .100).
+    """
+    try:
+        result = subprocess.run(
+            ["ip", "neigh", "show"],
+            capture_output=True, text=True, timeout=5
+        )
+        leases = []
+        exclude_ips = {"10.99.0.1", "10.99.0.10", "10.99.0.11", "10.99.0.20", "10.99.0.100"}
+
+        for line in result.stdout.strip().split("\n"):
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) < 5:
+                continue
+            ip = parts[0]
+
+            # Only include 10.99.0.x subnet, skip infra IPs
+            if not ip.startswith("10.99.0.") or ip in exclude_ips:
+                continue
+
+            # Extract MAC if present
+            try:
+                lladdr_idx = parts.index("lladdr")
+                mac = parts[lladdr_idx + 1].upper()
+            except (ValueError, IndexError):
+                continue
+
+            # Assign a stable hostname
+            if ip not in _ip_hostname_map:
+                idx = len(_ip_hostname_map) % len(_DEVICE_NAMES)
+                _ip_hostname_map[ip] = _DEVICE_NAMES[idx]
+
+            leases.append({
+                "ip": ip,
+                "mac": mac,
+                "hostname": _ip_hostname_map[ip],
+                "expires": int(time.time()) + 86400,
+            })
+
+        return leases
+    except Exception as e:
+        logger.debug(f"ARP discovery failed: {e}")
+        return []
 
 
 class MockPiholeHandler(BaseHTTPRequestHandler):
@@ -163,10 +226,17 @@ class MockPiholeHandler(BaseHTTPRequestHandler):
         elif path == "/api/dhcp/leases":
             if not self._check_auth():
                 return
-            self._send_json({"leases": state["leases"]})
+            # Auto-discover network neighbors as leases if enabled
+            if state["auto_discover_leases"]:
+                discovered = discover_arp_leases()
+                all_leases = state["leases"] + discovered
+            else:
+                all_leases = state["leases"]
+            self._send_json({"leases": all_leases})
 
         # Mock control endpoints
         elif path == "/mock/state":
+            discovered = discover_arp_leases() if state["auto_discover_leases"] else []
             self._send_json({
                 "name": PIHOLE_NAME,
                 "is_primary": IS_PRIMARY,
@@ -177,7 +247,9 @@ class MockPiholeHandler(BaseHTTPRequestHandler):
                 "fail_next": state["fail_next"],
                 "active_sessions": len(state["sessions"]),
                 "stats": state["stats"],
-                "leases_count": len(state["leases"]),
+                "leases_static": len(state["leases"]),
+                "leases_discovered": len(discovered),
+                "leases_total": len(state["leases"]) + len(discovered),
             })
 
         elif path == "/api/version":
@@ -240,7 +312,7 @@ class MockPiholeHandler(BaseHTTPRequestHandler):
             body = self._read_body()
             changed = []
             for key in ["online", "pihole_running", "dhcp_enabled", "dns_working",
-                        "fail_auth", "response_delay"]:
+                        "fail_auth", "response_delay", "auto_discover_leases"]:
                 if key in body:
                     state[key] = body[key]
                     changed.append(f"{key}={body[key]}")

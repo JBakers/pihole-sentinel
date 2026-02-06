@@ -3,7 +3,7 @@
 #
 # Quick commands for common development tasks
 
-.PHONY: help install install-dev test test-unit test-integration test-cov test-fast clean lint format check-security docker-build docker-up docker-down docker-test docker-logs
+.PHONY: help install install-dev test test-unit test-integration test-cov test-fast clean lint format check-security docker-build docker-up docker-down docker-test docker-logs docker-status docker-failover docker-recover
 
 help:
 	@echo "Pi-hole Sentinel Development Commands"
@@ -31,6 +31,9 @@ help:
 	@echo "  make docker-down      Stop docker-compose test environment"
 	@echo "  make docker-test      Run full test suite in Docker"
 	@echo "  make docker-logs      View Docker container logs"
+	@echo "  make docker-status    Show container & client status"
+	@echo "  make docker-failover  Simulate pihole-primary failure"
+	@echo "  make docker-recover   Recover pihole-primary"
 	@echo ""
 	@echo "Automated Tests:"
 	@echo "  make run-all-tests         Run all automated test scripts"
@@ -97,7 +100,7 @@ docker-build:
 docker-up: docker-build
 	docker compose -f docker-compose.test.yml up -d
 	@echo "Waiting for services to start..."
-	@sleep 8
+	@sleep 12
 	@echo ""
 	@echo "=== Pi-hole Sentinel Test Environment ==="
 	@echo "Dashboard:    http://localhost:8080"
@@ -108,9 +111,11 @@ docker-up: docker-build
 	@echo "  Primary:    http://localhost:8001/mock/state"
 	@echo "  Secondary:  http://localhost:8002/mock/state"
 	@echo ""
+	@echo "Fake clients: 12 devices on 10.99.0.101-112"
+	@echo ""
 	@echo "Simulate failover:"
-	@echo "  curl -X POST http://localhost:8001/mock/set-state -H 'Content-Type: application/json' -d '{\"pihole_running\":false}'"
-	@echo "  curl -X POST http://localhost:8001/mock/reset -H 'Content-Type: application/json'"
+	@echo "  make docker-failover"
+	@echo "  make docker-recover"
 	@echo ""
 
 docker-down:
@@ -140,6 +145,36 @@ docker-logs:
 
 docker-logs-monitor:
 	docker compose -f docker-compose.test.yml logs -f sentinel-monitor
+
+docker-status:
+	@echo "=== Container Status ==="
+	@docker compose -f docker-compose.test.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+	@echo ""
+	@echo "=== Primary Pi-hole ==="
+	@curl -sf http://localhost:8001/mock/state 2>/dev/null | python3 -m json.tool || echo "  (unreachable)"
+	@echo ""
+	@echo "=== Secondary Pi-hole ==="
+	@curl -sf http://localhost:8002/mock/state 2>/dev/null | python3 -m json.tool || echo "  (unreachable)"
+	@echo ""
+	@echo "=== Monitor Status ==="
+	@curl -sf -H "X-API-Key: test-api-key-12345" http://localhost:8080/api/status 2>/dev/null | python3 -m json.tool || echo "  (unreachable)"
+
+docker-failover:
+	@echo "🔴 Simulating primary Pi-hole failure..."
+	@curl -sf -X POST http://localhost:8001/mock/set-state \
+		-H 'Content-Type: application/json' \
+		-d '{"pihole_running":false}' | python3 -m json.tool
+	@echo ""
+	@echo "Wait ~10s for monitor to detect change, then check:"
+	@echo "  make docker-status"
+
+docker-recover:
+	@echo "🟢 Recovering primary Pi-hole..."
+	@curl -sf -X POST http://localhost:8001/mock/reset \
+		-H 'Content-Type: application/json' | python3 -m json.tool
+	@echo ""
+	@echo "Wait ~10s for monitor to detect recovery, then check:"
+	@echo "  make docker-status"
 
 # Automated Test Scripts
 run-all-tests:
