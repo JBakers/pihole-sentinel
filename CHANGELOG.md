@@ -1,13 +1,20 @@
-# 0.12.0-beta.7 (2025-12-07)
+# Changelog
 
-## Security
+All notable changes to Pi-hole Sentinel will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.12.0-beta.7] - 2025-12-07
+
+### Security
 - **🚫 CRITICAL: Added foolproof git hook protection against unauthorized merges**
   - Created `.githooks/pre-merge-commit` hook to block AI agents from merging to testing/main
   - Hook enforces CLAUDE.md mandatory rule: "Only user may merge to testing/main"
   - Provides clear error messages and instructions (Dutch/English)
   - User can override with `--no-verify` if needed
 
-## Documentation
+### Documentation
 - **📚 Extensive CLAUDE.md updates for merge restrictions**
   - Added new section: "Critical: NEVER Merge to Protected Branches"
   - 150+ lines of detailed rules, examples, and workflows
@@ -23,29 +30,30 @@
   - Testing instructions for both hooks
   - Critical warning for AI assistants
 
-## Fixed
+### Fixed
 - Fixed corrupt shebang in `bin/pisen` (removed erroneous prefix)
 
 **Version:** 0.12.0-beta.6 → 0.12.0-beta.7
 
 ---
 
-# 0.11.0-beta.6 (2025-12-07)
-## Docs & Admin
-- Added docs/usage/cli-tool.md and docs/README.md
-- Updated README.md with CLI tool and docs links
-# 0.11.0-beta.4 (2025-12-07)
-## New
-- Frontend: System Commands sectie, modal, CSS, JS in dashboard/index.html
-## Improved
+## [0.11.0-beta.6] - 2025-12-07
+
+### Documentation
+- Added `docs/usage/cli-tool.md` and `docs/README.md`
+- Updated `README.md` with CLI tool and docs links
+
+---
+
+## [0.11.0-beta.4] - 2025-12-07
+
+### New
+- Frontend: System Commands section, modal, CSS, JS in `dashboard/index.html`
+
+### Improved
 - UI: Mobile-friendly command buttons, copy output, dark mode support
 
-# Changelog
-
-All notable changes to Pi-hole Sentinel will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+---
 
 ## [0.12.0-beta.6] - 2025-12-07
 

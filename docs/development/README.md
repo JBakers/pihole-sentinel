@@ -168,7 +168,7 @@ pihole-sentinel/
 
 ## Version Information
 
-- **Current Version:** 0.10.0-beta.15
+- **Current Version:** 0.12.0-beta.7
 - **Python:** 3.8+ (tested with 3.13)
 - **OS:** Debian 11+/Ubuntu 20.04+
 
@@ -201,7 +201,7 @@ deactivate
 
 ## Documentation
 
-- [README.md](README.md) - Project overview
-- [EXISTING-SETUP.md](EXISTING-SETUP.md) - Existing Pi-hole HA setup
-- [SYNC-SETUP.md](SYNC-SETUP.md) - Sync configuration guide
-- [CHANGELOG.md](CHANGELOG.md) - Version history
+- [README.md](../../README.md) - Project overview
+- [Existing Setup](../installation/existing-setup.md) - Existing Pi-hole HA setup
+- [Configuration Sync](../maintenance/sync.md) - Sync configuration guide
+- [CHANGELOG.md](../../CHANGELOG.md) - Version history

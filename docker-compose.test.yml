@@ -1,0 +1,118 @@
+
+services:
+  # Mock Pi-hole Primary (simulated via simple HTTP server)
+  pihole-primary:
+    image: python:3.14-slim
+    container_name: sentinel-pihole-primary
+    working_dir: /app
+    command: >
+      bash -c " apt-get update && apt-get install -y iproute2 dnsmasq curl &>/dev/null || true && python3 -m http.server 80 "
+    environment:
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8001:80"
+    networks:
+      test-net:
+        ipv4_address: 172.20.0.10
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/admin/api.php" ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Mock Pi-hole Secondary
+  pihole-secondary:
+    image: python:3.14-slim
+    container_name: sentinel-pihole-secondary
+    working_dir: /app
+    command: >
+      bash -c " apt-get update && apt-get install -y iproute2 dnsmasq curl &>/dev/null || true && python3 -m http.server 80 "
+    environment:
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8002:80"
+    networks:
+      test-net:
+        ipv4_address: 172.20.0.11
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/admin/api.php" ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Pi-hole Sentinel Monitor Service
+  sentinel-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: sentinel-monitor
+    environment:
+      # Configuration
+      PRIMARY_IP: pihole-primary
+      PRIMARY_NAME: "Primary Pi-hole"
+      PRIMARY_PASSWORD: testpass123
+      SECONDARY_IP: pihole-secondary
+      SECONDARY_NAME: "Secondary Pi-hole"
+      SECONDARY_PASSWORD: testpass123
+      VIP_ADDRESS: 172.20.0.100
+
+      # Monitor settings
+      CHECK_INTERVAL: 5
+      DB_PATH: /data/monitor.db
+      NOTIFY_CONFIG_PATH: /data/notify_settings.json
+      API_KEY: test-api-key-12345
+
+      # Logging
+      LOG_LEVEL: DEBUG
+
+    ports:
+      - "8080:8080"
+
+    volumes:
+      - ./dashboard:/app/dashboard
+      - ./setup.py:/app/setup.py
+      - monitor-data:/data
+
+    depends_on:
+      pihole-primary:
+        condition: service_healthy
+      pihole-secondary:
+        condition: service_healthy
+
+    networks:
+      - test-net
+
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/api/version" ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Redis cache (optional - for future caching layer)
+  redis:
+    image: redis:7-alpine
+    container_name: sentinel-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - test-net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  monitor-data:
+    driver: local
+
+networks:
+  test-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1

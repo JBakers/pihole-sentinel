@@ -45,20 +45,22 @@ test_colors.py
 .github/generate-preview.py
 .github/SETUP-SOCIAL-PREVIEW.md
 
-# Development & Testing (kept locally only)
-Dockerfile.dev
-Dockerfile.test
-docker-compose.dev.yml
-docker-compose.test.yml
-tests/test_*.py
+# Development & Testing caches
 .pytest_cache/
 htmlcov/
 .coverage*
-pytest.ini
+
+# Python packaging
+*.egg-info/
+dist/
+build/
 
 # Test Reports
 .github/test-reports/
 nightly-test-results/
+
+# Claude Code
+.claude/
 
 # System
 .DS_Store

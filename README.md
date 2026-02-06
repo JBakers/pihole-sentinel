@@ -1,10 +1,3 @@
-# CLI Tool
-
-See [docs/usage/cli-tool.md](docs/usage/cli-tool.md) for usage instructions.
-
-# Documentation
-
-See [docs/README.md](docs/README.md) for the documentation hub.
 <div align="center">
 
 <img src="logo.svg" alt="Pi-hole Sentinel Logo" width="200"/>
@@ -159,7 +152,7 @@ That's it! Your Pi-hole infrastructure now has automatic failover.
 
 - **[CLAUDE.md](CLAUDE.md)** - Comprehensive guide for AI assistants and advanced users
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history
-- **[LICENSE](LICENSE)** - MIT License
+- **[LICENSE](LICENSE)** - GPLv3 License
 
 ---
 
@@ -416,7 +409,7 @@ Contributions welcome! Please:
 
 ## License
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **GNU General Public License v3.0 (GPLv3)** - see the [LICENSE](LICENSE) file for details.
 
 ---
 
