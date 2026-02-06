@@ -415,9 +415,9 @@ Beide moeten **hetzelfde** virtual_router_id hebben!
 ## 📚 Meer Informatie
 
 Voor uitgebreide tests en troubleshooting, zie:
-- **TESTING-GUIDE.md** - Volledige test suite met 20+ tests
-- **README.md** - Algemene documentatie
-- **SYNC-SETUP.md** - Configuratie synchronisatie
+- **[Testing Guide](../development/testing.md)** - Volledige test suite met 20+ tests
+- **[README.md](../../README.md)** - Algemene documentatie
+- **[Configuration Sync](../maintenance/sync.md)** - Configuratie synchronisatie
 
 ---
 

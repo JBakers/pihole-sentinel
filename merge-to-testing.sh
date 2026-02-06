@@ -219,8 +219,7 @@ ${COMMIT_LIST}
 
 Resolved conflicts:
 - VERSION: Updated to ${NEW_VERSION}
-- DEVELOPMENT.md: Restored from develop
-- TESTING-GUIDE.md: Restored from develop
+- docs/: Restored from develop
 - CHANGELOG.md: Merged entries
 - CLAUDE.md: Updated version
 - README.md: Updated version badge

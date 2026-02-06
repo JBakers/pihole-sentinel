@@ -1145,6 +1145,6 @@ For questions or issues:
 
 ---
 
-**Last Updated:** 2025-12-07
-**Version:** 0.10.0-beta.15
+**Last Updated:** 2026-02-06
+**Version:** 0.12.0-beta.7
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole

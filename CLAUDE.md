@@ -1,6 +1,6 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
-**Last Updated:** 2025-12-07
+**Last Updated:** 2026-02-06
 
 **Version:** 0.12.0-beta.7
 
@@ -10,9 +10,10 @@
 This document provides comprehensive guidance for AI assistants working with the Pi-hole Sentinel codebase. It covers architecture, structure, conventions, development workflows, and quality assurance.
 
 **Recent Updates:**
-- Comprehensive code audit completed (Nov 2025) - See `AUDIT_REPORT_20251116.md`
-- Test automation infrastructure added - See `.github/TEST_AUTOMATION_GUIDE.md`
-- Standardized test documentation templates - See `.github/TEST_DOCUMENTATION_TEMPLATE.md`
+- Repository cleanup and documentation consolidation (Feb 2026)
+- OpenAPI/Swagger documentation and error handling added
+- Comprehensive testing framework with Docker dev environment
+- Test automation scripts in `.github/scripts/`
 
 ---
 
@@ -729,7 +730,7 @@ pihole-sentinel/
 ├── CHANGELOG.md                    # Version history
 ├── README.md                       # Project overview (concise, 410 lines)
 ├── LICENSE                         # GPLv3 License
-├── VERSION                         # Current version (0.12.0-beta.6)
+├── VERSION                         # Current version (0.12.0-beta.7)
 ├── .gitignore                      # Git ignore rules
 ├── .markdownlint.json             # Markdown linting config
 ├── logo.svg                        # Project logo
@@ -1195,10 +1196,11 @@ See `.githooks/README.md` for complete documentation.
 Pi-hole Sentinel has a comprehensive testing infrastructure with automated scripts, standardized documentation templates, and continuous testing workflows.
 
 **Key Testing Resources:**
-- **`.github/TESTING_TODO.md`** - Complete testing checklist for `testing` branch (296 items)
-- **`.github/TEST_DOCUMENTATION_TEMPLATE.md`** - Standardized test report template (802 lines)
-- **`.github/TEST_AUTOMATION_GUIDE.md`** - Test automation guide with scripts (700 lines)
+- **`tests/`** - Unit tests (pytest): validation, VIP detection, API handlers, DHCP parsing, error handling
+- **`.github/scripts/`** - Automated test scripts (syntax, quality, security, failover, dashboard)
 - **`.github/workflows/code-quality.yml`** - Automated CI/CD quality checks
+- **`docs/development/TESTING_WORKFLOW.md`** - Testing workflow documentation
+- **`docs/development/TEST_COVERAGE_PLAN.md`** - Test coverage roadmap
 
 ### Testing Workflow
 
@@ -1207,7 +1209,6 @@ Pi-hole Sentinel has a comprehensive testing infrastructure with automated scrip
 1. **Start New Test Cycle:**
    ```bash
    git checkout testing
-   cp .github/TEST_DOCUMENTATION_TEMPLATE.md .github/test-reports/TEST_REPORT_$(date +%Y%m%d).md
    ```
 
 2. **Run Automated Tests:**
@@ -1220,7 +1221,7 @@ Pi-hole Sentinel has a comprehensive testing infrastructure with automated scrip
    ```
 
 3. **Execute Manual Tests:**
-   - Follow checklist in `.github/TESTING_TODO.md`
+   - Follow testing guide in `docs/development/testing.md`
    - Document results in test report
    - Take screenshots for visual tests
 
@@ -1323,7 +1324,7 @@ Before merging `testing` → `main`:
 - [ ] Browser compatibility confirmed
 - [ ] Test pass rate ≥ 95%
 
-See `.github/TESTING_TODO.md` for complete checklist.
+See `docs/development/testing.md` for complete testing procedures.
 
 ---
 
@@ -1333,7 +1334,7 @@ See `.github/TESTING_TODO.md` for complete checklist.
 
 **Overall Assessment:** ✅ **PRODUCTION READY**
 **Overall Score:** 89/100 (Excellent)
-**Audit Report:** See `AUDIT_REPORT_20251116.md` for complete details
+**Audit:** Comprehensive code audit completed November 2025
 
 | Category | Score | Status |
 |----------|-------|--------|
@@ -1713,7 +1714,6 @@ Access to fetch at 'http://<monitor-ip>:8080/api/status' from origin 'http://<yo
 **Audit Finding:**
 - Priority: 🔴 HIGH
 - Impact: Enables remote dashboard access
-- See: AUDIT_REPORT_20251116.md section 1.5
 
 ---
 
@@ -1867,7 +1867,7 @@ cat /opt/pihole-monitor/.env         # View monitor config (sensitive!)
     - Automated test scripts (syntax, quality, security, failover, dashboard)
     - CI/CD integration examples
   - 📊 **Enhanced documentation**
-    - Added comprehensive audit report (AUDIT_REPORT_20251116.md - 1,300+ lines)
+    - Added comprehensive audit report
     - Updated CLAUDE.md with audit results and test infrastructure
     - Added Code Quality & Audit section to CLAUDE.md
     - Reorganized Additional Resources with categorization
@@ -1909,42 +1909,22 @@ cat /opt/pihole-monitor/.env         # View monitor config (sensitive!)
 - **[docs/development/testing.md](docs/development/testing.md)** - User testing procedures
 - **[CLAUDE.md](CLAUDE.md)** - This file - AI assistant guide for codebase
 - **[CHANGELOG.md](CHANGELOG.md)** - Detailed version history and change log
-- **[BRANCHING_STRATEGY.md](BRANCHING_STRATEGY.md)** - Git workflow and branching strategy
+- **[.github/MERGE_FLOW.md](.github/MERGE_FLOW.md)** - Git merge workflow and branching strategy
 
 ### Quality Assurance Documentation
 
-- **AUDIT_REPORT_20251116.md** - Comprehensive code audit report (1,300+ lines)
-  - Security audit (95/100)
-  - Code quality audit (90/100)
-  - Testing assessment (60/100)
-  - Documentation audit (95/100)
-  - Priority recommendations and roadmap
-
-- **`.github/TESTING_TODO.md`** - Complete testing checklist for `testing` branch (296 items)
-  - Pre-merge checklist
-  - Integration tests
-  - Performance tests
-  - Security tests
-  - Browser compatibility
-  - Sign-off criteria
-
-- **`.github/TEST_DOCUMENTATION_TEMPLATE.md`** - Standardized test report template (802 lines)
-  - Test execution report format
-  - Performance metrics tracking
-  - Bug tracking tables
-  - Sign-off criteria
-
-- **`.github/TEST_AUTOMATION_GUIDE.md`** - Test automation guide (700 lines)
-  - Automated test scripts (syntax, quality, security)
-  - Failover and dashboard test automation
-  - CI/CD integration examples
-  - Nightly and weekly test schedules
+- **`docs/development/TESTING_WORKFLOW.md`** - Testing workflow and architecture
+- **`docs/development/TEST_COVERAGE_PLAN.md`** - Test coverage roadmap and targets
+- **`.github/scripts/`** - Automated test scripts (8 scripts)
+  - Syntax, quality, security checks
+  - Failover and dashboard testing
+  - Nightly test automation
+  - Test summary generation
 
 ### Project Management
 
-- **`.github/BRANCH_PROTECTION.md`** - Branch protection setup guide
+- **`.github/MERGE_FLOW.md`** - Merge flow documentation
 - **`.github/CODEOWNERS`** - Code ownership and review assignments
-- **`.github/DEVELOP_TODO.md`** - Development branch todo list
 - **`.github/workflows/code-quality.yml`** - Automated CI/CD quality checks
 
 ### Issue Templates
@@ -1955,7 +1935,7 @@ cat /opt/pihole-monitor/.env         # View monitor config (sensitive!)
 
 ---
 
-**Last Updated:** 2025-11-16
+**Last Updated:** 2026-02-06
 **Maintainer:** JBakers
 **Repository:** https://github.com/JBakers/pihole-sentinel
 
