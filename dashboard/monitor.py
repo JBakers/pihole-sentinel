@@ -688,11 +688,21 @@ _dashboard_dir = os.path.dirname(os.path.abspath(__file__))
 
 @app.get("/")
 async def serve_index():
-    return FileResponse(os.path.join(_dashboard_dir, "index.html"))
+    """Serve main dashboard with API key injected at runtime."""
+    html_path = os.path.join(_dashboard_dir, "index.html")
+    with open(html_path, 'r') as f:
+        content = f.read()
+    content = content.replace("'YOUR_API_KEY_HERE'", f"'{CONFIG['api_key']}'")
+    return HTMLResponse(content)
 
 @app.get("/settings.html")
 async def serve_settings():
-    return FileResponse(os.path.join(_dashboard_dir, "settings.html"))
+    """Serve settings page with API key injected at runtime."""
+    html_path = os.path.join(_dashboard_dir, "settings.html")
+    with open(html_path, 'r') as f:
+        content = f.read()
+    content = content.replace("'YOUR_API_KEY_HERE'", f"'{CONFIG['api_key']}'")
+    return HTMLResponse(content)
 
 @app.get("/api/version", response_model=VersionResponse, tags=["System"])
 async def get_version():
@@ -1455,10 +1465,43 @@ async def get_events(limit: int = 50, api_key: str = Depends(verify_api_key)):
     Returns:
         EventsResponse: Recent events, failover count, and last failover timestamp
     """
+    safe_limit = max(1, min(limit, 500))
+
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
-        async with db.execute("SELECT timestamp, event_type, message FROM events ORDER BY timestamp DESC LIMIT ?", (limit,)) as cursor:
+        async with db.execute(
+            "SELECT timestamp, event_type, message FROM events ORDER BY timestamp DESC LIMIT ?",
+            (safe_limit,)
+        ) as cursor:
             rows = await cursor.fetchall()
-            return [{"time": row[0], "type": row[1], "message": row[2]} for row in rows]
+
+        recent_events = [
+            {
+                "timestamp": row[0],
+                "event_type": row[1],
+                "description": row[2],
+                "details": None
+            }
+            for row in rows
+        ]
+
+        async with db.execute("SELECT COUNT(*) FROM events") as cursor:
+            total_events = (await cursor.fetchone())[0]
+
+        async with db.execute("SELECT COUNT(*) FROM events WHERE event_type = 'failover'") as cursor:
+            failover_count = (await cursor.fetchone())[0]
+
+        async with db.execute(
+            "SELECT timestamp FROM events WHERE event_type = 'failover' ORDER BY timestamp DESC LIMIT 1"
+        ) as cursor:
+            row = await cursor.fetchone()
+            last_failover = row[0] if row else None
+
+        return {
+            "total_events": total_events,
+            "recent_events": recent_events,
+            "failover_count": failover_count,
+            "last_failover": last_failover
+        }
 
 @app.get("/api/notifications/settings", tags=["Notifications"])
 async def get_notification_settings(api_key: str = Depends(verify_api_key)):
@@ -1997,15 +2040,25 @@ async def get_snooze_status(api_key: str = Depends(verify_api_key)):
                     except (ValueError, TypeError):
                         pass
                 
+                is_active = is_snoozed(settings)
+                remaining = None
+                if is_active and snooze.get('until'):
+                    try:
+                        until_dt = datetime.fromisoformat(snooze['until'].replace('Z', '+00:00'))
+                        if until_dt.tzinfo:
+                            until_dt = until_dt.replace(tzinfo=None)
+                        remaining = max(0, int((until_dt - datetime.now()).total_seconds()))
+                    except (ValueError, TypeError):
+                        pass
                 return {
-                    "enabled": snooze.get('enabled', False),
+                    "snoozed": is_active,
                     "until": snooze.get('until'),
-                    "active": is_snoozed(settings)
+                    "remaining_seconds": remaining
                 }
         except Exception:
             pass
     
-    return {"enabled": False, "until": None, "active": False}
+    return {"snoozed": False, "until": None, "remaining_seconds": None}
 
 @app.post("/api/notifications/snooze", response_model=SnoozeResponse, tags=["Notifications"])
 async def set_snooze(data: dict, api_key: str = Depends(verify_api_key)):
@@ -2062,10 +2115,11 @@ async def set_snooze(data: dict, api_key: str = Depends(verify_api_key)):
             json.dump(settings, f, indent=2)
         
         await log_event("info", f"🔕 Notifications snoozed until {until.strftime('%H:%M')}")
+        remaining = int((until - datetime.now()).total_seconds())
         return {
-            "status": "success",
-            "message": f"Notifications snoozed for {duration_minutes} minutes",
-            "until": until.isoformat()
+            "snoozed": True,
+            "until": until.isoformat(),
+            "remaining_seconds": remaining
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to set snooze: {str(e)}")
@@ -2111,7 +2165,7 @@ async def cancel_snooze(api_key: str = Depends(verify_api_key)):
             json.dump(settings, f, indent=2)
         
         await log_event("info", "🔔 Snooze cancelled, notifications re-enabled")
-        return {"status": "success", "message": "Snooze cancelled"}
+        return {"snoozed": False, "until": None, "remaining_seconds": None}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to cancel snooze: {str(e)}")
 
