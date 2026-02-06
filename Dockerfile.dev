@@ -2,40 +2,36 @@
 # This is for local testing - NOT for production
 # For production, use setup.py
 
-FROM python:3.14-slim
+FROM python:3.13-slim
 
 LABEL maintainer="Pi-hole Sentinel"
 LABEL description="Pi-hole Sentinel Monitor - Development Image"
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies for VIP detection and DNS checks
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
+    iproute2 \
+    dnsutils \
     curl \
-    dnsmasq \
-    keepalived \
     iputils-ping \
-    net-tools \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy project files
-COPY . .
+# Copy and install Python dependencies first (cache layer)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir -r requirements-dev.txt
+# Copy project files
+COPY dashboard/ dashboard/
+COPY setup.py .
+COPY VERSION .
 
 # Create data directory
 RUN mkdir -p /data && chmod 755 /data
 
-# Expose API port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8080/api/version || exit 1
+HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
+    CMD curl -sf http://localhost:8080/api/version || exit 1
 
-# Default command - run monitor
 CMD ["python3", "-u", "dashboard/monitor.py"]
