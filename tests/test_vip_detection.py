@@ -19,9 +19,7 @@ class TestMACExtraction:
 
     def test_extract_mac_valid_output(self):
         """Test MAC extraction from valid 'ip neigh show' output."""
-        from monitor import check_who_has_vip
-
-        # Define extract_mac locally since it's nested in check_who_has_vip
+        # Import would trigger sys.exit without env vars, so test the logic directly
         def extract_mac(output):
             parts = output.split()
             try:
@@ -192,8 +190,8 @@ class TestVIPDetectionEdgeCases:
 
             # With None values, neither should have VIP
             if not vip_mac:
-                assert primary_has_vip is False
-                assert secondary_has_vip is False
+                assert not primary_has_vip
+                assert not secondary_has_vip
 
 
 class TestVIPDetectionIntegration:

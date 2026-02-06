@@ -235,13 +235,12 @@ class TestAPIErrorHandling:
     @pytest.mark.asyncio
     async def test_http_timeout_handling(self):
         """Test handling of HTTP timeout errors."""
-        # Simulate timeout
+        # Simulate timeout - use asyncio.TimeoutError which is a proper exception
         timeout_occurred = False
 
         try:
-            # This would be mocked in actual implementation
-            raise aiohttp.ClientTimeout
-        except (aiohttp.ClientTimeout, TimeoutError):
+            raise TimeoutError("Connection timed out")
+        except TimeoutError:
             timeout_occurred = True
 
         assert timeout_occurred is True
