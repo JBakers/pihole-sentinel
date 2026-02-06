@@ -1,109 +1,99 @@
+# Pi-hole Sentinel - Full Test Environment
+#
+# Architecture:
+#   pihole-primary   (10.99.0.10) - Mock Pi-hole v6 API (primary, DHCP on)
+#   pihole-secondary (10.99.0.11) - Mock Pi-hole v6 API (secondary, DHCP off)
+#   sentinel-monitor (10.99.0.20) - Pi-hole Sentinel monitor + dashboard
+#
+# Usage:
+#   docker compose -f docker-compose.test.yml up -d --build
+#   docker compose -f docker-compose.test.yml logs -f
+#   docker compose -f docker-compose.test.yml down -v
+#
+# Access:
+#   Dashboard:  http://localhost:8080
+#   API:        http://localhost:8080/api/status  (header: X-API-Key: test-api-key-12345)
+#   Pi-hole 1:  http://localhost:8001/mock/state
+#   Pi-hole 2:  http://localhost:8002/mock/state
+#
+# Simulate failover:
+#   curl -X POST http://localhost:8001/mock/set-state -d '{"pihole_running":false}'
+#   curl -X POST http://localhost:8001/mock/reset
+#
+# Simulate DHCP change:
+#   curl -X POST http://localhost:8002/mock/set-state -d '{"dhcp_enabled":true}'
+#
 
 services:
-  # Mock Pi-hole Primary (simulated via simple HTTP server)
+  # ── Mock Pi-hole Primary ─────────────────────────────────────
   pihole-primary:
-    image: python:3.14-slim
+    build:
+      context: docker/mock-pihole
+      dockerfile: Dockerfile
     container_name: sentinel-pihole-primary
-    working_dir: /app
-    command: >
-      bash -c " apt-get update && apt-get install -y iproute2 dnsmasq curl &>/dev/null || true && python3 -m http.server 80 "
     environment:
-      PYTHONUNBUFFERED: 1
+      PIHOLE_NAME: "Primary Pi-hole"
+      PIHOLE_PASSWORD: testpass123
+      DHCP_ENABLED: "true"
+      IS_PRIMARY: "true"
     ports:
       - "8001:80"
     networks:
       test-net:
-        ipv4_address: 172.20.0.10
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost/admin/api.php" ]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
+        ipv4_address: 10.99.0.10
+    restart: unless-stopped
 
-  # Mock Pi-hole Secondary
+  # ── Mock Pi-hole Secondary ───────────────────────────────────
   pihole-secondary:
-    image: python:3.14-slim
+    build:
+      context: docker/mock-pihole
+      dockerfile: Dockerfile
     container_name: sentinel-pihole-secondary
-    working_dir: /app
-    command: >
-      bash -c " apt-get update && apt-get install -y iproute2 dnsmasq curl &>/dev/null || true && python3 -m http.server 80 "
     environment:
-      PYTHONUNBUFFERED: 1
+      PIHOLE_NAME: "Secondary Pi-hole"
+      PIHOLE_PASSWORD: testpass123
+      DHCP_ENABLED: "false"
+      IS_PRIMARY: "false"
     ports:
       - "8002:80"
     networks:
       test-net:
-        ipv4_address: 172.20.0.11
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost/admin/api.php" ]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
+        ipv4_address: 10.99.0.11
+    restart: unless-stopped
 
-  # Pi-hole Sentinel Monitor Service
+  # ── Pi-hole Sentinel Monitor ─────────────────────────────────
   sentinel-monitor:
     build:
       context: .
       dockerfile: Dockerfile.dev
     container_name: sentinel-monitor
     environment:
-      # Configuration
-      PRIMARY_IP: pihole-primary
+      PRIMARY_IP: "10.99.0.10"
       PRIMARY_NAME: "Primary Pi-hole"
       PRIMARY_PASSWORD: testpass123
-      SECONDARY_IP: pihole-secondary
+      SECONDARY_IP: "10.99.0.11"
       SECONDARY_NAME: "Secondary Pi-hole"
       SECONDARY_PASSWORD: testpass123
-      VIP_ADDRESS: 172.20.0.100
-
-      # Monitor settings
-      CHECK_INTERVAL: 5
+      VIP_ADDRESS: "10.99.0.100"
+      CHECK_INTERVAL: "5"
       DB_PATH: /data/monitor.db
       NOTIFY_CONFIG_PATH: /data/notify_settings.json
       API_KEY: test-api-key-12345
-
-      # Logging
       LOG_LEVEL: DEBUG
-
+      PYTHONUNBUFFERED: "1"
     ports:
       - "8080:8080"
-
     volumes:
-      - ./dashboard:/app/dashboard
-      - ./setup.py:/app/setup.py
       - monitor-data:/data
-
     depends_on:
       pihole-primary:
         condition: service_healthy
       pihole-secondary:
         condition: service_healthy
-
     networks:
-      - test-net
-
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8080/api/version" ]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-
-  # Redis cache (optional - for future caching layer)
-  redis:
-    image: redis:7-alpine
-    container_name: sentinel-redis
-    ports:
-      - "6379:6379"
-    networks:
-      - test-net
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 5s
-      timeout: 3s
-      retries: 3
+      test-net:
+        ipv4_address: 10.99.0.20
+    restart: unless-stopped
 
 volumes:
   monitor-data:
@@ -114,5 +104,5 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
-          gateway: 172.20.0.1
+        - subnet: 10.99.0.0/24
+          gateway: 10.99.0.1

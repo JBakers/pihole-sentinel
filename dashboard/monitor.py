@@ -112,23 +112,23 @@ class UpdateCheckResponse(BaseModel):
 
 class PiHoleStatus(BaseModel):
     """Status of a single Pi-hole instance"""
-    name: str = Field(..., description="Pi-hole instance name (Primary or Secondary)")
     ip: str = Field(..., description="IP address of the Pi-hole instance")
-    ftl_running: bool = Field(..., description="Whether pihole-FTL service is running")
-    dns_working: bool = Field(..., description="Whether DNS resolution is working")
-    dhcp_running: Optional[bool] = Field(None, description="Whether DHCP server is running (if enabled)")
-    last_check: str = Field(..., description="ISO timestamp of last health check")
+    name: str = Field(..., description="Pi-hole instance name (Primary or Secondary)")
+    state: str = Field(..., description="Keepalived state (MASTER/BACKUP)")
+    has_vip: bool = Field(..., description="Whether this node holds the VIP")
+    online: bool = Field(..., description="Whether the Pi-hole is reachable")
+    pihole: bool = Field(..., description="Whether pihole-FTL service is running")
+    dns: bool = Field(False, description="Whether DNS resolution is working")
+    dhcp: bool = Field(False, description="Whether DHCP server is running")
 
 
 class StatusResponse(BaseModel):
     """Overall system status response"""
-    master: str = Field(..., description="Name of master (has VIP)")
-    backup: str = Field(..., description="Name of backup server")
-    vip_address: str = Field(..., description="Virtual IP address")
+    timestamp: str = Field(..., description="Timestamp of status check")
     primary: PiHoleStatus = Field(..., description="Primary Pi-hole status")
     secondary: PiHoleStatus = Field(..., description="Secondary Pi-hole status")
-    uptime_seconds: float = Field(..., description="Monitor uptime in seconds")
-    last_check: str = Field(..., description="ISO timestamp of last status update")
+    vip: str = Field(..., description="Virtual IP address")
+    dhcp_leases: int = Field(0, description="Number of active DHCP leases")
 
 
 class HistoryEntry(BaseModel):

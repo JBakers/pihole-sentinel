@@ -92,26 +92,54 @@ clean:
 
 # Docker Testing
 docker-build:
-	docker-compose -f docker-compose.test.yml build
+	docker compose -f docker-compose.test.yml build
 
-docker-up:
-	docker-compose -f docker-compose.test.yml up -d
+docker-up: docker-build
+	docker compose -f docker-compose.test.yml up -d
 	@echo "Waiting for services to start..."
-	@sleep 5
-	@echo "Monitor API available at: http://localhost:8080/api/docs"
+	@sleep 8
+	@echo ""
+	@echo "=== Pi-hole Sentinel Test Environment ==="
+	@echo "Dashboard:    http://localhost:8080"
+	@echo "API Docs:     http://localhost:8080/api/docs"
+	@echo "API Key:      test-api-key-12345"
+	@echo ""
+	@echo "Mock Pi-holes:"
+	@echo "  Primary:    http://localhost:8001/mock/state"
+	@echo "  Secondary:  http://localhost:8002/mock/state"
+	@echo ""
+	@echo "Simulate failover:"
+	@echo "  curl -X POST http://localhost:8001/mock/set-state -H 'Content-Type: application/json' -d '{\"pihole_running\":false}'"
+	@echo "  curl -X POST http://localhost:8001/mock/reset -H 'Content-Type: application/json'"
+	@echo ""
 
 docker-down:
-	docker-compose -f docker-compose.test.yml down -v
+	docker compose -f docker-compose.test.yml down -v
 
-docker-test: docker-down docker-build docker-up
-	@echo "🧪 Running tests in Docker environment..."
-	@sleep 3
-	docker exec sentinel-monitor ./.github/scripts/run-all-tests.sh || true
-	@echo "✅ Docker environment ready at http://localhost:8080"
-	@echo "📊 View logs with: make docker-logs"
+docker-restart: docker-down docker-up
+
+docker-test: docker-down docker-up
+	@echo "🧪 Running smoke tests against Docker environment..."
+	@echo ""
+	@echo "=== Monitor API ==="
+	@curl -sf http://localhost:8080/api/version | python3 -m json.tool
+	@echo ""
+	@echo "=== Pi-hole Primary state ==="
+	@curl -sf http://localhost:8001/mock/state | python3 -m json.tool
+	@echo ""
+	@echo "=== Pi-hole Secondary state ==="
+	@curl -sf http://localhost:8002/mock/state | python3 -m json.tool
+	@echo ""
+	@echo "=== Monitor status (with API key) ==="
+	@curl -sf -H "X-API-Key: test-api-key-12345" http://localhost:8080/api/status | python3 -m json.tool
+	@echo ""
+	@echo "✅ All smoke tests passed"
 
 docker-logs:
-	docker-compose -f docker-compose.test.yml logs -f
+	docker compose -f docker-compose.test.yml logs -f
+
+docker-logs-monitor:
+	docker compose -f docker-compose.test.yml logs -f sentinel-monitor
 
 # Automated Test Scripts
 run-all-tests:
