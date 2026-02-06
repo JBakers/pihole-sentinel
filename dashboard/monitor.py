@@ -684,13 +684,15 @@ app.add_exception_handler(HTTPException, handle_http_exception)
 app.add_exception_handler(Exception, handle_generic_exception)
 
 # Serve HTML files
+_dashboard_dir = os.path.dirname(os.path.abspath(__file__))
+
 @app.get("/")
 async def serve_index():
-    return FileResponse("index.html")
+    return FileResponse(os.path.join(_dashboard_dir, "index.html"))
 
 @app.get("/settings.html")
 async def serve_settings():
-    return FileResponse("settings.html")
+    return FileResponse(os.path.join(_dashboard_dir, "settings.html"))
 
 @app.get("/api/version", response_model=VersionResponse, tags=["System"])
 async def get_version():
@@ -1457,16 +1459,6 @@ async def get_events(limit: int = 50, api_key: str = Depends(verify_api_key)):
         async with db.execute("SELECT timestamp, event_type, message FROM events ORDER BY timestamp DESC LIMIT ?", (limit,)) as cursor:
             rows = await cursor.fetchall()
             return [{"time": row[0], "type": row[1], "message": row[2]} for row in rows]
-
-@app.get("/", response_class=HTMLResponse)
-@app.get("/index.html", response_class=HTMLResponse)
-async def root():
-    html_path = "/opt/pihole-monitor/index.html"
-    if os.path.exists(html_path):
-        with open(html_path, 'r') as f:
-            return f.read()
-    else:
-        return HTMLResponse(content=f"<h1>Error: index.html not found</h1>", status_code=404)
 
 @app.get("/api/notifications/settings", tags=["Notifications"])
 async def get_notification_settings(api_key: str = Depends(verify_api_key)):
