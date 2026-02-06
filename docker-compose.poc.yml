@@ -1,0 +1,67 @@
+version: '3.8'
+
+networks:
+  poc-net:
+    ipam:
+      config:
+        - subnet: 172.50.0.0/24
+
+services:
+  # Node 1
+  pihole-1:
+    build: docker/mock-pihole
+    container_name: poc-pihole-1
+    networks:
+      poc-net:
+        ipv4_address: 172.50.0.10
+    environment:
+      - PIHOLE_NAME="Pi-hole 1"
+      # Mock Pi-hole runs on port 80 inside container (apache/lighttpd simulation)
+  
+  sidecar-1:
+    build: docker/keepalived-sidecar
+    container_name: poc-sidecar-1
+    cap_add:
+      - NET_ADMIN
+      - NET_BROADCAST
+    networks:
+      poc-net:
+        ipv4_address: 172.50.0.20
+    environment:
+      - KEEPALIVED_STATE=MASTER
+      - KEEPALIVED_PRIORITY=102
+      - KEEPALIVED_INTERFACE=eth0
+      - KEEPALIVED_ROUTER_ID=51
+      - KEEPALIVED_AUTH_PASS=secret
+      - VIP_IP=172.50.0.100
+      - PIHOLE_HOST=172.50.0.10
+      - PIHOLE_WEB_PORT=80
+
+  # Node 2
+  pihole-2:
+    build: docker/mock-pihole
+    container_name: poc-pihole-2
+    networks:
+      poc-net:
+        ipv4_address: 172.50.0.11
+    environment:
+      - PIHOLE_NAME="Pi-hole 2"
+
+  sidecar-2:
+    build: docker/keepalived-sidecar
+    container_name: poc-sidecar-2
+    cap_add:
+      - NET_ADMIN
+      - NET_BROADCAST
+    networks:
+      poc-net:
+        ipv4_address: 172.50.0.21
+    environment:
+      - KEEPALIVED_STATE=BACKUP
+      - KEEPALIVED_PRIORITY=101
+      - KEEPALIVED_INTERFACE=eth0
+      - KEEPALIVED_ROUTER_ID=51
+      - KEEPALIVED_AUTH_PASS=secret
+      - VIP_IP=172.50.0.100
+      - PIHOLE_HOST=172.50.0.11
+      - PIHOLE_WEB_PORT=80

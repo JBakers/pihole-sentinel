@@ -26,6 +26,8 @@ import os
 import json
 import uuid
 import time
+import socket
+import threading
 import random
 import logging
 import subprocess
@@ -394,5 +396,25 @@ def main():
         server.shutdown()
 
 
+def start_mock_dns():
+    """Start a dummy TCP listener on port 53 to satisfy health checks."""
+    def run_tcp():
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(("0.0.0.0", 53))
+            sock.listen(5)
+            logger.info("Mock DNS (TCP 53) listening")
+            while True:
+                conn, addr = sock.accept()
+                conn.close()
+        except Exception as e:
+            logger.error(f"Failed to bind TCP 53: {e}")
+
+    t = threading.Thread(target=run_tcp, daemon=True)
+    t.start()
+
+
 if __name__ == "__main__":
+    start_mock_dns()
     main()

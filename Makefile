@@ -189,3 +189,18 @@ run-quality-checks:
 run-security-scans:
 	@./.github/scripts/run-security-scans.sh
 
+
+# Proof of Concept (Sidecar Architecture)
+poc: poc-build poc-up
+
+poc-build:
+	docker compose -f docker-compose.poc.yml build
+
+poc-up:
+	docker compose -f docker-compose.poc.yml up -d
+
+poc-down:
+	docker compose -f docker-compose.poc.yml down -v
+
+poc-logs:
+	docker compose -f docker-compose.poc.yml logs -f
