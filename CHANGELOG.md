@@ -5,7 +5,27 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.0-beta.13] - 2026-03-28
+## [0.12.0-beta.14] - 2026-03-28
+
+### Added
+- **✨ setup.py: Pre-flight credential check vóór deployment**
+  - Nieuwe `preflight_checks()` methode valideert SSH-toegang en Pi-hole web API-wachtwoorden op álle servers voordat één bestand wordt aangepast
+  - Bij één mislukte check: duidelijke samenvatting van alle fouten getoond, setup afgebroken, servers onaangetast
+  - Volgorde: SSH-login test → Pi-hole v6 API auth test (POST `/api/auth`)
+- **✨ setup.py mode 2: automatische rollback bij deploymentfout**
+  - Bijgehouden welke servers al geüpdatet zijn (backup-timestamp per server)
+  - Bij falen op welke stap dan ook: `rollback_deployment()` zet alle al-gedeployde servers terug naar hun vorige staat en herstart de services
+  - Rollback actief voor monitor, primary, en secondary
+- **✨ setup.py optie 6: Uninstall Pi-hole Sentinel**
+  - Nieuw menu-item: `6. Uninstall Pi-hole Sentinel from all servers`
+  - Vraagt alleen SSH-gegevens (geen Pi-hole passwords of netwerk-config nodig)
+  - Stopt en disablet `pihole-monitor.service` + verwijdert `/opt/pihole-monitor`
+  - Stopt en disablet `keepalived` + verwijdert alle door Sentinel aangemaakte bestanden (`keepalived.conf`, `.env`, scripts in `/usr/local/bin/`, logfile)
+  - Pi-hole zelf wordt nooit aangeraakt
+  - Vraagt bevestiging via `yes`-invoer
+
+**Version:** 0.12.0-beta.13 → 0.12.0-beta.14
+
 
 ### Fixed
 - **🐛 keepalived config: `vrrp_version 3` → `vrrp_version 2` (keepalived startte niet)**
