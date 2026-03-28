@@ -5,7 +5,7 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.0-beta.16] - 2026-03-28
+## [0.12.1-beta.6] - 2026-03-28
 
 ### Fixed
 - **🐛 setup.py / keepalived.conf: `preempt_delay` op `state MASTER` node (keepalived exit code 1)**
@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.12.0-beta.15] - 2026-03-28
+## [0.12.1-beta.5] - 2026-03-28
 
 ### Added
 - **🧪 tests/test_setup.py: 30 tests voor setup.py pre-flight, rollback en uninstall**
@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.12.0-beta.14] - 2026-03-28
+## [0.12.1-beta.4] - 2026-03-28
 
 ### Added
 - **✨ setup.py: Pre-flight credential check vóór deployment**
@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.12.0-beta.13] - 2026-03-28
+## [0.12.1-beta.3] - 2026-03-28
 
 ### Fixed
 - **🐛 keepalived config: `vrrp_version 3` → `vrrp_version 2` (keepalived startte niet)**
@@ -71,7 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.12.0-beta.12] - 2026-03-28
+## [0.12.1-beta.2] - 2026-03-28
 
 ### Fixed
 - **🐛 setup.py deploy_keepalived_remote: VRRP interface-naam van installer-machine gebruikt i.p.v. Pi-hole interface**
@@ -85,7 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.12.0-beta.11] - 2026-03-28
+## [0.12.1-beta.1] - 2026-03-28
 
 ### Fixed
 - **🐛 setup.py deploy_keepalived_remote: keepalived start-fouten waren niet zichtbaar**
