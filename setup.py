@@ -1612,8 +1612,9 @@ SECONDARY_IP={self.config['secondary_ip']}
                 f"SYNC_CUSTOM_DNS={sync_options.get('custom_dns', 'true')}",
                 f"SYNC_CNAME={sync_options.get('cname', 'true')}",
                 f"SYNC_DHCP_LEASES={sync_options.get('dhcp_leases', 'true')}",
-                f"SYNC_CONFIG={sync_options.get('config', 'true')}",
+                f"SYNC_CONFIG_DHCP={sync_options.get('config_dhcp', 'true')}",
                 f"SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE={sync_options.get('dhcp_exclude_active', 'true')}",
+                f"SYNC_CONFIG_DNS={sync_options.get('config_dns', 'true')}",
                 f"SYNC_RESTART_FTL={sync_options.get('restart_ftl', 'true')}",
             ]
             sync_conf = "\n".join(sync_conf_lines) + "\n"
