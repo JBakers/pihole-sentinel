@@ -5,10 +5,29 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Consolidated testing documentation into one file: `docs/development/testing.md`
+- Reduced and refocused `CLAUDE.md` to remove duplicated workflow/reference content
+- Updated `PLAN.md` for `develop` branch context and English-only documentation text
+- Cleaned `TODO_USER.md` by moving resolved items to `CHANGELOG.md`
+- Simplified `CHANGELOG.md` by consolidating `0.12.2-beta.*` and `0.12.1-beta.*` details into session summaries
+- Updated docs links to remove references to deleted testing files and removed CLAUDE anchor links
+
+### Removed
+- `dashboard/.env.test` from git tracking (sensitive env file)
+- `merge-to-testing.sh` helper script (superseded by PR merge workflow)
+- `docs/development/TESTING_WORKFLOW.md` (merged)
+- `docs/development/TEST_COVERAGE_PLAN.md` (merged)
+
+### Added
+- Placeholder documentation for future installer container in `docker/sentinel-installer/README.md`
+
 ## [0.12.2] Session Summary - 2026-03-28
 
 > Consolidates all `0.12.2-beta.1` through `0.12.2-beta.8` changes from one session.
-> Full details are in the individual beta entries below.
+> Individual beta entries are consolidated in this summary for readability.
 
 ### New
 - **⌨️ System Commands panel** — run `systemctl status`, last 200 log lines, VIP check,
@@ -40,379 +59,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.12.2-beta.8] - 2026-03-28
+## [0.12.1] Session Summary - 2026-03-28
+
+> Consolidates all `0.12.1-beta.1` through `0.12.1-beta.10` changes.
+
+### New
+- **Pre-flight credential checks** — SSH + Pi-hole API validated on all servers before deployment
+- **Automatic rollback** — if deployment fails, all already-deployed servers revert to backup
+- **Uninstall option** — menu option 6 removes all Sentinel files from all servers
+- **30 tests for setup.py** in `tests/test_setup.py` (21 unit + 9 Docker integration)
+- **Startup notification** — `send_notification("startup")` on monitor boot (disabled by default)
+- **Fault notifications** at all 4 detection points (host offline, service down per node)
 
 ### Fixed
-- **🐛 index.html: ANSI colours not rendered — raw codes visible as text**
-  - The colon-normalisation step (`38:5:n` → `38;5;n`) replaced the entire
-    `\x1b[...m` sequence with only the bare parameter string, dropping the
-    `\x1b[` prefix and `m` suffix. The second-pass renderer then found no
-    sequences to match and left the raw numbers (`0;1;32`) visible in output.
-  - Fix: normalisation now rebuilds the full escape sequence:
-    `\x1b[` + normalised params + `m` so the renderer can match correctly.
-  - `active (running)` now green, `inactive (dead)` grey, `enabled` bold-green.
-
-**Version:** 0.12.2-beta.7 → 0.12.2-beta.8
-
----
-
-## [0.12.2-beta.7] - 2026-03-28
-
-### Fixed
-- **🐛 index.html: System Commands section had no card styling**
-  - Section used `.card` / `.card-header` / `.card-content` classes that had no CSS definition
-  - Converted to `.events-card` + `collapsible-header` + `collapsible-content` — same
-    structure as Failover History and Recent System Events
-  - Added `commands-summary` placeholder div so `initCollapseState` does not throw
-  - Added `commands` to `collapseState` initialisation (persisted via localStorage)
-  - Added `commands` to `initCollapseState` loop so collapsed/expanded state is restored on reload
-  - Removed bespoke `toggleCollapse` override that used `display:none/block`;
-    now uses the standard CSS-class-based toggle like all other sections
-
-**Version:** 0.12.2-beta.6 → 0.12.2-beta.7
-
----
-
-## [0.12.2-beta.6] - 2026-03-28
-
-### Fixed
-- **🐛 index.html: OSC 8 hyperlinks not stripped from systemctl output**
-  - systemd emits `\x1b]8;;URL\x1b\\text\x1b]8;;\x1b\\` VT hyperlink sequences
-  - These were rendered as raw garbage (`]8;;file://...` visible as text)
-  - `ansiToHtml()` now converts `https://` URLs to `<a href>` tags;
-    `man:` and other non-http URLs are stripped to plain text
-  - All remaining OSC sequences are stripped before HTML-escaping
-
-- **🐛 index.html: 256-colour ANSI codes not decoded (`38:5:185`)**
-  - systemd uses colon sub-parameters per ECMA-48 (`38:5:n`) not semicolons (`38;5;n`)
-  - `ansiToHtml()` now normalises `:` → `;` before parsing SGR codes
-  - Added full xterm-256 palette renderer (6×6×6 cube + greyscale ramp)
-  - `loaded` (green 185), `active` (green), `inactive` (grey) now render with correct colours
-
-- **🐛 index.html / monitor.py: indicators grey out when server is offline**
-  - Pi-hole Service, VIP, DNS, DHCP shown as green/red even when server unreachable
-  - Added `.status-dot.unknown` (grey) CSS class
-  - When `nodeData.online === false`: all sub-indicators switch to grey
-    with `(?)` suffix; VIP shows "VIP Unknown (Offline)"
-
-- **🐛 monitor.py: notifications failed when both Pi-holes offline (DNS unreachable)**
-  - `get_http_session()` used system DNS = Pi-hole VIP — times out when both nodes down
-  - Now creates `aiohttp.TCPConnector` with `aiohttp.AsyncResolver` pointing to
-    `1.1.1.1` / `8.8.8.8` so Telegram/Discord/etc. still reachable when Pi-holes are down
-  - Falls back to `DefaultResolver` if `aiodns` is not installed
-  - Added `aiodns>=3.2.0` to `requirements.txt` and installed in venv
-
-- **🐛 index.html: copy button used `.textContent` losing newlines from `<a>` tags**
-  - Changed `copyCommandOutput()` to use `.innerText` which respects newlines
-    and strips HTML tags correctly
-
-**Version:** 0.12.2-beta.5 → 0.12.2-beta.6
-
----
-
-## [0.12.2-beta.5] - 2026-03-28
-
-### Fixed
-- **🐛 monitor.py: `journalctl` failed with permission denied**
-  - Monitor service user is not in `systemd-journal` group → exit code 1
-  - Now detects "insufficient permissions" / "No journal files" in stderr
-  - Returns a friendly error message with the exact fix command:
-    `usermod -a -G systemd-journal pihole-monitor && systemctl restart pihole-monitor`
-
-- **🐛 monitor.py: keepalived commands failed on monitor server**
-  - keepalived runs on Pi-hole nodes, not on the monitor server
-  - `keepalived_status`: detects exit code 4 / "could not be found" → shows SSH commands to run on Pi-holes instead
-  - `keepalived_logs`: checks if `/var/log/keepalived-notify.log` exists → if not, shows SSH commands to read the log on Pi-holes
-  - Both commands return `status: "success"` so the modal shows the message cleanly
-
-- **🐛 monitor.py: systemctl status exit codes marked as errors**
-  - Exit code 3 (inactive) and 1 (activation failed) are valid service states, not errors
-  - `monitor_status` and `keepalived_status` now always return `status: "success"` so the modal title is not prefixed with "Error"
-  - ANSI colours forced via `SYSTEMD_COLORS=1` env var in subprocess call
-
-- **🐛 index.html: `systemctl status` ANSI colours not rendered in modal**
-  - Output was set via `textContent` — ANSI escape sequences shown as raw `\x1b[...]` garbage
-  - Added `escapeHtml()` (XSS-safe, entities-first) + `ansiToHtml()` (16-colour ANSI → HTML spans)
-  - Modal now renders green for active/running, red for failed/dead, bold for bullet/service name
-  - `copyCommandOutput()` still uses `.textContent` so clipboard gets plain text without HTML tags
-
-**Version:** 0.12.2-beta.4 → 0.12.2-beta.5
-
----
-
-## [0.12.2-beta.4] - 2026-03-28
-
-### Fixed
-- **🐛 monitor.py: no recovery notification sent after fault notification**
-  - When `_cancel_fault(key)` was called after the 60 s debounce had already fired,
-    `_fault_tasks[key]` was already removed — cancel was a no-op and no recovery went out
-  - Added `_fault_notified: set` that is populated when `_schedule_fault_notification` fires
-  - `_cancel_fault(key, recovery_vars)` is now `async`; if the key is in `_fault_notified`
-    it sends `send_notification("recovery", recovery_vars)` and removes the key
-  - If the fault is still pending (< 60 s) the task is cancelled silently as before
-  - Recovery `reason` correctly identifies the specific issue that resolved
-    (e.g. "Pi-hole service on Secondary Pi-hole is back up")
-
-- **🐛 index.html: Failover History only showed failover events, not recoveries**
-  - JS filtered `event_type === 'failover'` only — recovery events were hidden
-  - Filter changed to include `event_type === 'recovery'` as well
-  - Recovery rows rendered with green background tint and a ✅ prefix
-  - Summary counter now counts failovers only; recovery rows are shown but not counted as failovers
-  - Dutch table headers translated to English
-
-**Version:** 0.12.2-beta.3 → 0.12.2-beta.4
-
----
-
-## [0.12.2-beta.3] - 2026-03-28
-
-### Fixed
-- **🐛 monitor.py: fault notification sent every ~20 min for brief FTL restarts**
-  - Secondary Pi-hole FTL briefly goes down (~12 s) every 20 minutes (DHCP config apply by keepalived)
-  - A fault notification was fired immediately on every True→False state change
-  - Fix: replaced direct `send_notification("fault")` calls with a debounced `_arm_fault()` helper
-    that fires an `asyncio.Task` delayed by `FAULT_NOTIFICATION_DELAY = 60 s`
-  - Recovery (`_cancel_fault()`) cancels the task silently; only faults that persist ≥ 60 s are alerted
-
-- **🐛 monitor.py / index.html: System Commands modal showed "undefined undefined" as title**
-  - `/api/commands/{name}` returned `{"output": "..."}` but the JS expected
-    `data.icon`, `data.description`, `data.exit_code`, `data.status`
-  - Fix: endpoint now returns full structured response matching all JS fields
-  - Log limits increased: monitor/keepalived logs 50 →  200 lines; timeout 5 → 15 s
-  - `vip_check` now shows both `ip addr show` + `ip neigh show`
-  - `db_recent_events` limit 20 → 500 lines, displayed oldest → newest
-
-- **🐛 index.html: Recent Events / command output truncated and not tall enough**
-  - `.command-output-text` `max-height` raised from 500 px to 65 vh
-  - Modal body already uses `flex: 1; overflow-y: auto` so the full viewport height is used
-
-**Version:** 0.12.2-beta.2 → 0.12.2-beta.3
-
----
-
-## [0.12.2-beta.2] - 2026-03-28
-
-### Fixed
-- **🐛 setup.py: SSH connection dropped (exit 255) when reinstalling immediately after uninstall**
-  - After `systemctl stop keepalived` the remote sshd briefly becomes unavailable on some Pi-hole hosts
-    (OOM recovery, sshd reload, or brief network-stack settle after VRRP teardown)
-  - `remote_exec` raised `CalledProcessError` exit 255 which setup.py treated as a hard failure
-  - Fix: `remote_exec` now retries up to 3 times (10 s apart) on SSH exit code 255 before giving up
-  - Added `ConnectTimeout=30`, `ServerAliveInterval=15`, `ServerAliveCountMax=4` to all SSH calls
-    to detect and recover from stale connections more reliably
-  - Added `sleep 2` in `uninstall_remote` bash script after stopping keepalived so the network stack
-    settles before the script continues (relevant for the remote-host sub-menu option)
-  - Added `systemctl disable keepalived` to the uninstall script (was only stopping, not disabling)
-
-**Version:** 0.12.2-beta.1 → 0.12.2-beta.2
-
----
-
-## [0.12.2-beta.1] - 2026-03-28
-
-### Fixed
-- **🐛 monitor.py: test notification showed "❌ Failed: Unknown error" despite notification being delivered**
-  - `POST /api/notifications/test` returned `{"status": "success", ...}` but `NotificationTestResponse` model expects `success` (bool) + `service` (str) fields
-  - FastAPI raised a response-validation error (500) after the notification was already sent
-  - The JavaScript saw a non-ok response and fell into the error branch, showing "Unknown error"
-  - Fix: return `{"success": True, "message": ..., "service": service}` to match the Pydantic model
-
-**Version:** 0.12.1-beta.10 → 0.12.2-beta.1
-
----
-
-## [0.12.1-beta.10] - 2026-03-28
-
-### Fixed
-- **🔄 Full audit and optimization of all notifications**
-
-  **Templates (monitor.py + settings.html):**
-  - `failover`: removed `{backup} issue: {reason}` (duplicate name + awkward grammar) → `Reason: {reason}`
-  - `recovery`: `{primary} is back online` (always "Primary", `{reason}` missing) → `{master} is now MASTER\n{reason}`
-  - Default `failover` template: `🚨 Failover Alert!` → `🚨 Failover`
-  - `settings.html` textarea defaults and `DEFAULT_TEMPLATES` JS object synchronized with above
-
-  **`describe_master_transition` recovery signals:**
-  - "host connectivity recovered" → "host back online"
-  - "Pi-hole service recovered" → "Pi-hole service restored"
-  - "DNS checks recovered" → "DNS restored"
-  - `reason` string is now directly readable (e.g. `"Host back online, Pi-hole service restored"`)
-  - Fallback recovery reason: `"Primary reclaimed MASTER; no active issue..."` → `"Primary preempted, no issue detected on Secondary"`
-  - Fallback failover reason: `"Primary no longer held the VIP; keepalived switched..."` → `"Primary lost VIP; keepalived switched MASTER to Secondary"`
-
-  **Fault notifications (4 calls in monitor_loop):**
-  - Hardcoded `"Primary"` / `"Secondary"` replaced with the configured name from `CONFIG`
-  - e.g. `"Primary Pi-hole is OFFLINE"` → `f"{primary_name} is unreachable"`
-  - e.g. `"Pi-hole service on Primary is DOWN"` → `f"Pi-hole service on {primary_name} is down"`
-
-  **Startup notification:**
-  - `send_notification("startup", ...)` was never called despite the template existing
-  - Added to the startup block in `monitor_loop`; disabled by default via `events.startup: false`
-
-  **Reminder vars (`check_and_send_reminders`):**
-  - `node_name`/`node` were hardcoded to `"Unknown"`
-  - `master` was always Secondary, `backup` always Primary (wrong when Primary is MASTER)
-  - Fix: last `template_vars` per event type stored in `notification_state["last_vars"]` on every `send_notification` call (except reminders themselves)
-  - Reminders reuse that stored context; `time`/`date` are updated to current time
-
-  **Test-template endpoint (`/api/notifications/test-template`):**
-  - `sample_vars["reason"]` was always `"Test notification - simulated failover"` for every type
-  - Now per type: failover/fault → real service reason; recovery → recovery reason; startup empty
-  - `master`/`backup` are also set correctly per type (recovery: `master = primary`, others: `master = secondary`)
-
-  **Hardcoded test message strings (all 5 services: Telegram, Discord, Pushover, Ntfy, Webhook):**
-  - Updated to reflect the new default templates
-
-**Version:** 0.12.1-beta.9 → 0.12.1-beta.10
-
----
-
-## [0.12.1-beta.9] - 2026-03-28
-
-### Fixed
-- **🐛 monitor.py / settings.html: `fault` notification always showed "Both Pi-holes may have issues!" regardless of actual cause**
-  - The `fault` template did not use the `{reason}` variable already present in `template_vars`
-  - Every individual node fault (e.g. "Pi-hole service on Secondary is DOWN") showed the generic "Both Pi-holes may have issues!"
-  - Fix: default `fault` template changed to `⚠️ FAULT: {reason}\nCheck immediately!`
-  - Users with a custom template are unaffected; users on the default can click "Reset" in Settings to load the new template
-  - Test notifications updated with a realistic reason example (`Pi-hole service on Secondary is down`)
-
-**Version:** 0.12.1-beta.8 → 0.12.1-beta.9
-
----
-
-## [0.12.1-beta.8] - 2026-03-28
-
-### Fixed
-- **🐛 setup.py: progress bar leftover text after "Python packages installed"**
-  - The `end='\r'` on the "Installing…" line wrote `(this may take 1-2 minutes)...` (50 chars)
-  - The final 100% line was shorter (10 spaces padding) — the tail `y take 1-2 minutes)...` remained visible
-  - Fix: final line padded with enough spaces to fully overwrite the previous line
-
-**Version:** 0.12.1-beta.7 → 0.12.1-beta.8
-
----
-
-## [0.12.1-beta.7] - 2026-03-28
-
-### Fixed
-- **🐛 monitor.py: missing `import time` — monitoring loop crashed every cycle**
-  - `time.time()` on the DHCP debounce line threw `NameError: name 'time' is not defined`
-  - The broad `except Exception` caught the error and logged `Monitor error: name 'time' is not defined` in Recent Events
-  - Crash occurred before state-update lines → no impact on notifications; DHCP debounce never worked
-  - Fix: `import time` added to imports
-- **🐛 monitor.py: no notification when a node goes offline without a VRRP switch**
-  - `send_notification` was only called on a VRRP MASTER switch (keepalived delay ≥5×5=25s)
-  - If Pi-hole FTL crashes but the host is still reachable, keepalived has not yet switched → no notification
-  - Fix: `send_notification("fault", ...)` added at all four detection points:
-    - Primary went OFFLINE
-    - Secondary went OFFLINE
-    - Pi-hole service on Primary is DOWN (host still online)
-    - Pi-hole service on Secondary is DOWN (host still online)
-  - Notifications use the existing `fault` event type; toggleable via dashboard Settings
-- **🐛 index.html: footer showed `© 2025` (static old year)**
-  - Changed to `© 2025-2026`
-- **🐛 index.html: Master State History buttons overflowed on mobile**
-  - `.chart-header` had no `flex-wrap: wrap` — on narrow screens the 5 time buttons (15m/30m/24h/7d/30d) overflowed the card
-  - Fix: `flex-wrap: wrap; gap: 12px` on `.chart-header`; `flex-wrap: wrap; gap: 8px` on `.time-selector`
-
-**Version:** 0.12.1-beta.6 → 0.12.1-beta.7
-
----
-
-## [0.12.1-beta.6] - 2026-03-28
-
-### Fixed
-- **🐛 setup.py / keepalived.conf: `preempt_delay` on `state MASTER` node (keepalived exit code 1)**
-  - `preempt_delay` is only valid on BACKUP nodes; on a MASTER node keepalived 2.3.x emits a warning and exits `--config-test` with code 1, causing deployment to fail after the VRRP v2 fix
-  - Fix: `preempt_delay 60` removed from the primary (MASTER) config template in `generate_configs()` and from `keepalived/pihole1/keepalived.conf`
-  - Removed the redundant `.replace("\n    preempt_delay 60\n", ...)` in secondary template generation
-  - `--config-test` now returns clean exit code 0 on both nodes; **setup.py deployment now completes end-to-end without errors**
-
----
-
-## [0.12.1-beta.5] - 2026-03-28
-
-### Added
-- **🧪 tests/test_setup.py: 30 tests voor setup.py pre-flight, rollback en uninstall**
-  - **Unit tests (21)** — no external dependencies, SSH mocked:
-    - `TestCheckPiholeApi` — valid/invalid credentials, HTTP errors, unreachable host
-    - `TestPreflightChecks` — all-ok path, SSH error, API error, multiple errors, no separate monitor
-    - `TestRollbackDeployment` — all hosts hit, reverse order, empty list, SSH error tolerance, missing backup timestamp
-    - `TestUninstall` — services stopped, files removed, cancellation, no separate monitor, SSH error tolerance
-    - `TestBackupExistingConfigs` — timestamp returned on backup, None when no files exist
-  - **Integration tests (9)** — run against real Docker mock Pi-holes (automatically skipped if Docker is not running):
-    - `TestCheckPiholeApiDocker` — correct/wrong credentials against `localhost:8001/8002`
-    - `TestMockPiholeStateDocker` — `fail_auth` state via control endpoints, reset restores auth
-  - All 30 tests green (unit: 0.55s, with Docker: 0.29s)
-- **🛠️ Makefile: 3 new targets for setup tests**
-  - `make docker-setup-test` — starts Docker + runs all 30 tests
-  - `make docker-setup-test-only` — runs tests (Docker must already be running)
-  - `make docker-setup-unit` — runs only unit tests (no Docker)
-
----
-
-## [0.12.1-beta.4] - 2026-03-28
-
-### Added
-- **✨ setup.py: Pre-flight credential check before deployment**
-  - New `preflight_checks()` method validates SSH access and Pi-hole web API passwords on all servers before any file is modified
-  - On one failed check: clear summary of all errors shown, setup aborted, servers untouched
-  - Order: SSH login test → Pi-hole v6 API auth test (POST `/api/auth`)
-- **✨ setup.py mode 2: automatic rollback on deployment failure**
-  - Tracks which servers have already been updated (backup timestamp per server)
-  - On failure at any step: `rollback_deployment()` reverts all already-deployed servers to their previous state and restarts services
-  - Rollback active for monitor, primary, and secondary
-- **✨ setup.py option 6: Uninstall Pi-hole Sentinel**
-  - New menu item: `6. Uninstall Pi-hole Sentinel from all servers`
-  - Only asks for SSH credentials (no Pi-hole passwords or network config needed)
-  - Stops and disables `pihole-monitor.service` + removes `/opt/pihole-monitor`
-  - Stops and disables `keepalived` + removes all Sentinel-created files (`keepalived.conf`, `.env`, scripts in `/usr/local/bin/`, logfile)
-  - Pi-hole itself is never touched; asks for `yes` confirmation
-
----
-
-## [0.12.1-beta.3] - 2026-03-28
-
-### Fixed
-- **🐛 keepalived config: `vrrp_version 3` → `vrrp_version 2` (keepalived would not start)**
-  - VRRP v3 does not support authentication; keepalived 2.3.x exited `--config-test` with code 1 on this warning
-  - `preempt_delay` also does not work with `state MASTER` in VRRP v3; same problem
-  - Fix: `vrrp_version 2` in `generate_configs()`, `keepalived/pihole1/keepalived.conf` and `keepalived/pihole2/keepalived.conf`
-  - VRRP v2 correctly supports PASS authentication and `preempt_delay`
-- **🐛 Progress bar formatting issues in monitor deploy output**
-  - `{' ' * 20}` was printed literally as text (missing f-string evaluation)
-  - Stray `.` after "Virtual environment created" removed
-
----
-
-## [0.12.1-beta.2] - 2026-03-28
-
-### Fixed
-- **🐛 setup.py deploy_keepalived_remote: network interface from installer machine used instead of Pi-hole interface**
-  - The generated `keepalived.conf` always contained the interface of the machine running `setup.py` (e.g. `eno1`), but Pi-holes often use a different name (`eth0`, `enp3s0`, etc.)
-  - Fix: after copying `keepalived.conf` to the remote host, the actual interface is auto-detected via `ip route get 8.8.8.8` and written into the config
-  - This was the reason keepalived would not start on either Pi-hole (`interface eno1 doesn't exist`)
-- **🐛 setup.py generate_configs: keepalived auth_pass was 32 characters, keepalived truncates to 8**
-  - `generate_secure_password()` generated a 32-character password, but keepalived PASS auth supports a maximum of 8 characters
-  - keepalived emitted `Truncating auth_pass to 8 characters` and both nodes unintentionally used different portions
-  - Fix: `generate_secure_password(length=8)` for the keepalived password
-
----
-
-## [0.12.1-beta.1] - 2026-03-28
-
-### Fixed
-- **🐛 setup.py deploy_keepalived_remote: keepalived start errors were not visible**
-  - Added `keepalived --config-test` step before `systemctl restart keepalived`
-  - On failure: `systemctl status keepalived`, `journalctl -n 40` and full `keepalived.conf` are shown
-  - `systemctl stop keepalived || true` before restart for a clean state
-  - Fallback diagnostic commands shown in error message as manual follow-up steps
-  - `apt-get install keepalived` now also uses `DEBIAN_FRONTEND=noninteractive`
-- **🐛 setup.py check_package_installed: dnsutils always reported as missing on Debian 12+/13**
-  - Replaced `dpkg -l` with `dpkg-query -W -f=${Status}` for reliable status check
-  - Command fallback added: if `dig` is available, dnsutils is considered installed
-  - `dnsutils` → `bind9-dnsutils` fallback added in `resolve_package_name` (Debian 12+ rename)
+- **VRRP v2** — `vrrp_version 3` → `2`; v3 does not support PASS auth or `preempt_delay`
+- **Interface auto-detect** — keepalived config uses Pi-hole's interface, not installer machine's
+- **`auth_pass` length** — 32 → 8 characters (keepalived PASS max)
+- **`preempt_delay`** on MASTER node — removed (only valid on BACKUP); deployment now completes cleanly
+- **Notification templates audit** — all event types (`failover`, `recovery`, `fault`, `startup`)
+  corrected; `{reason}` variable wired through; reminder vars use stored context
+- **`import time` missing** — monitor loop crashed every cycle on DHCP debounce line
+- **SSH retry on exit 255** — 3× retry after keepalived stop causes brief SSH unavailability
+- **`dnsutils` → `bind9-dnsutils`** fallback for Debian 12+
+- **Progress bar formatting** — missing f-string, stray dots, leftover text after overwrite
 
 ---
 
@@ -428,12 +97,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **🐛 keepalived/pihole2/keepalived.conf: `weight -25 → -60` (aligned with generated config)**
 - **🐛 setup.py generate_configs: secondary was not getting `preempt_delay`**
 
+---
+
 ## [0.12.0-beta.9-setup] - 2026-03-28
 
 ### Fixed
 - **🐛 setup.py: dependency install appeared to hang on dnsutils**
   - Added `DEBIAN_FRONTEND=noninteractive`, `NEEDRESTART_MODE=a`, `DPkg::Lock::Timeout=120`
   - Removed silent `-qq` output; added explicit timeout (30 min)
+
+---
 
 ## [0.12.0-beta.9] - 2026-02-13
 
@@ -452,6 +125,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Redundant `dashboard/requirements.txt` and empty `dashboard/.env`
 
 **Version:** 0.12.0-beta.8 → 0.12.0-beta.9
+
+---
 
 ## [0.12.0-beta.8] - 2026-02-06
 

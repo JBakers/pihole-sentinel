@@ -2,44 +2,11 @@
 
 ## Current Status
 - **Branch:** develop
-- **Version:** 0.12.2-beta.4
+- **Version:** 0.12.2-beta.8
 - **Last updated:** 2026-03-28
 - **Setup status:** ✅ Full deployment works without errors (tested 2026-03-28)
 
----
-
-## ✅ Resolved on 2026-03-28 — setup.py
-
-| # | Problem | Fix |
-|---|---------|-----|
-| 1 | `dnsutils` always "missing" on Debian 13 | `dpkg-query` + `bind9-dnsutils` fallback |
-| 2 | DHCP/FTL restart loop (`dhcp_control.sh`) | Check current state before FTL restart |
-| 3 | keepalived would not start: wrong interface | Auto-detect via `ip route get 8.8.8.8` after deploy |
-| 4 | keepalived auth_pass truncated (32→8 chars) | `generate_secure_password(length=8)` |
-| 5 | keepalived failure diagnosis not visible | `--config-test` + full journal in output |
-| 6 | VRRP v3 + auth = exit code 1 | `vrrp_version 2` in all templates |
-| 7 | `preempt_delay` on MASTER = exit code 1 | Removed from MASTER template |
-| 8 | No pre-flight check | `preflight_checks()`: SSH + Pi-hole API before deploy |
-| 9 | No rollback on failure | `rollback_deployment()` + backup-timestamp tracking |
-| 10 | No uninstall option | Menu option 6: full uninstall via SSH |
-| 11 | SSH disconnect (exit 255) right after uninstall | `remote_exec` retries 3× with 10 s delay + ConnectTimeout=30 |
-
-## ✅ Resolved on 2026-03-28 — notifications & dashboard
-
-| # | Problem | Fix |
-|---|---------|-----|
-| 12 | `fault` always showed "Both Pi-holes may have issues!" | Default template now uses `{reason}` |
-| 13 | Failover/recovery reason showed "Unknown" | `describe_master_transition()` with full diagnosis |
-| 14 | `import time` missing — monitor loop crashed every cycle | Added `import time` |
-| 15 | Recovery classified as failover with wrong reason | Proper `recovery` event type with `{reason}` variable |
-| 16 | Reminders sent with "Unknown" node name | Last `template_vars` stored and reused for reminders |
-| 17 | Startup notification never sent | `send_notification("startup")` added to startup block |
-| 18 | Fault notification every ~20 min (brief FTL restart) | 60 s debounce via `_arm_fault` / `_cancel_fault` |
-| 19 | No recovery notification after fault was sent | `_fault_notified` set + async `_cancel_fault` sends `recovery` |
-| 20 | Test notification showed "Failed: Unknown error" despite delivery | Response matches Pydantic model `{success, service, message}` |
-| 21 | System Commands modal showed "undefined undefined" | API returns `{icon, description, exit_code, status, output}` |
-| 22 | Recent Events limited to 20 lines, not scrollable | Limit → 500, oldest→newest, modal max-height 65 vh |
-| 23 | Failover History only showed failovers, not recoveries | Filter includes `event_type='recovery'`; green tint + ✅ prefix |
+> All items resolved up to and including v0.12.2-beta.8 are documented in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
