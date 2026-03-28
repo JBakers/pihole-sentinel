@@ -5,6 +5,23 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.2-beta.7] - 2026-03-28
+
+### Fixed
+- **🐛 index.html: System Commands section had no card styling**
+  - Section used `.card` / `.card-header` / `.card-content` classes that had no CSS definition
+  - Converted to `.events-card` + `collapsible-header` + `collapsible-content` — same
+    structure as Failover History and Recent System Events
+  - Added `commands-summary` placeholder div so `initCollapseState` does not throw
+  - Added `commands` to `collapseState` initialisation (persisted via localStorage)
+  - Added `commands` to `initCollapseState` loop so collapsed/expanded state is restored on reload
+  - Removed bespoke `toggleCollapse` override that used `display:none/block`;
+    now uses the standard CSS-class-based toggle like all other sections
+
+**Version:** 0.12.2-beta.6 → 0.12.2-beta.7
+
+---
+
 ## [0.12.2-beta.6] - 2026-03-28
 
 ### Fixed
