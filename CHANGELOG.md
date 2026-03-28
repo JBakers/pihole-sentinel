@@ -5,7 +5,20 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.0-beta.12] - 2026-03-28
+## [0.12.0-beta.13] - 2026-03-28
+
+### Fixed
+- **🐛 keepalived config: `vrrp_version 3` → `vrrp_version 2` (keepalived startte niet)**
+  - VRRP v3 ondersteunt geen authenticatie; keepalived 2.3.x exitde `--config-test` met code 1 op deze warning
+  - `preempt_delay` werkt ook niet met `state MASTER` in VRRP v3; zelfde probleem
+  - Fix: `vrrp_version 2` in `generate_configs()`, `keepalived/pihole1/keepalived.conf` en `keepalived/pihole2/keepalived.conf`
+  - VRRP v2 ondersteunt PASS authenticatie en `preempt_delay` correct
+- **🐛 Progress bar typo's in monitor deploy output**
+  - `{' ' * 20}` stond letterlijk als tekst in de output (ontbrekende f-string evaluatie)
+  - Losse `.` na "Virtual environment created" verwijderd
+
+**Version:** 0.12.0-beta.12 → 0.12.0-beta.13
+
 
 ### Fixed
 - **🐛 setup.py deploy_keepalived_remote: VRRP interface-naam van installer-machine gebruikt i.p.v. Pi-hole interface**
