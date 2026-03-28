@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-03-28
 **Branch:** `develop`
-**Current Version:** 0.12.2-beta.8
+**Current Version:** 0.12.4-beta.7
 
 > **📌 This is the central planning and TODO document.**
 > CLAUDE.md references this file. All open tasks, bugs, and the
@@ -23,7 +23,7 @@
 
 ## Current Status
 
-### Branch: `develop` — v0.12.2-beta.8
+### Branch: `develop` — v0.12.4-beta.7
 
 | Item | Status |
 |------|--------|

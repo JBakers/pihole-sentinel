@@ -2,7 +2,7 @@
 
 ## Current Status
 - **Branch:** develop
-- **Version:** 0.12.2-beta.8
+- **Version:** 0.12.4-beta.7
 - **Last updated:** 2026-03-28
 - **Setup status:** ✅ Full deployment works without errors (tested 2026-03-28)
 
