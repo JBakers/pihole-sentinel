@@ -18,7 +18,7 @@ import logging
 import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 from collections import defaultdict
 from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException, Security, Depends, Request
@@ -401,6 +401,7 @@ async def close_http_session():
 notification_state = {
     "last_notification_time": {},  # {event_type: datetime}
     "active_issues": {},  # {event_type: bool} - is issue still active?
+    "last_vars": {},  # {event_type: dict} - template vars from last real notification for reminders
 }
 
 def is_snoozed(settings: dict) -> bool:
@@ -625,6 +626,9 @@ async def send_notification(event_type: str, template_vars: dict, is_reminder: b
         await log_event("notification", f"✉️ Notification sent: {event_type}{' (reminder)' if is_reminder else ''} ({sent_count} service{'s' if sent_count > 1 else ''})")
         # Track last notification time for repeat/reminder functionality
         notification_state["last_notification_time"][event_type] = datetime.now()
+        # Store vars for reminder reuse (skip for reminders themselves to preserve original context)
+        if not is_reminder:
+            notification_state["last_vars"][event_type] = template_vars
 
     if failed_services:
         await log_event("warning", f"⚠️ Notification failed for: {', '.join(failed_services)}")
@@ -651,20 +655,26 @@ async def check_and_send_reminders():
     # Check each active issue type
     for event_type in ['failover', 'fault']:
         if should_send_reminder(event_type, settings):
-            # Build template vars for reminder
-            template_vars = {
-                "node_name": "Unknown",
-                "node": "Unknown",
-                "master": CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole'),
-                "backup": CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole'),
-                "primary": CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole'),
-                "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole'),
-                "reason": "Issue still active",
-                "vip_address": CONFIG.get('vip', ''),
-                "vip": CONFIG.get('vip', ''),
-                "time": datetime.now().strftime("%H:%M:%S"),
-                "date": datetime.now().strftime("%Y-%m-%d")
-            }
+            # Reuse vars from the original notification so the reminder is contextually correct
+            last = notification_state.get("last_vars", {}).get(event_type)
+            if last:
+                template_vars = {**last, "time": datetime.now().strftime("%H:%M:%S"), "date": datetime.now().strftime("%Y-%m-%d")}
+            else:
+                primary_name = CONFIG.get('primary', {}).get('name', 'Primary Pi-hole')
+                secondary_name = CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole')
+                template_vars = {
+                    "node_name": secondary_name,
+                    "node": secondary_name,
+                    "master": secondary_name,
+                    "backup": primary_name,
+                    "primary": primary_name,
+                    "secondary": secondary_name,
+                    "reason": "Issue still active",
+                    "vip_address": CONFIG.get('vip', ''),
+                    "vip": CONFIG.get('vip', ''),
+                    "time": datetime.now().strftime("%H:%M:%S"),
+                    "date": datetime.now().strftime("%Y-%m-%d"),
+                }
             await send_notification(event_type, template_vars, is_reminder=True)
             logger.info(f"Sent reminder notification for {event_type}")
 
@@ -1204,12 +1214,70 @@ async def log_event(event_type: str, message: str):
         await db.execute("INSERT INTO events (event_type, message) VALUES (?, ?)", (event_type, message))
         await db.commit()
 
+
+def collect_node_issues(node_label: str, node_data: dict, dns_ok: bool) -> List[str]:
+    """Build a short list of user-facing health issues for a node."""
+    issues: List[str] = []
+
+    if not node_data.get("online", False):
+        return [f"{node_label} host is offline"]
+
+    if not node_data.get("pihole", False):
+        issues.append(f"Pi-hole service on {node_label} is down")
+
+    if dns_ok is False:
+        issues.append(f"DNS resolution on {node_label} is failing")
+
+    return issues
+
+
+def describe_master_transition(
+    previous_master: Optional[str],
+    current_master: str,
+    primary_data: dict,
+    secondary_data: dict,
+    primary_dns: bool,
+    secondary_dns: bool,
+    previous_primary_online: Optional[bool],
+    previous_primary_pihole: Optional[bool],
+    previous_primary_dns: Optional[bool],
+) -> Tuple[str, str]:
+    """Classify a MASTER switch as failover or recovery and explain why."""
+    primary_issues = collect_node_issues("Primary", primary_data, primary_dns)
+    secondary_issues = collect_node_issues("Secondary", secondary_data, secondary_dns)
+
+    if current_master == "secondary":
+        if primary_issues:
+            return "failover", "; ".join(primary_issues)
+        return "failover", "Primary lost VIP; keepalived switched MASTER to Secondary"
+
+    if current_master == "primary" and previous_master == "secondary":
+        if secondary_issues:
+            return "failover", "; ".join(secondary_issues)
+
+        recovered_signals = []
+        if previous_primary_online is False and primary_data.get("online", False):
+            recovered_signals.append("host back online")
+        if previous_primary_pihole is False and primary_data.get("pihole", False):
+            recovered_signals.append("Pi-hole service restored")
+        if previous_primary_dns is False and primary_dns:
+            recovered_signals.append("DNS restored")
+
+        if recovered_signals:
+            signals_str = ", ".join(recovered_signals)
+            return "recovery", signals_str[0].upper() + signals_str[1:]
+
+        return "recovery", "Primary preempted, no issue detected on Secondary"
+
+    return "failover", "MASTER changed"
+
 async def monitor_loop():
     previous_state = None
     previous_primary_online = None
     previous_secondary_online = None
     previous_primary_pihole = None
     previous_secondary_pihole = None
+    previous_primary_dns = None
     previous_primary_has_vip = None
     previous_secondary_has_vip = None
     startup = True
@@ -1234,6 +1302,15 @@ async def monitor_loop():
                 await log_event("info", f"Monitor started - {current_master} is MASTER")
                 await log_event("info", f"Primary: {'Online' if primary_data['online'] else 'Offline'}, Pi-hole: {'OK' if primary_data['pihole'] else 'Down'}")
                 await log_event("info", f"Secondary: {'Online' if secondary_data['online'] else 'Offline'}, Pi-hole: {'OK' if secondary_data['pihole'] else 'Down'}")
+                await send_notification("startup", {
+                    "master": CONFIG.get('primary' if primary_state == 'MASTER' else 'secondary', {}).get('name', f'{current_master} Pi-hole'),
+                    "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                    "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                    "vip": CONFIG['vip'],
+                    "vip_address": CONFIG['vip'],
+                    "time": datetime.now().strftime("%H:%M:%S"),
+                    "date": datetime.now().strftime("%Y-%m-%d"),
+                })
                 startup = False
             
             # Detect online/offline changes
@@ -1242,11 +1319,11 @@ async def monitor_loop():
                     await log_event("warning", "Primary went OFFLINE")
                     logger.warning("Primary went OFFLINE")
                     await send_notification("fault", {
-                        "node": CONFIG.get('primary', {}).get('name', 'Primary'),
-                        "node_name": CONFIG.get('primary', {}).get('name', 'Primary'),
-                        "primary": CONFIG.get('primary', {}).get('name', 'Primary'),
-                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary'),
-                        "reason": "Primary Pi-hole is OFFLINE",
+                        "node": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "node_name": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "reason": f"{CONFIG.get('primary', {}).get('name', 'Primary Pi-hole')} is unreachable",
                         "vip": CONFIG['vip'],
                         "vip_address": CONFIG['vip'],
                         "time": datetime.now().strftime("%H:%M:%S"),
@@ -1261,11 +1338,11 @@ async def monitor_loop():
                     await log_event("warning", "Secondary went OFFLINE")
                     logger.warning("Secondary went OFFLINE")
                     await send_notification("fault", {
-                        "node": CONFIG.get('secondary', {}).get('name', 'Secondary'),
-                        "node_name": CONFIG.get('secondary', {}).get('name', 'Secondary'),
-                        "primary": CONFIG.get('primary', {}).get('name', 'Primary'),
-                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary'),
-                        "reason": "Secondary Pi-hole is OFFLINE",
+                        "node": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "node_name": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "reason": f"{CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole')} is unreachable",
                         "vip": CONFIG['vip'],
                         "vip_address": CONFIG['vip'],
                         "time": datetime.now().strftime("%H:%M:%S"),
@@ -1281,11 +1358,11 @@ async def monitor_loop():
                     await log_event("warning", "Pi-hole service on Primary is DOWN")
                     logger.warning("Primary Pi-hole service is DOWN")
                     await send_notification("fault", {
-                        "node": CONFIG.get('primary', {}).get('name', 'Primary'),
-                        "node_name": CONFIG.get('primary', {}).get('name', 'Primary'),
-                        "primary": CONFIG.get('primary', {}).get('name', 'Primary'),
-                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary'),
-                        "reason": "Pi-hole service on Primary is DOWN",
+                        "node": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "node_name": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "reason": f"Pi-hole service on {CONFIG.get('primary', {}).get('name', 'Primary Pi-hole')} is down",
                         "vip": CONFIG['vip'],
                         "vip_address": CONFIG['vip'],
                         "time": datetime.now().strftime("%H:%M:%S"),
@@ -1300,11 +1377,11 @@ async def monitor_loop():
                     await log_event("warning", "Pi-hole service on Secondary is DOWN")
                     logger.warning("Secondary Pi-hole service is DOWN")
                     await send_notification("fault", {
-                        "node": CONFIG.get('secondary', {}).get('name', 'Secondary'),
-                        "node_name": CONFIG.get('secondary', {}).get('name', 'Secondary'),
-                        "primary": CONFIG.get('primary', {}).get('name', 'Primary'),
-                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary'),
-                        "reason": "Pi-hole service on Secondary is DOWN",
+                        "node": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "node_name": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "reason": f"Pi-hole service on {CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole')} is down",
                         "vip": CONFIG['vip'],
                         "vip_address": CONFIG['vip'],
                         "time": datetime.now().strftime("%H:%M:%S"),
@@ -1345,25 +1422,26 @@ async def monitor_loop():
             current_master = "primary" if primary_state == "MASTER" else "secondary"
             if previous_state and previous_state != current_master:
                 master_name = "Primary" if current_master == "primary" else "Secondary"
-                await log_event("failover", f"{master_name} became MASTER")
-                logger.warning(f"FAILOVER: {master_name} is now MASTER")
+                transition_event, reason = describe_master_transition(
+                    previous_state,
+                    current_master,
+                    primary_data,
+                    secondary_data,
+                    primary_dns,
+                    secondary_dns,
+                    previous_primary_online,
+                    previous_primary_pihole,
+                    previous_primary_dns,
+                )
 
-                # Determine failover reason
-                reason = ""
-                if current_master == "secondary":
-                    if not primary_data["online"]:
-                        reason = "Primary is offline"
-                        await log_event("info", f"Failover reason: {reason}")
-                    elif not primary_data["pihole"]:
-                        reason = "Pi-hole service on Primary is down"
-                        await log_event("info", f"Failover reason: {reason}")
+                if transition_event == "recovery":
+                    await log_event("recovery", f"{master_name} reclaimed MASTER")
+                    logger.info(f"RECOVERY: {master_name} reclaimed MASTER")
+                    await log_event("info", f"Recovery reason: {reason}")
                 else:
-                    if not secondary_data["online"]:
-                        reason = "Secondary is offline"
-                        await log_event("info", f"Failback reason: {reason}")
-                    elif not secondary_data["pihole"]:
-                        reason = "Pi-hole service on Secondary is down"
-                        await log_event("info", f"Failback reason: {reason}")
+                    await log_event("failover", f"{master_name} became MASTER")
+                    logger.warning(f"FAILOVER: {master_name} is now MASTER")
+                    await log_event("info", f"Failover reason: {reason}")
 
                 # Send notification
                 # Determine which node is master and which is backup
@@ -1381,15 +1459,15 @@ async def monitor_loop():
                     "backup": backup_node,
                     "primary": CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole'),
                     "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole'),
-                    "reason": reason if reason else "Unknown",
+                    "reason": reason,
                     "vip_address": CONFIG['vip'],
                     "vip": CONFIG['vip'],
                     "time": datetime.now().strftime("%H:%M:%S"),
                     "date": datetime.now().strftime("%Y-%m-%d")
                 }
-                await send_notification("failover", template_vars)
+                await send_notification(transition_event, template_vars)
                 # Mark failover as active issue for reminders
-                notification_state["active_issues"]["failover"] = True
+                notification_state["active_issues"]["failover"] = transition_event == "failover"
             
             # Check for recovery - clear active issues
             if previous_state and previous_state != current_master:
@@ -1414,6 +1492,7 @@ async def monitor_loop():
             previous_secondary_online = secondary_data["online"]
             previous_primary_pihole = primary_data["pihole"]
             previous_secondary_pihole = secondary_data["pihole"]
+            previous_primary_dns = primary_dns
             previous_primary_has_vip = primary_has_vip
             previous_secondary_has_vip = secondary_has_vip
             
@@ -1626,9 +1705,9 @@ async def get_notification_settings(api_key: str = Depends(verify_api_key)):
         "ntfy": {"enabled": False, "topic": "", "server": "https://ntfy.sh"},
         "webhook": {"enabled": False, "url": ""},
         "templates": {
-            "failover": "🚨 Failover Alert!\n{master} is now MASTER\n{backup} issue: {reason}",
-            "recovery": "✅ Recovery: {primary} is back online\n{master} is now MASTER",
-            "fault": "⚠️ FAULT: Both Pi-holes may have issues!\nCheck immediately!",
+            "failover": "🚨 Failover\n{master} is now MASTER\nReason: {reason}",
+            "recovery": "✅ Recovery: {master} is now MASTER\n{reason}",
+            "fault": "⚠️ FAULT: {reason}\nCheck immediately!",
             "startup": "🚀 Pi-hole Sentinel started\nMonitoring {primary} and {secondary}"
         },
         "repeat": {
@@ -1938,14 +2017,14 @@ async def test_notification(
                 "🧪 <b>Pi-hole Sentinel Test Notification</b>\n\n"
                 "📋 <b>Default Template Examples:</b>\n\n"
                 "🚨 <b>Failover:</b>\n"
-                "🚨 Failover Alert!\n"
+                "🚨 Failover\n"
                 "Secondary Pi-hole is now MASTER\n"
-                "Primary Pi-hole issue: Service stopped\n\n"
+                "Reason: Pi-hole service on Primary is down\n\n"
                 "✅ <b>Recovery:</b>\n"
-                "✅ Recovery: Primary Pi-hole is back online\n"
-                "Primary Pi-hole is now MASTER\n\n"
+                "✅ Recovery: Primary Pi-hole is now MASTER\n"
+                "Host back online, Pi-hole service restored\n\n"
                 "⚠️ <b>Fault:</b>\n"
-                "⚠️ FAULT: Both Pi-holes may have issues!\n"
+                "⚠️ FAULT: Pi-hole service on Secondary is down\n"
                 "Check immediately!\n\n"
                 "🚀 <b>Startup:</b>\n"
                 "🚀 Pi-hole Sentinel started\n"
@@ -1977,17 +2056,17 @@ async def test_notification(
                             'fields': [
                                 {
                                     'name': '🚨 Failover',
-                                    'value': '🚨 Failover Alert!\nSecondary Pi-hole is now MASTER\nPrimary Pi-hole issue: Service stopped',
+                                    'value': '🚨 Failover\nSecondary Pi-hole is now MASTER\nReason: Pi-hole service on Primary is down',
                                     'inline': False
                                 },
                                 {
                                     'name': '✅ Recovery',
-                                    'value': '✅ Recovery: Primary Pi-hole is back online\nPrimary Pi-hole is now MASTER',
+                                    'value': '✅ Recovery: Primary Pi-hole is now MASTER\nHost back online, Pi-hole service restored',
                                     'inline': False
                                 },
                                 {
                                     'name': '⚠️ Fault',
-                                    'value': '⚠️ FAULT: Both Pi-holes may have issues!\nCheck immediately!',
+                                    'value': '⚠️ FAULT: Pi-hole service on Secondary is down\nCheck immediately!',
                                     'inline': False
                                 },
                                 {
@@ -2017,12 +2096,12 @@ async def test_notification(
                 "Default Template Examples:\n\n"
                 "🚨 Failover:\n"
                 "Secondary Pi-hole is now MASTER\n"
-                "Primary Pi-hole issue: Service stopped\n\n"
+                "Reason: Pi-hole service on Primary is down\n\n"
                 "✅ Recovery:\n"
-                "Primary Pi-hole is back online\n"
-                "Primary Pi-hole is now MASTER\n\n"
+                "Primary Pi-hole is now MASTER\n"
+                "Host back online, Pi-hole service restored\n\n"
                 "⚠️ Fault:\n"
-                "Both Pi-holes may have issues!\n"
+                "Pi-hole service on Secondary is down\n"
                 "Check immediately!\n\n"
                 "🚀 Startup:\n"
                 "Pi-hole Sentinel started\n"
@@ -2050,9 +2129,9 @@ async def test_notification(
             test_message = (
                 "🧪 Pi-hole Sentinel Test\n\n"
                 "Default Template Examples:\n\n"
-                "🚨 Failover: Secondary Pi-hole is now MASTER (Primary issue: Service stopped)\n"
-                "✅ Recovery: Primary Pi-hole is back online (Primary is now MASTER)\n"
-                "⚠️ Fault: Both Pi-holes may have issues! Check immediately!\n"
+                "🚨 Failover: Secondary Pi-hole is now MASTER (Reason: Pi-hole service on Primary is down)\n"
+                "✅ Recovery: Primary Pi-hole is now MASTER (Host back online, Pi-hole service restored)\n"
+                "⚠️ Fault: Pi-hole service on Secondary is down - Check immediately!\n"
                 "🚀 Startup: Pi-hole Sentinel started (Monitoring Primary and Secondary)\n\n"
                 "✅ If you see this, notifications are working!"
             )
@@ -2076,9 +2155,9 @@ async def test_notification(
                     'type': 'test',
                     'message': 'Test notification - Default template examples',
                     'templates': {
-                        'failover': '🚨 Failover Alert! Secondary Pi-hole is now MASTER (Primary Pi-hole issue: Service stopped)',
-                        'recovery': '✅ Recovery: Primary Pi-hole is back online (Primary Pi-hole is now MASTER)',
-                        'fault': '⚠️ FAULT: Both Pi-holes may have issues! Check immediately!',
+                        'failover': '🚨 Failover: Secondary Pi-hole is now MASTER (Reason: Pi-hole service on Primary is down)',
+                        'recovery': '✅ Recovery: Primary Pi-hole is now MASTER (Host back online, Pi-hole service restored)',
+                        'fault': '⚠️ FAULT: Pi-hole service on Secondary is down - Check immediately!',
                         'startup': '🚀 Pi-hole Sentinel started (Monitoring Primary Pi-hole and Secondary Pi-hole)'
                     },
                     'status': 'Notifications are working!',
@@ -2134,14 +2213,22 @@ async def test_template_notification(
     primary_name = CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole')
     secondary_name = CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole')
     
+    _reasons = {
+        "failover": f"Pi-hole service on {primary_name} is down",
+        "recovery": "Host back online, Pi-hole service restored",
+        "fault": f"Pi-hole service on {secondary_name} is down",
+        "startup": "",
+    }
+    _master = primary_name if template_type == 'recovery' else secondary_name
+    _backup = secondary_name if template_type == 'recovery' else primary_name
     sample_vars = {
-        "node_name": secondary_name,
-        "node": secondary_name,
-        "master": secondary_name,
-        "backup": primary_name,
+        "node_name": _master,
+        "node": _master,
+        "master": _master,
+        "backup": _backup,
         "primary": primary_name,
         "secondary": secondary_name,
-        "reason": "Test notification - simulated failover",
+        "reason": _reasons.get(template_type, "Test notification"),
         "vip_address": CONFIG.get('vip', '192.168.1.100'),
         "vip": CONFIG.get('vip', '192.168.1.100'),
         "time": datetime.now().strftime("%H:%M:%S"),

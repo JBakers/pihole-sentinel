@@ -1109,9 +1109,9 @@
                         title="Test this template" style="padding:4px 10px; font-size:14px;">📤 Test</button>
                 </div>
                 <textarea id="template-failover" rows="3" class="template-area"
-                    onfocus="activeTemplate='template-failover'">🚨 Failover Alert!
+                    onfocus="activeTemplate='template-failover'">🚨 Failover
 {master} is now MASTER
-{backup} issue: {reason}</textarea>
+Reason: {reason}</textarea>
             </div>
 
             <div class="form-group">
@@ -1121,8 +1121,8 @@
                         title="Test this template" style="padding:4px 10px; font-size:14px;">📤 Test</button>
                 </div>
                 <textarea id="template-recovery" rows="2" class="template-area"
-                    onfocus="activeTemplate='template-recovery'">✅ Recovery: {primary} is back online
-{master} is now MASTER</textarea>
+                    onfocus="activeTemplate='template-recovery'">✅ Recovery: {master} is now MASTER
+{reason}</textarea>
             </div>
 
             <div class="form-group">
@@ -1131,7 +1131,7 @@
                     <button type="button" class="var-btn" onclick="testSpecificTemplate('fault')"
                         title="Test this template" style="padding:4px 10px; font-size:14px;">📤 Test</button>
                 </div>
-                <textarea id="template-fault" rows="2" class="template-area" onfocus="activeTemplate='template-fault'">⚠️ FAULT: Both Pi-holes may have issues!
+                <textarea id="template-fault" rows="2" class="template-area" onfocus="activeTemplate='template-fault'">⚠️ FAULT: {reason}
 Check immediately!</textarea>
             </div>
 
@@ -1204,9 +1204,9 @@ Monitoring {primary} and {secondary}</textarea>
 
         // Default templates
         const DEFAULT_TEMPLATES = {
-            failover: "🚨 Failover Alert!\n{master} is now MASTER\n{backup} issue: {reason}",
-            recovery: "✅ Recovery: {primary} is back online\n{master} is now MASTER",
-            fault: "⚠️ FAULT: Both Pi-holes may have issues!\nCheck immediately!",
+            failover: "🚨 Failover\n{master} is now MASTER\nReason: {reason}",
+            recovery: "✅ Recovery: {master} is now MASTER\n{reason}",
+            fault: "⚠️ FAULT: {reason}\nCheck immediately!",
             startup: "🚀 Pi-hole Sentinel started\nMonitoring {primary} and {secondary}"
         };
 
