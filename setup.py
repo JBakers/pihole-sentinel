@@ -933,7 +933,6 @@ vrrp_instance VI_1 {{
     virtual_router_id 51
     priority 150
     advert_int 1
-    preempt_delay 60
     
     authentication {{
         auth_type PASS
@@ -955,16 +954,15 @@ vrrp_instance VI_1 {{
 }}"""
 
         # Create secondary keepalived config (similar but with BACKUP state).
-        # preempt_delay is only meaningful on a node that can preempt (i.e. primary);
-        # secondary starts as BACKUP with lower priority so it is stripped here.
+        # preempt_delay only applies to BACKUP nodes attempting to preempt;
+        # it is not valid on state MASTER and keepalived 2.3.x exits with
+        # code 1 if it is present — so it is absent from the template above.
         secondary_keepalived = primary_keepalived.replace(
             "state MASTER", "state BACKUP"
         ).replace(
             "priority 150", "priority 100"
         ).replace(
             "router_id PIHOLE1", "router_id PIHOLE2"
-        ).replace(
-            "\n    preempt_delay 60\n", "\n"
         )
 
         # Create monitor configuration
