@@ -5,6 +5,36 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.2-beta.5] - 2026-03-28
+
+### Fixed
+- **🐛 monitor.py: `journalctl` failed with permission denied**
+  - Monitor service user is not in `systemd-journal` group → exit code 1
+  - Now detects "insufficient permissions" / "No journal files" in stderr
+  - Returns a friendly error message with the exact fix command:
+    `usermod -a -G systemd-journal pihole-monitor && systemctl restart pihole-monitor`
+
+- **🐛 monitor.py: keepalived commands failed on monitor server**
+  - keepalived runs on Pi-hole nodes, not on the monitor server
+  - `keepalived_status`: detects exit code 4 / "could not be found" → shows SSH commands to run on Pi-holes instead
+  - `keepalived_logs`: checks if `/var/log/keepalived-notify.log` exists → if not, shows SSH commands to read the log on Pi-holes
+  - Both commands return `status: "success"` so the modal shows the message cleanly
+
+- **🐛 monitor.py: systemctl status exit codes marked as errors**
+  - Exit code 3 (inactive) and 1 (activation failed) are valid service states, not errors
+  - `monitor_status` and `keepalived_status` now always return `status: "success"` so the modal title is not prefixed with "Error"
+  - ANSI colours forced via `SYSTEMD_COLORS=1` env var in subprocess call
+
+- **🐛 index.html: `systemctl status` ANSI colours not rendered in modal**
+  - Output was set via `textContent` — ANSI escape sequences shown as raw `\x1b[...]` garbage
+  - Added `escapeHtml()` (XSS-safe, entities-first) + `ansiToHtml()` (16-colour ANSI → HTML spans)
+  - Modal now renders green for active/running, red for failed/dead, bold for bullet/service name
+  - `copyCommandOutput()` still uses `.textContent` so clipboard gets plain text without HTML tags
+
+**Version:** 0.12.2-beta.4 → 0.12.2-beta.5
+
+---
+
 ## [0.12.2-beta.4] - 2026-03-28
 
 ### Fixed
