@@ -5,6 +5,30 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.2-beta.4] - 2026-03-28
+
+### Fixed
+- **🐛 monitor.py: no recovery notification sent after fault notification**
+  - When `_cancel_fault(key)` was called after the 60 s debounce had already fired,
+    `_fault_tasks[key]` was already removed — cancel was a no-op and no recovery went out
+  - Added `_fault_notified: set` that is populated when `_schedule_fault_notification` fires
+  - `_cancel_fault(key, recovery_vars)` is now `async`; if the key is in `_fault_notified`
+    it sends `send_notification("recovery", recovery_vars)` and removes the key
+  - If the fault is still pending (< 60 s) the task is cancelled silently as before
+  - Recovery `reason` correctly identifies the specific issue that resolved
+    (e.g. "Pi-hole service on Secondary Pi-hole is back up")
+
+- **🐛 index.html: Failover History only showed failover events, not recoveries**
+  - JS filtered `event_type === 'failover'` only — recovery events were hidden
+  - Filter changed to include `event_type === 'recovery'` as well
+  - Recovery rows rendered with green background tint and a ✅ prefix
+  - Summary counter now counts failovers only; recovery rows are shown but not counted as failovers
+  - Dutch table headers translated to English
+
+**Version:** 0.12.2-beta.3 → 0.12.2-beta.4
+
+---
+
 ## [0.12.2-beta.3] - 2026-03-28
 
 ### Fixed

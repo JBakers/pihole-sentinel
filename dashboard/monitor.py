@@ -409,7 +409,8 @@ notification_state = {
 # notifications.  A fault alert fires only when the fault persists longer than
 # FAULT_NOTIFICATION_DELAY seconds.  Recovery before the delay cancels silently.
 FAULT_NOTIFICATION_DELAY = 60  # seconds
-_fault_tasks: dict = {}  # key → asyncio.Task
+_fault_tasks: dict = {}     # key → asyncio.Task (pending debounce timer)
+_fault_notified: set = set()  # keys where a fault notification was actually sent
 
 def is_snoozed(settings: dict) -> bool:
     """Check if notifications are currently snoozed."""
@@ -693,6 +694,7 @@ async def _schedule_fault_notification(key: str, template_vars: dict) -> None:
     clears before the delay expires — suppressing spam from brief FTL restarts.
     """
     await asyncio.sleep(FAULT_NOTIFICATION_DELAY)
+    _fault_notified.add(key)   # mark as sent BEFORE awaiting so cancel sees it
     await send_notification("fault", template_vars)
     _fault_tasks.pop(key, None)
 
@@ -705,11 +707,28 @@ def _arm_fault(key: str, template_vars: dict) -> None:
         )
 
 
-def _cancel_fault(key: str) -> None:
-    """Cancel a pending fault notification (brief outage — suppressed)."""
+def _cancel_fault_pending(key: str) -> bool:
+    """Cancel a still-pending fault task. Returns True if a task was cancelled."""
     task = _fault_tasks.pop(key, None)
     if task:
         task.cancel()
+        return True
+    return False
+
+
+async def _cancel_fault(key: str, recovery_vars: dict) -> None:
+    """Handle fault recovery for *key*.
+
+    - If the fault timer is still pending (< 60 s): cancel silently — no
+      notification was sent so no recovery message is needed.
+    - If the fault notification was already sent (≥ 60 s): send a recovery
+      notification so the user knows the issue is resolved.
+    """
+    was_pending = _cancel_fault_pending(key)
+    if not was_pending and key in _fault_notified:
+        # Fault notification went out — now confirm recovery
+        _fault_notified.discard(key)
+        await send_notification("recovery", recovery_vars)
 
 # CORS middleware - restricted to localhost for security
 # If you need remote access, add specific origins here
@@ -1363,7 +1382,17 @@ async def monitor_loop():
                         "date": datetime.now().strftime("%Y-%m-%d"),
                     })
                 elif not previous_primary_online and primary_data["online"]:
-                    _cancel_fault("primary_offline")
+                    await _cancel_fault("primary_offline", {
+                        "node": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "master": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "backup": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "reason": f"{CONFIG.get('primary', {}).get('name', 'Primary Pi-hole')} is back online",
+                        "vip": CONFIG['vip'], "vip_address": CONFIG['vip'],
+                        "time": datetime.now().strftime("%H:%M:%S"),
+                        "date": datetime.now().strftime("%Y-%m-%d"),
+                    })
                     await log_event("success", "Primary is back ONLINE")
                     logger.info("Primary is back ONLINE")
 
@@ -1383,7 +1412,17 @@ async def monitor_loop():
                         "date": datetime.now().strftime("%Y-%m-%d"),
                     })
                 elif not previous_secondary_online and secondary_data["online"]:
-                    _cancel_fault("secondary_offline")
+                    await _cancel_fault("secondary_offline", {
+                        "node": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "master": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "backup": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "reason": f"{CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole')} is back online",
+                        "vip": CONFIG['vip'], "vip_address": CONFIG['vip'],
+                        "time": datetime.now().strftime("%H:%M:%S"),
+                        "date": datetime.now().strftime("%Y-%m-%d"),
+                    })
                     await log_event("success", "Secondary is back ONLINE")
                     logger.info("Secondary is back ONLINE")
 
@@ -1404,7 +1443,17 @@ async def monitor_loop():
                         "date": datetime.now().strftime("%Y-%m-%d"),
                     })
                 elif not previous_primary_pihole and primary_data["pihole"]:
-                    _cancel_fault("primary_pihole_down")
+                    await _cancel_fault("primary_pihole_down", {
+                        "node": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "master": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "backup": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "reason": f"Pi-hole service on {CONFIG.get('primary', {}).get('name', 'Primary Pi-hole')} is back up",
+                        "vip": CONFIG['vip'], "vip_address": CONFIG['vip'],
+                        "time": datetime.now().strftime("%H:%M:%S"),
+                        "date": datetime.now().strftime("%Y-%m-%d"),
+                    })
                     await log_event("success", "Pi-hole service on Primary is back UP")
                     logger.info("Primary Pi-hole service is back UP")
 
@@ -1424,7 +1473,17 @@ async def monitor_loop():
                         "date": datetime.now().strftime("%Y-%m-%d"),
                     })
                 elif not previous_secondary_pihole and secondary_data["pihole"]:
-                    _cancel_fault("secondary_pihole_down")
+                    await _cancel_fault("secondary_pihole_down", {
+                        "node": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "master": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "backup": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                        "reason": f"Pi-hole service on {CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole')} is back up",
+                        "vip": CONFIG['vip'], "vip_address": CONFIG['vip'],
+                        "time": datetime.now().strftime("%H:%M:%S"),
+                        "date": datetime.now().strftime("%Y-%m-%d"),
+                    })
                     await log_event("success", "Pi-hole service on Secondary is back UP")
                     logger.info("Secondary Pi-hole service is back UP")
             
