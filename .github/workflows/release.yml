@@ -1,17 +1,15 @@
-# Automatic release tarball on version tags
+# Automatic release on merge to main
 #
-# Triggers on tags: v0.12.4-beta.1, v0.13.0-beta.1, v1.0.0, etc.
-# Pattern: vX.Y.Z-beta.1 (first beta of new patch) or vX.Y.Z (stable release)
-#
-# Creates a GitHub Release with a clean tarball (export-ignore files excluded).
+# Triggers when code is pushed/merged to the main branch.
+# Reads VERSION file, creates a git tag, and publishes a GitHub Release
+# with a clean tarball (export-ignore files excluded).
 
 name: Release
 
 on:
   push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+-beta.1'   # First beta of each patch: v0.12.4-beta.1
-      - 'v[0-9]+.[0-9]+.[0-9]+'           # Stable releases: v1.0.0
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -22,18 +20,39 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Read version
         id: version
         run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
 
+      - name: Check if tag already exists
+        id: tag_check
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create and push tag
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+
       - name: Create clean tarball
+        if: steps.tag_check.outputs.exists == 'false'
         run: |
           # git archive respects .gitattributes export-ignore
           git archive --format=tar.gz --prefix=pihole-sentinel-${{ steps.version.outputs.version }}/ \
             -o pihole-sentinel-${{ steps.version.outputs.version }}.tar.gz HEAD
 
       - name: Determine pre-release
+        if: steps.tag_check.outputs.exists == 'false'
         id: prerelease
         run: |
           if echo "${{ steps.version.outputs.version }}" | grep -q "beta"; then
@@ -43,10 +62,11 @@ jobs:
           fi
 
       - name: Create GitHub Release
+        if: steps.tag_check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           name: "Pi-hole Sentinel ${{ steps.version.outputs.version }}"
-          tag_name: ${{ github.ref_name }}
+          tag_name: "v${{ steps.version.outputs.version }}"
           prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
           generate_release_notes: true
           files: pihole-sentinel-${{ steps.version.outputs.version }}.tar.gz

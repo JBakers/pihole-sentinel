@@ -5,6 +5,11 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.4-beta.10] - 2026-03-28
+
+### Improved
+- **Release workflow triggers on main merge** — release.yml no longer requires manual tags. Automatically creates git tag, clean tarball, and GitHub Release when code is merged to main. Skips if tag already exists.
+
 ## [0.12.4-beta.9] - 2026-03-28
 
 ### Fixed
@@ -51,7 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New
 - **Clean release tarballs** — `.gitattributes` export-ignore excludes dev/test files (docker/, tests/, CLAUDE.md, etc.) from `git archive` output
-- **Automated GitHub Releases** — new workflow creates a release with clean tarball on every `vX.Y.Z-beta.1` or stable `vX.Y.Z` tag
+- **Automated GitHub Releases** — workflow automatically creates a git tag and GitHub Release with clean tarball on every merge to `main`
 
 ## [0.12.4-beta.1] - 2026-03-28
 
