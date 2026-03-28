@@ -77,6 +77,8 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 - **Web-based configuration** - no config file editing
 - **Multiple services** - Telegram, Discord, Pushover, Ntfy, custom webhooks
 - **Event-based alerts** - failover, recovery, fault, startup
+- **Fault debounce** - brief service restarts (< 60 s) suppressed; real faults only
+- **Always-paired** - every fault notification is followed by a recovery notification
 - **Test notifications** - verify before saving settings
 
 ---
@@ -289,8 +291,11 @@ The uninstaller will:
 
 - **Failover** - Secondary becomes MASTER (primary failed)
 - **Recovery** - Primary becomes MASTER again (back online)
-- **Fault** - Server entered FAULT state (service issues)
+- **Fault** - Service issue persisting > 60 s (e.g. Pi-hole FTL down)
+- **Recovery (fault)** - Fault resolved; confirmation sent automatically
 - **Startup** - Monitoring service started (optional, disabled by default)
+
+> **Note:** Brief service interruptions under 60 s (e.g. keepalived DHCP config apply) are suppressed automatically — no noise for transient restarts.
 
 ---
 
