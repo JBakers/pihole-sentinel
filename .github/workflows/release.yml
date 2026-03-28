@@ -3,17 +3,13 @@
 # Triggers when code is pushed/merged to the main branch.
 # Reads VERSION file, creates a git tag, and publishes a GitHub Release
 # with a clean tarball (export-ignore files excluded).
-
 name: Release
-
 on:
   push:
     branches:
       - main
-
 permissions:
   contents: write
-
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -22,11 +18,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Read version
         id: version
         run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
-
       - name: Check if tag already exists
         id: tag_check
         run: |
@@ -35,7 +29,6 @@ jobs:
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
-
       - name: Create and push tag
         if: steps.tag_check.outputs.exists == 'false'
         run: |
@@ -43,14 +36,16 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
           git push origin "v${{ steps.version.outputs.version }}"
-
-      - name: Create clean tarball
+      - name: Create clean tarballs
         if: steps.tag_check.outputs.exists == 'false'
         run: |
           # git archive respects .gitattributes export-ignore
+          # Versioned tarball (for archival)
           git archive --format=tar.gz --prefix=pihole-sentinel-${{ steps.version.outputs.version }}/ \
             -o pihole-sentinel-${{ steps.version.outputs.version }}.tar.gz HEAD
-
+          # Fixed-name tarball (for stable download URL)
+          git archive --format=tar.gz --prefix=pihole-sentinel/ \
+            -o pihole-sentinel.tar.gz HEAD
       - name: Determine pre-release
         if: steps.tag_check.outputs.exists == 'false'
         id: prerelease
@@ -60,7 +55,6 @@ jobs:
           else
             echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
           fi
-
       - name: Create GitHub Release
         if: steps.tag_check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
@@ -69,4 +63,6 @@ jobs:
           tag_name: "v${{ steps.version.outputs.version }}"
           prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
           generate_release_notes: true
-          files: pihole-sentinel-${{ steps.version.outputs.version }}.tar.gz
+          files: |
+            pihole-sentinel-${{ steps.version.outputs.version }}.tar.gz
+            pihole-sentinel.tar.gz
