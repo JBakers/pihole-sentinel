@@ -1889,38 +1889,25 @@ WantedBy=timers.target
 
         Does not ask for Pi-hole passwords, DHCP settings, or VIP.
         """
-        print(f"\n{Colors.CYAN}{Colors.BOLD}=== Server Configuration ==={Colors.END}")
+        print(f"\n{Colors.CYAN}{Colors.BOLD}=== Which servers should be uninstalled? ==={Colors.END}")
+        print(f"{Colors.CYAN}Enter the IP addresses of your Pi-hole servers.{Colors.END}\n")
 
-        # Detect range for quick input
-        detected = detect_local_ip_range()
-        default_range = detected or "192.168.178"
+        self.config['primary_ip']   = input(f"{Colors.BOLD}Primary Pi-hole IP:{Colors.END} ").strip()
+        self.config['secondary_ip'] = input(f"{Colors.BOLD}Secondary Pi-hole IP:{Colors.END} ").strip()
 
-        method = input("IP input method: 1=Quick (last octet only)  2=Full IP  [1]: ").strip() or "1"
-        if method == "1":
-            ip_range = input(f"IP range [{default_range}]: ").strip() or default_range
-            def ask_ip(label):
-                octet = input(f"{label} (last octet, {ip_range}.X): ").strip()
-                return f"{ip_range}.{octet}"
-        else:
-            def ask_ip(label):
-                return input(f"{label}: ").strip()
-
-        has_monitor = input("Is the monitor on a separate server? (Y/n): ").strip().lower() != "n"
+        has_monitor = input(f"\n{Colors.BOLD}Is the monitor on a separate server? (Y/n):{Colors.END} ").strip().lower() != "n"
         self.config['separate_monitor'] = has_monitor
         if has_monitor:
-            self.config['monitor_ip']       = ask_ip("Monitor IP")
-            self.config['monitor_ssh_user'] = input("Monitor SSH user [root]: ").strip() or "root"
-            self.config['monitor_ssh_port'] = input("Monitor SSH port [22]: ").strip() or "22"
+            self.config['monitor_ip']       = input(f"{Colors.BOLD}Monitor server IP:{Colors.END} ").strip()
+            self.config['monitor_ssh_user'] = input(f"Monitor SSH user [{Colors.CYAN}root{Colors.END}]: ").strip() or "root"
+            self.config['monitor_ssh_port'] = input(f"Monitor SSH port [{Colors.CYAN}22{Colors.END}]: ").strip() or "22"
         else:
             self.config['monitor_ip']       = None
             self.config['monitor_ssh_user'] = "root"
             self.config['monitor_ssh_port'] = "22"
 
-        self.config['primary_ip']        = ask_ip("Primary Pi-hole IP")
-        self.config['secondary_ip']      = ask_ip("Secondary Pi-hole IP")
-
-        ssh_user = input("SSH user for Pi-holes [root]: ").strip() or "root"
-        ssh_port = input("SSH port for Pi-holes [22]: ").strip() or "22"
+        ssh_user = input(f"\nSSH user for Pi-holes [{Colors.CYAN}root{Colors.END}]: ").strip() or "root"
+        ssh_port = input(f"SSH port for Pi-holes [{Colors.CYAN}22{Colors.END}]: ").strip() or "22"
         self.config['primary_ssh_user']   = ssh_user
         self.config['primary_ssh_port']   = ssh_port
         self.config['secondary_ssh_user'] = ssh_user
