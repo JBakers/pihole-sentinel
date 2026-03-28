@@ -382,12 +382,22 @@ async def handle_generic_exception(request: Request, exc: Exception):
 
 
 async def get_http_session() -> aiohttp.ClientSession:
-    """Get or create global HTTP session for connection pooling."""
+    """Get or create global HTTP session for connection pooling.
+
+    Uses a custom DNS resolver (1.1.1.1 / 8.8.8.8) so that notifications
+    still work when both Pi-holes (and therefore the system DNS) are offline.
+    """
     global http_session
     if http_session is None or http_session.closed:
-        # Create session with connection pooling and timeouts
+        # Bypass system DNS (= Pi-hole VIP) so we can still reach Telegram,
+        # Discord, etc. when both Pi-holes are down.
+        try:
+            resolver = aiohttp.AsyncResolver(nameservers=["1.1.1.1", "8.8.8.8"])
+        except Exception:
+            # aiodns not available — fall back to system resolver
+            resolver = aiohttp.DefaultResolver()
         timeout = aiohttp.ClientTimeout(total=10)
-        connector = aiohttp.TCPConnector(limit=100, limit_per_host=10)
+        connector = aiohttp.TCPConnector(limit=100, limit_per_host=10, resolver=resolver)
         http_session = aiohttp.ClientSession(timeout=timeout, connector=connector)
     return http_session
 
