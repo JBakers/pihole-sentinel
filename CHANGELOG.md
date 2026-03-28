@@ -5,6 +5,18 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.1-beta.8] - 2026-03-28
+
+### Fixed
+- **🐛 setup.py: progress bar typo bij "Python packages installed"**
+  - De `end='\r'` op de Installing-regel schreef `(this may take 1-2 minutes)...` (50 tekens)
+  - De finale 100%-regel was korter (10 spaties padding) — de staart `y take 1-2 minutes)...` bleef zichtbaar
+  - Fix: finale regel aangevuld met voldoende spaties om de vorige regel volledig te overschrijven
+
+**Version:** 0.12.1-beta.7 → 0.12.1-beta.8
+
+---
+
 ## [0.12.1-beta.7] - 2026-03-28
 
 ### Fixed
