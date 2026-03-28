@@ -1182,17 +1182,29 @@ Monitoring {primary} and {secondary}</textarea>
 
         async function loadClientConfig() {
             if (clientConfig) return clientConfig;
+            // Read API key and version from server-injected meta tags
+            const apiKeyMeta = document.querySelector('meta[name="api-key"]');
+            const versionMeta = document.querySelector('meta[name="app-version"]');
+            if (apiKeyMeta && apiKeyMeta.content) {
+                clientConfig = {
+                    api_key: apiKeyMeta.content,
+                    version: versionMeta ? versionMeta.content : null
+                };
+                API_KEY = clientConfig.api_key;
+                if (clientConfig.version) updateVersionDisplay(clientConfig.version);
+                else await loadVersionFallback();
+                return clientConfig;
+            }
+            // Fallback: try authenticated endpoint
             try {
-                const response = await fetch(`${API_BASE}/api/client-config`);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
+                const response = await fetch(`${API_BASE}/api/client-config`, {
+                    headers: API_KEY ? { 'X-API-Key': API_KEY } : {}
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 clientConfig = await response.json();
                 API_KEY = clientConfig.api_key || null;
                 updateVersionDisplay(clientConfig.version);
-                if (!clientConfig.version) {
-                    await loadVersionFallback();
-                }
+                if (!clientConfig.version) await loadVersionFallback();
                 return clientConfig;
             } catch (error) {
                 console.error('Failed to load client config:', error);

@@ -304,7 +304,7 @@ class SetupConfig:
         print(f"{Colors.CYAN}├─ Configuring timezone ({timezone}) and NTP...{Colors.END}")
         try:
             # Set timezone (timezone is validated, safe to use in shell)
-            self.remote_exec(host, user, port, f"timedatectl set-timezone {timezone}", password)
+            self.remote_exec(host, user, port, f"timedatectl set-timezone '{timezone}'", password)
             
             # Try to enable NTP (will be skipped in containers, which sync from host)
             try:
@@ -614,7 +614,7 @@ class SetupConfig:
                 "-o", "StrictHostKeyChecking=no",
                 "-o", "ConnectTimeout=10",
                 f"{user}@{host}",
-                f"mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '{pub_key}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+                f"mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys << 'SENTINEL_EOF'\n{pub_key}\nSENTINEL_EOF\nchmod 600 ~/.ssh/authorized_keys"
             ]
 
             env = os.environ.copy()
@@ -1065,7 +1065,7 @@ NODE_STATE=MASTER
             'secondary.env': secondary_env
         }
 
-        os.makedirs('generated_configs', exist_ok=True)
+        os.makedirs('generated_configs', mode=0o700, exist_ok=True)
         for filename, content in configs.items():
             with open(f"generated_configs/{filename}", 'w') as f:
                 f.write(content)
