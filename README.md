@@ -112,7 +112,7 @@ cd pihole-sentinel/
 sudo python3 setup.py
 ```
 
-**3. Follow the interactive wizard:**
+**2. Follow the interactive wizard:**
 
 The script will guide you through:
 - Network configuration (IPs, VIP, interface name)
@@ -121,7 +121,7 @@ The script will guide you through:
 - Automated deployment to all servers
 - Service startup and verification
 
-**4. Access the dashboard:**
+**3. Access the dashboard:**
 
 ```
 http://<monitor-ip>:8080
