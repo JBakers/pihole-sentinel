@@ -25,7 +25,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install -r dashboard/requirements.txt
           pip install pylint flake8 black
 
       - name: Check code formatting with Black
@@ -103,7 +102,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install -r dashboard/requirements.txt
           pip install bandit safety
 
       - name: Run Bandit security checks

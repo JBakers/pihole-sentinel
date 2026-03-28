@@ -1,0 +1,223 @@
+# Makefile for Pi-hole Sentinel
+# ==============================
+#
+# Quick commands for common development tasks
+
+.PHONY: help install install-dev test test-unit test-integration test-cov test-fast clean lint format check-security docker-build docker-up docker-down docker-test docker-logs docker-status docker-failover docker-recover
+
+help:
+	@echo "Pi-hole Sentinel Development Commands"
+	@echo "======================================"
+	@echo ""
+	@echo "Setup:"
+	@echo "  make install          Install production dependencies"
+	@echo "  make install-dev      Install development dependencies"
+	@echo ""
+	@echo "Testing:"
+	@echo "  make test             Run all tests with coverage"
+	@echo "  make test-unit        Run only unit tests"
+	@echo "  make test-integration Run only integration tests"
+	@echo "  make test-cov         Generate HTML coverage report"
+	@echo "  make test-fast        Run tests without coverage"
+	@echo ""
+	@echo "Code Quality:"
+	@echo "  make lint             Run linters (pylint, flake8)"
+	@echo "  make format           Format code with black and isort"
+	@echo "  make check-security   Run security checks (bandit, safety)"
+	@echo ""
+	@echo "Docker Testing:"
+	@echo "  make docker-build     Build test Docker image"
+	@echo "  make docker-up        Start docker-compose test environment"
+	@echo "  make docker-down      Stop docker-compose test environment"
+	@echo "  make docker-test      Run full test suite in Docker"
+	@echo "  make docker-logs      View Docker container logs"
+	@echo "  make docker-status    Show container & client status"
+	@echo "  make docker-failover  Simulate pihole-primary failure"
+	@echo "  make docker-recover   Recover pihole-primary"
+	@echo ""
+	@echo "Automated Tests:"
+	@echo "  make run-all-tests         Run all automated test scripts"
+	@echo "  make run-syntax-checks     Validate Python/Bash syntax"
+	@echo "  make run-quality-checks    Check code quality"
+	@echo "  make run-security-scans    Security audit"
+	@echo ""
+	@echo "Cleanup:"
+	@echo "  make clean            Remove generated files"
+
+# Installation
+install:
+	pip install -r requirements.txt
+
+install-dev:
+	pip install -r requirements-dev.txt
+
+# Testing
+test:
+	python3 -m pytest --cov=dashboard --cov=setup --cov-report=term-missing --cov-report=html
+
+test-unit:
+	python3 -m pytest -m unit -v
+
+test-integration:
+	python3 -m pytest -m integration -v
+
+test-cov:
+	python3 -m pytest --cov=dashboard --cov=setup --cov-report=html
+	@echo "Coverage report generated in htmlcov/index.html"
+
+test-fast:
+	python3 -m pytest -v
+
+# Code Quality
+lint:
+	pylint dashboard/monitor.py setup.py
+	flake8 dashboard/ setup.py tests/
+
+format:
+	black dashboard/ setup.py tests/
+	isort dashboard/ setup.py tests/
+
+check-security:
+	bandit -r dashboard/ setup.py
+	safety check
+
+# Cleanup
+clean:
+	rm -rf __pycache__
+	rm -rf .pytest_cache
+	rm -rf htmlcov
+	rm -rf .coverage
+	rm -rf *.pyc
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -type f -name "*.pyc" -delete
+	find . -type f -name "*.pyo" -delete
+	find . -type f -name ".coverage.*" -delete
+
+# Docker Testing
+docker-build:
+	docker compose -f docker-compose.test.yml build
+
+docker-up: docker-build
+	docker compose -f docker-compose.test.yml up -d
+	@echo "Waiting for services to start..."
+	@sleep 12
+	@echo ""
+	@echo "=== Pi-hole Sentinel Test Environment ==="
+	@echo "Dashboard:    http://localhost:8080"
+	@echo "API Docs:     http://localhost:8080/api/docs"
+	@echo "API Key:      test-api-key-12345"
+	@echo ""
+	@echo "Mock Pi-holes:"
+	@echo "  Primary:    http://localhost:8001/mock/state"
+	@echo "  Secondary:  http://localhost:8002/mock/state"
+	@echo ""
+	@echo "Fake clients: 12 devices on 10.99.0.101-112"
+	@echo ""
+	@echo "Simulate failover:"
+	@echo "  make docker-failover"
+	@echo "  make docker-recover"
+	@echo ""
+
+docker-down:
+	docker compose -f docker-compose.test.yml down -v
+
+docker-restart: docker-down docker-up
+
+docker-test: docker-down docker-up
+	@echo "🧪 Running smoke tests against Docker environment..."
+	@echo ""
+	@echo "=== Monitor API ==="
+	@curl -sf http://localhost:8080/api/version | python3 -m json.tool
+	@echo ""
+	@echo "=== Pi-hole Primary state ==="
+	@curl -sf http://localhost:8001/mock/state | python3 -m json.tool
+	@echo ""
+	@echo "=== Pi-hole Secondary state ==="
+	@curl -sf http://localhost:8002/mock/state | python3 -m json.tool
+	@echo ""
+	@echo "=== Monitor status (with API key) ==="
+	@curl -sf -H "X-API-Key: test-api-key-12345" http://localhost:8080/api/status | python3 -m json.tool
+	@echo ""
+	@echo "✅ All smoke tests passed"
+
+docker-logs:
+	docker compose -f docker-compose.test.yml logs -f
+
+docker-logs-monitor:
+	docker compose -f docker-compose.test.yml logs -f sentinel-monitor
+
+docker-status:
+	@echo "=== Container Status ==="
+	@docker compose -f docker-compose.test.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+	@echo ""
+	@echo "=== Primary Pi-hole ==="
+	@curl -sf http://localhost:8001/mock/state 2>/dev/null | python3 -m json.tool || echo "  (unreachable)"
+	@echo ""
+	@echo "=== Secondary Pi-hole ==="
+	@curl -sf http://localhost:8002/mock/state 2>/dev/null | python3 -m json.tool || echo "  (unreachable)"
+	@echo ""
+	@echo "=== Monitor Status ==="
+	@curl -sf -H "X-API-Key: test-api-key-12345" http://localhost:8080/api/status 2>/dev/null | python3 -m json.tool || echo "  (unreachable)"
+
+docker-failover:
+	@echo "🔴 Simulating primary Pi-hole failure..."
+	@curl -sf -X POST http://localhost:8001/mock/set-state \
+		-H 'Content-Type: application/json' \
+		-d '{"pihole_running":false}' | python3 -m json.tool
+	@echo ""
+	@echo "Wait ~10s for monitor to detect change, then check:"
+	@echo "  make docker-status"
+
+docker-recover:
+	@echo "🟢 Recovering primary Pi-hole..."
+	@curl -sf -X POST http://localhost:8001/mock/reset \
+		-H 'Content-Type: application/json' | python3 -m json.tool
+	@echo ""
+	@echo "Wait ~10s for monitor to detect recovery, then check:"
+	@echo "  make docker-status"
+
+# Setup.py tests against live Docker mock environment
+docker-setup-test: docker-up
+	@echo ""
+	@echo "🧪 Running setup.py unit + Docker integration tests..."
+	@echo ""
+	python3 -m pytest tests/test_setup.py -v --tb=short
+	@echo ""
+	@echo "✅ Setup tests done"
+
+docker-setup-test-only:
+	@echo "🧪 Running setup.py tests (Docker must already be running)..."
+	python3 -m pytest tests/test_setup.py -v --tb=short -m "not docker or docker"
+
+docker-setup-unit:
+	@echo "🧪 Running setup.py unit tests (no Docker needed)..."
+	python3 -m pytest tests/test_setup.py -v --tb=short -m "not docker"
+
+# Automated Test Scripts
+run-all-tests:
+	@./.github/scripts/run-all-tests.sh
+
+run-syntax-checks:
+	@./.github/scripts/run-syntax-checks.sh
+
+run-quality-checks:
+	@./.github/scripts/run-quality-checks.sh
+
+run-security-scans:
+	@./.github/scripts/run-security-scans.sh
+
+
+# Proof of Concept (Sidecar Architecture)
+poc: poc-build poc-up
+
+poc-build:
+	docker compose -f docker-compose.poc.yml build
+
+poc-up:
+	docker compose -f docker-compose.poc.yml up -d
+
+poc-down:
+	docker compose -f docker-compose.poc.yml down -v
+
+poc-logs:
+	docker compose -f docker-compose.poc.yml logs -f
