@@ -5,6 +5,14 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.4-beta.7] - 2026-03-28
+
+### Fixed
+- **Config sync no longer overwrites web API password** — sync now uses section-based TOML merging instead of copying the entire pihole.toml. Only `[dhcp]` and `[dns]` sections are synced (matching nebula-sync behavior). Web password, webserver settings, and other node-specific config are never touched.
+
+### Improved
+- **Sync options now match nebula-sync** — `SYNC_CONFIG` replaced with granular `SYNC_CONFIG_DHCP` and `SYNC_CONFIG_DNS` toggles. Old `SYNC_CONFIG=true` still works (enables both). Local DHCP active state and DNS listening mode are always preserved.
+
 ## [0.12.4-beta.6] - 2026-03-28
 
 ### Fixed

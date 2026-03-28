@@ -43,20 +43,23 @@ if [ -f "$SYNC_CONF" ]; then
             SYNC_CUSTOM_DNS)       SYNC_CUSTOM_DNS="$value" ;;
             SYNC_CNAME)            SYNC_CNAME="$value" ;;
             SYNC_DHCP_LEASES)      SYNC_DHCP_LEASES="$value" ;;
-            SYNC_CONFIG)           SYNC_CONFIG="$value" ;;
+            SYNC_CONFIG)           SYNC_CONFIG_DHCP="$value"; SYNC_CONFIG_DNS="$value" ;;
+            SYNC_CONFIG_DHCP)      SYNC_CONFIG_DHCP="$value" ;;
+            SYNC_CONFIG_DNS)       SYNC_CONFIG_DNS="$value" ;;
             SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE) SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE="$value" ;;
             SYNC_RESTART_FTL)      SYNC_RESTART_FTL="$value" ;;
         esac
     done < <(grep -v '^\s*#' "$SYNC_CONF" | grep '=')
 fi
 
-# Defaults (all enabled, matching nebula-sync feature parity)
+# Defaults (matching nebula-sync feature parity)
 SYNC_GRAVITY="${SYNC_GRAVITY:-true}"
 SYNC_CUSTOM_DNS="${SYNC_CUSTOM_DNS:-true}"
 SYNC_CNAME="${SYNC_CNAME:-true}"
 SYNC_DHCP_LEASES="${SYNC_DHCP_LEASES:-true}"
-SYNC_CONFIG="${SYNC_CONFIG:-true}"
+SYNC_CONFIG_DHCP="${SYNC_CONFIG_DHCP:-true}"
 SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE="${SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE:-true}"
+SYNC_CONFIG_DNS="${SYNC_CONFIG_DNS:-true}"
 SYNC_RESTART_FTL="${SYNC_RESTART_FTL:-true}"
 
 # Determine node type
@@ -202,31 +205,77 @@ sync_from_primary() {
         log_info "Skipping DHCP leases (SYNC_DHCP_LEASES=false)"
     fi
     
-    # Sync Pi-hole configuration (pihole.toml)
-    if [ "$SYNC_CONFIG" = "true" ]; then
-        log_info "Syncing Pi-hole configuration..."
+    # Sync Pi-hole DHCP configuration from pihole.toml
+    # (Only the [dhcp] section — never overwrites the whole file)
+    if [ "$SYNC_CONFIG_DHCP" = "true" ] || [ "$SYNC_CONFIG_DNS" = "true" ]; then
+        log_info "Downloading remote pihole.toml for selective sync..."
         rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/pihole.toml" "/tmp/pihole.toml.remote" || {
             log_warn "Failed to download pihole.toml"
         }
-        
-        if [ -f "/tmp/pihole.toml.remote" ] && [ -f "${PIHOLE_DIR}/pihole.toml" ]; then
-            # Preserve local DHCP active state if configured
+    fi
+
+    if [ "$SYNC_CONFIG_DHCP" = "true" ] && [ -f "/tmp/pihole.toml.remote" ]; then
+        log_info "Syncing DHCP configuration..."
+
+        # Extract [dhcp] section from remote (everything between [dhcp] and next [section])
+        sed -n '/^\[dhcp\]/,/^\[/{ /^\[dhcp\]/p; /^\[/!p; }' "/tmp/pihole.toml.remote" > /tmp/dhcp_remote.toml
+
+        if [ -s /tmp/dhcp_remote.toml ]; then
+            # Preserve local DHCP active state
             if [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ]; then
-                local_dhcp_active=$(grep -A 5 '^\[dhcp\]' "${PIHOLE_DIR}/pihole.toml" | grep '^active = ' | head -n1)
+                local_dhcp_active=$(sed -n '/^\[dhcp\]/,/^\[/{ /^active = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
             fi
-            
-            cp "/tmp/pihole.toml.remote" "${PIHOLE_DIR}/pihole.toml"
-            
+
+            # Replace local [dhcp] section with remote
+            # 1) Delete old [dhcp] section from local
+            sed -i '/^\[dhcp\]/,/^\[/{ /^\[dhcp\]/d; /^\[/!d; }' "${PIHOLE_DIR}/pihole.toml"
+            # 2) Find insertion point (line before the section that followed [dhcp])
+            # We insert just before the next section header after where [dhcp] was
+            # Simpler: append [dhcp] block at the end (pihole-FTL tolerates section order)
+            printf '\n' >> "${PIHOLE_DIR}/pihole.toml"
+            cat /tmp/dhcp_remote.toml >> "${PIHOLE_DIR}/pihole.toml"
+
+            # Restore local DHCP active state
             if [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ] && [ -n "$local_dhcp_active" ]; then
                 sed -i "/^\[dhcp\]/,/^\[/ s/^active = .*/$local_dhcp_active/" "${PIHOLE_DIR}/pihole.toml"
                 log_info "Preserved local DHCP active state: $local_dhcp_active"
             fi
-            
-            rm -f "/tmp/pihole.toml.remote"
+            log_info "DHCP configuration synced"
         fi
-    else
-        log_info "Skipping Pi-hole config (SYNC_CONFIG=false)"
+        rm -f /tmp/dhcp_remote.toml
+    elif [ "$SYNC_CONFIG_DHCP" != "true" ]; then
+        log_info "Skipping DHCP config (SYNC_CONFIG_DHCP=false)"
     fi
+
+    # Sync DNS configuration from pihole.toml (hosts/upstream settings)
+    if [ "$SYNC_CONFIG_DNS" = "true" ] && [ -f "/tmp/pihole.toml.remote" ]; then
+        log_info "Syncing DNS configuration..."
+
+        # Extract [dns] section from remote
+        sed -n '/^\[dns\]/,/^\[/{ /^\[dns\]/p; /^\[/!p; }' "/tmp/pihole.toml.remote" > /tmp/dns_remote.toml
+
+        if [ -s /tmp/dns_remote.toml ]; then
+            # Preserve local DNS listening settings (node-specific)
+            local_dns_listening=$(sed -n '/^\[dns\]/,/^\[/{ /^listeningMode = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
+
+            # Replace local [dns] section with remote
+            sed -i '/^\[dns\]/,/^\[/{ /^\[dns\]/d; /^\[/!d; }' "${PIHOLE_DIR}/pihole.toml"
+            printf '\n' >> "${PIHOLE_DIR}/pihole.toml"
+            cat /tmp/dns_remote.toml >> "${PIHOLE_DIR}/pihole.toml"
+
+            # Restore local listening mode
+            if [ -n "$local_dns_listening" ]; then
+                sed -i "/^\[dns\]/,/^\[/ s/^listeningMode = .*/$local_dns_listening/" "${PIHOLE_DIR}/pihole.toml"
+            fi
+            log_info "DNS configuration synced"
+        fi
+        rm -f /tmp/dns_remote.toml
+    elif [ "$SYNC_CONFIG_DNS" != "true" ]; then
+        log_info "Skipping DNS config (SYNC_CONFIG_DNS=false)"
+    fi
+
+    # Cleanup remote toml
+    rm -f /tmp/pihole.toml.remote
     
     # Set correct permissions
     chown pihole:pihole "${PIHOLE_DIR}/gravity.db" 2>/dev/null || true
