@@ -1,6 +1,6 @@
 # Test Coverage Improvement Plan
 
-**Version:** 0.12.0-beta.7  
+**Version:** 0.12.0-beta.9  
 **Date:** 2025-12-07  
 **Target:** 95%+ coverage (from unknown baseline)
 

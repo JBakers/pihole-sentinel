@@ -1,6 +1,6 @@
 # Pi-hole Sentinel API Documentation
 
-**Version:** 0.12.0-beta.7  
+**Version:** 0.12.0-beta.9  
 **Last Updated:** 2025-12-07  
 **Base URL:** `http://<monitor-ip>:8080`
 
@@ -95,6 +95,7 @@ HTTP Status: `429 Too Many Requests`
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | GET | `/api/version` | No | Get current version |
+| GET | `/api/client-config` | No | Get API key + version for UI |
 | GET | `/api/check-update` | Yes | Check for available updates |
 | GET | `/api/status` | Yes | Get real-time system status |
 | GET | `/api/history` | Yes | Get historical data (24h default) |
@@ -125,7 +126,24 @@ GET /api/version
 **Response:**
 ```json
 {
-  "version": "0.12.0-beta.7"
+  "version": "0.12.0-beta.9"
+}
+```
+
+#### Get Client Config
+```http
+GET /api/client-config
+```
+
+**Description:** Get API key and version for the dashboard UI
+
+**Authentication:** No
+
+**Response:**
+```json
+{
+  "api_key": "your-api-key",
+  "version": "0.12.0-beta.9"
 }
 ```
 
@@ -142,7 +160,7 @@ X-API-Key: your-api-key
 **Response:**
 ```json
 {
-  "current_version": "0.12.0-beta.7",
+  "current_version": "0.12.0-beta.9",
   "latest_version": "0.13.0-beta.1",
   "update_available": true,
   "release_url": "https://github.com/JBakers/pihole-sentinel/releases/tag/0.13.0-beta.1",
@@ -1146,5 +1164,5 @@ For questions or issues:
 ---
 
 **Last Updated:** 2026-02-06
-**Version:** 0.12.0-beta.7
+**Version:** 0.12.0-beta.9
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole

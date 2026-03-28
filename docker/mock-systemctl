@@ -32,12 +32,13 @@ case $command in
         echo "active"
         exit 0
         ;;
-    enable|disable)
+    enable|disable|daemon-reload)
         log_cmd "$command $service"
         exit 0
         ;;
     *)
-        echo "Mock systemctl: command '$command' not implemented"
-        exit 1
+        log_cmd "UNKNOWN COMMAND: $command $service"
+        echo "Mock systemctl: command '$command' accepted (mocked)"
+        exit 0
         ;;
 esac

@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException, Security, Depends, Request
 from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
 from dotenv import load_dotenv
@@ -98,6 +98,12 @@ if missing_vars:
 class VersionResponse(BaseModel):
     """Version information response"""
     version: str = Field(..., description="Current Pi-hole Sentinel version (e.g., 0.12.0-beta.7)")
+
+
+class ClientConfigResponse(BaseModel):
+    """Client configuration for dashboard UI"""
+    api_key: str = Field(..., description="API key for dashboard requests")
+    version: str = Field(..., description="Current Pi-hole Sentinel version")
 
 
 class UpdateCheckResponse(BaseModel):
@@ -689,21 +695,51 @@ _dashboard_dir = os.path.dirname(os.path.abspath(__file__))
 
 @app.get("/")
 async def serve_index():
-    """Serve main dashboard with API key injected at runtime."""
+    """Serve main dashboard UI."""
     html_path = os.path.join(_dashboard_dir, "index.html")
-    with open(html_path, 'r') as f:
-        content = f.read()
-    content = content.replace("'YOUR_API_KEY_HERE'", f"'{CONFIG['api_key']}'")
-    return HTMLResponse(content)
+    return FileResponse(html_path)
 
 @app.get("/settings.html")
 async def serve_settings():
-    """Serve settings page with API key injected at runtime."""
+    """Serve settings UI."""
     html_path = os.path.join(_dashboard_dir, "settings.html")
-    with open(html_path, 'r') as f:
-        content = f.read()
-    content = content.replace("'YOUR_API_KEY_HERE'", f"'{CONFIG['api_key']}'")
-    return HTMLResponse(content)
+    return FileResponse(html_path)
+
+
+def read_version_string() -> str:
+    """Read the version from disk, with fallbacks."""
+    try:
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), "VERSION"),      # Same dir as monitor.py
+            os.path.join(os.path.dirname(__file__), "..", "VERSION"), # Parent dir (dev)
+            "/opt/pihole-monitor/VERSION",                            # Production location
+            "/opt/VERSION",                                           # Legacy location
+        ]
+
+        for version_file in possible_paths:
+            if os.path.exists(version_file):
+                with open(version_file, 'r') as f:
+                    version = f.read().strip()
+                    if version:
+                        return version
+    except Exception as e:
+        logger.error(f"Failed to read VERSION file: {e}")
+
+    return "0.11.0"
+
+
+@app.get("/api/client-config", response_model=ClientConfigResponse, tags=["System"])
+async def get_client_config():
+    """
+    Get client configuration for the dashboard UI.
+
+    Returns the API key and current version so the frontend can authenticate
+    without hardcoded secrets in static HTML files.
+    """
+    return {
+        "api_key": CONFIG["api_key"],
+        "version": read_version_string()
+    }
 
 @app.get("/api/version", response_model=VersionResponse, tags=["System"])
 async def get_version():
@@ -716,27 +752,7 @@ async def get_version():
     Returns:
         VersionResponse: Contains the current version string
     """
-    try:
-        # Check multiple locations for VERSION file
-        possible_paths = [
-            os.path.join(os.path.dirname(__file__), "VERSION"),      # Same dir as monitor.py
-            os.path.join(os.path.dirname(__file__), "..", "VERSION"), # Parent dir (dev)
-            "/opt/pihole-monitor/VERSION",                            # Production location
-            "/opt/VERSION",                                           # Legacy location
-        ]
-        
-        for version_file in possible_paths:
-            if os.path.exists(version_file):
-                with open(version_file, 'r') as f:
-                    version = f.read().strip()
-                    if version:
-                        return {"version": version}
-        
-        # Fallback if VERSION file not found
-        return {"version": "0.11.0"}
-    except Exception as e:
-        logger.error(f"Failed to read VERSION file: {e}")
-        return {"version": "unknown"}
+    return {"version": read_version_string()}
 
 
 # Cache for update checks (avoid spamming GitHub API)
@@ -1306,7 +1322,7 @@ async def monitor_loop():
 
                 # Send notification
                 # Determine which node is master and which is backup
-                if current_master == "Primary":
+                if current_master == "primary":
                     master_node = CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole')
                     backup_node = CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole')
                 else:
