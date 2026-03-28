@@ -66,3 +66,4 @@ nightly-test-results/
 .DS_Store
 Thumbs.db
 dashboard/.env.test
+LOCAL_SETUP.md

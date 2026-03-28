@@ -29,7 +29,7 @@ COPY VERSION .
 # Create data directory
 RUN mkdir -p /data && chmod 755 /data
 
-COPY docker/mock-systemctl /usr/bin/systemctl
+COPY docker/mock-pihole/mock-systemctl /usr/bin/systemctl
 
 EXPOSE 8080
 
