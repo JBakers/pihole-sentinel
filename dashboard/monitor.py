@@ -24,10 +24,11 @@ from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException, Security, Depends, Request
 from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
 from dotenv import load_dotenv
+import hmac
 import secrets
 
 # Configure logging with rotation
@@ -77,13 +78,19 @@ CONFIG = {
 
 # Generate API key if not set (for backward compatibility during transition)
 if not CONFIG["api_key"]:
-    # Generate a secure random API key
+    # Generate a secure random API key and write to .env-safe file
     CONFIG["api_key"] = secrets.token_urlsafe(32)
-    logger.warning("=" * 80)
     logger.warning("NO API_KEY FOUND - GENERATED TEMPORARY KEY FOR THIS SESSION")
-    logger.warning(f"API Key: {CONFIG['api_key']}")
-    logger.warning("Add this to your .env file: API_KEY=" + CONFIG['api_key'])
-    logger.warning("=" * 80)
+    logger.warning("Set API_KEY in your .env file to make it persistent.")
+    # Write to a secured file so the user can retrieve it without log exposure
+    try:
+        key_file = os.path.join(os.path.dirname(CONFIG["db_path"]), ".api_key")
+        with open(key_file, 'w') as f:
+            f.write(CONFIG["api_key"])
+        os.chmod(key_file, 0o600)
+        logger.info(f"Generated API key written to {key_file} (mode 600)")
+    except Exception as e:
+        logger.error(f"Could not write API key file: {e}")
 
 # Verify required environment variables
 required_vars = ["PRIMARY_IP", "PRIMARY_PASSWORD", "SECONDARY_IP", "SECONDARY_PASSWORD", "VIP_ADDRESS"]
@@ -247,9 +254,9 @@ app = FastAPI(
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
 
 async def verify_api_key(api_key: str = Security(api_key_header)):
-    """Verify API key for protected endpoints."""
-    if api_key != CONFIG["api_key"]:
-        logger.warning(f"Invalid API key attempt from client")
+    """Verify API key for protected endpoints (timing-safe comparison)."""
+    if not hmac.compare_digest(api_key, CONFIG["api_key"]):
+        logger.warning("Invalid API key attempt from client")
         raise HTTPException(
             status_code=403,
             detail="Invalid API key"
@@ -768,15 +775,32 @@ _dashboard_dir = os.path.dirname(os.path.abspath(__file__))
 
 @app.get("/")
 async def serve_index():
-    """Serve main dashboard UI."""
+    """Serve main dashboard UI with API key injected server-side."""
     html_path = os.path.join(_dashboard_dir, "index.html")
-    return FileResponse(html_path)
+    with open(html_path, 'r') as f:
+        html_content = f.read()
+    # Inject API key and version as meta tags so no unauthenticated endpoint is needed
+    import html as html_mod
+    meta_tags = (
+        f'<meta name="api-key" content="{html_mod.escape(CONFIG["api_key"])}">'  
+        f'<meta name="app-version" content="{html_mod.escape(read_version_string())}">'  
+    )
+    html_content = html_content.replace('</head>', f'{meta_tags}\n</head>', 1)
+    return HTMLResponse(content=html_content)
 
 @app.get("/settings.html")
 async def serve_settings():
-    """Serve settings UI."""
+    """Serve settings UI with API key injected server-side."""
     html_path = os.path.join(_dashboard_dir, "settings.html")
-    return FileResponse(html_path)
+    with open(html_path, 'r') as f:
+        html_content = f.read()
+    import html as html_mod
+    meta_tags = (
+        f'<meta name="api-key" content="{html_mod.escape(CONFIG["api_key"])}">'  
+        f'<meta name="app-version" content="{html_mod.escape(read_version_string())}">'  
+    )
+    html_content = html_content.replace('</head>', f'{meta_tags}\n</head>', 1)
+    return HTMLResponse(content=html_content)
 
 
 def read_version_string() -> str:
@@ -801,13 +825,14 @@ def read_version_string() -> str:
     return "0.11.0"
 
 
-@app.get("/api/client-config", response_model=ClientConfigResponse, tags=["System"])
+@app.get("/api/client-config", response_model=ClientConfigResponse, tags=["System"],
+         dependencies=[Depends(verify_api_key)])
 async def get_client_config():
     """
     Get client configuration for the dashboard UI.
 
-    Returns the API key and current version so the frontend can authenticate
-    without hardcoded secrets in static HTML files.
+    Requires valid API key. The key is injected server-side via meta tags
+    so this endpoint is only used as a fallback / verification.
     """
     return {
         "api_key": CONFIG["api_key"],
@@ -1939,8 +1964,12 @@ async def save_notification_settings(
         """Escape value for safe use in bash double-quoted string."""
         if not value:
             return ""
+        s = str(value)
+        # Reject control characters (newlines, carriage returns, etc.) to prevent
+        # bash config injection via line breaks
+        s = ''.join(c for c in s if c >= ' ' or c == '\t')
         # Escape backslashes first, then other special chars
-        escaped = str(value).replace('\\', '\\\\')
+        escaped = s.replace('\\', '\\\\')
         escaped = escaped.replace('"', '\\"')
         escaped = escaped.replace('$', '\\$')
         escaped = escaped.replace('`', '\\`')
@@ -1950,6 +1979,7 @@ async def save_notification_settings(
     try:
         with open(config_path, 'w') as f:
             json.dump(merged_settings, f, indent=2)
+        os.chmod(config_path, 0o600)
         
         # Also update the bash config file for keepalived scripts
         bash_config = "/etc/pihole-sentinel/notify.conf"
@@ -1991,6 +2021,7 @@ async def save_notification_settings(
                 f.write("# Custom Webhook\n")
                 f.write(f"CUSTOM_WEBHOOK_URL=\"{escape_for_bash_config(merged_settings['webhook'].get('url', ''))}\"\n\n")
         
+        os.chmod(bash_config, 0o600)
         return {"status": "success", "message": "Settings saved successfully"}
 
     except Exception as e:

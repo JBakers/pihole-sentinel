@@ -14,6 +14,7 @@ All peer-to-peer communication uses a shared SYNC_TOKEN for authentication.
 """
 
 import os
+import hmac
 import json
 import time
 import asyncio
@@ -23,7 +24,7 @@ from datetime import datetime, timezone
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks, Depends
 from fastapi.responses import FileResponse, JSONResponse
 
 # ── Configuration ───────────────────────────────────────────
@@ -67,10 +68,11 @@ app = FastAPI(
 
 # ── Auth ────────────────────────────────────────────────────
 def verify_sync_token(x_sync_token: str = Header(default="")):
-    """Verify the sync token for peer-to-peer communication."""
+    """Verify the sync token for peer-to-peer communication (timing-safe)."""
     if not SYNC_TOKEN:
-        return  # No token configured = open (dev mode)
-    if x_sync_token != SYNC_TOKEN:
+        logger.warning("SYNC_TOKEN is not set — all sync endpoints are OPEN. Set SYNC_TOKEN for production use.")
+        return
+    if not hmac.compare_digest(x_sync_token, SYNC_TOKEN):
         raise HTTPException(status_code=403, detail="Invalid sync token")
 
 
@@ -112,7 +114,7 @@ async def get_state():
 
 
 # ── Internal Endpoints (called by keepalived) ──────────────
-@app.post("/internal/state-change")
+@app.post("/internal/state-change", dependencies=[Depends(verify_sync_token)])
 async def state_change(request: Request, background_tasks: BackgroundTasks):
     """Called by keepalived notify.sh when VRRP state changes."""
     data = await request.json()
