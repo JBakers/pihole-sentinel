@@ -79,7 +79,16 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 - **Event-based alerts** - failover, recovery, fault, startup
 - **Fault debounce** - brief service restarts (< 60 s) suppressed; real faults only
 - **Always-paired** - every fault notification is followed by a recovery notification
+- **Resilient DNS** - notifications delivered even when both Pi-holes are offline (uses 1.1.1.1/8.8.8.8)
 - **Test notifications** - verify before saving settings
+
+### ⌨️ Built-in Diagnostics
+- **System Commands panel** - run diagnostics directly from the browser
+- **Service status** - `systemctl status` output with full ANSI colour rendering
+- **Log viewer** - last 200 lines of monitor and keepalived logs in one click
+- **VIP check** - live ARP table and interface output
+- **Event history** - last 500 database events at a glance
+- **Offline-aware indicators** - sub-checks grey out when server unreachable (no false positives)
 
 ---
 
