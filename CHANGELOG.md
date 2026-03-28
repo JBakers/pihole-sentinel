@@ -5,6 +5,11 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.3-beta.6] - 2026-03-28
+
+### Fixed
+- **Cross-node SSH key read failure** — `subprocess.run` SSH call to read the public key from Pi-holes used `BatchMode=yes` without the installer's identity file (`-i key_path`), causing "failed to read key" error
+
 ## [0.12.3-beta.5] - 2026-03-28
 
 ### Improved

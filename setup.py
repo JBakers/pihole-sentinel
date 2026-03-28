@@ -677,10 +677,15 @@ class SetupConfig:
                     'test -f /root/.ssh/id_ed25519 || '
                     'ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N "" -q')
                 # Read public key from source
+                ssh_cmd = ["ssh", "-p", src_p,
+                           "-o", "StrictHostKeyChecking=no",
+                           "-o", "ConnectTimeout=10"]
+                if self.config.get('ssh_key_path'):
+                    ssh_cmd += ["-i", self.config['ssh_key_path']]
+                else:
+                    ssh_cmd += ["-o", "BatchMode=yes"]
                 result = subprocess.run(
-                    ["ssh", "-p", src_p, "-o", "StrictHostKeyChecking=no",
-                     "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
-                     f"{src_u}@{src}", "cat /root/.ssh/id_ed25519.pub"],
+                    ssh_cmd + [f"{src_u}@{src}", "cat /root/.ssh/id_ed25519.pub"],
                     capture_output=True, text=True, timeout=15)
                 if result.returncode != 0:
                     print(f"{Colors.RED}✗ (failed to read key){Colors.END}")
