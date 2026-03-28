@@ -5,6 +5,24 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.2-beta.2] - 2026-03-28
+
+### Fixed
+- **🐛 setup.py: SSH connection dropped (exit 255) when reinstalling immediately after uninstall**
+  - After `systemctl stop keepalived` the remote sshd briefly becomes unavailable on some Pi-hole hosts
+    (OOM recovery, sshd reload, or brief network-stack settle after VRRP teardown)
+  - `remote_exec` raised `CalledProcessError` exit 255 which setup.py treated as a hard failure
+  - Fix: `remote_exec` now retries up to 3 times (10 s apart) on SSH exit code 255 before giving up
+  - Added `ConnectTimeout=30`, `ServerAliveInterval=15`, `ServerAliveCountMax=4` to all SSH calls
+    to detect and recover from stale connections more reliably
+  - Added `sleep 2` in `uninstall_remote` bash script after stopping keepalived so the network stack
+    settles before the script continues (relevant for the remote-host sub-menu option)
+  - Added `systemctl disable keepalived` to the uninstall script (was only stopping, not disabling)
+
+**Version:** 0.12.2-beta.1 → 0.12.2-beta.2
+
+---
+
 ## [0.12.2-beta.1] - 2026-03-28
 
 ### Fixed
