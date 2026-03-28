@@ -1125,14 +1125,13 @@
         </div>
 
         <!-- System Commands -->
-        <div class="card" style="margin-top: 20px;">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                <h3>⌨️ System Commands</h3>
-                <button class="collapse-btn" onclick="toggleCollapse('commands')">
-                    <span id="commands-icon">▼</span>
-                </button>
+        <div class="events-card" style="margin-top: 20px;">
+            <div class="collapsible-header" onclick="toggleCollapse('commands')">
+                <h2>⌨️ System Commands</h2>
+                <span class="collapse-icon" id="commands-icon">▼</span>
             </div>
-            <div id="commands-content" class="card-content" style="display: none;">
+            <div class="summary-info" id="commands-summary"></div>
+            <div class="collapsible-content" id="commands-content">
                 <p class="section-description">Execute common system commands directly from the dashboard</p>
                 <div class="commands-grid">
                     <button class="command-btn" onclick="executeCommand('monitor_status')">
@@ -1252,7 +1251,8 @@
         // Collapse state
         const collapseState = {
             failover: localStorage.getItem('collapse-failover') !== 'true',
-            events: localStorage.getItem('collapse-events') !== 'true'
+            events: localStorage.getItem('collapse-events') !== 'true',
+            commands: localStorage.getItem('collapse-commands') !== 'true'
         };
 
         function toggleCollapse(section) {
@@ -1275,7 +1275,7 @@
         }
 
         function initCollapseState() {
-            ['failover', 'events'].forEach(section => {
+            ['failover', 'events', 'commands'].forEach(section => {
                 const content = document.getElementById(`${section}-content`);
                 const icon = document.getElementById(`${section}-icon`);
                 const summary = document.getElementById(`${section}-summary`);
@@ -1758,10 +1758,10 @@
         // HTML-escaping happens first so command output is XSS-safe.
         function ansiToHtml(text) {
             const C16 = {
-                '30':'#374151','31':'#ef4444','32':'#22c55e','33':'#f59e0b',
-                '34':'#3b82f6','35':'#a855f7','36':'#06b6d4','37':'#d1d5db',
-                '90':'#6b7280','91':'#f87171','92':'#4ade80','93':'#fbbf24',
-                '94':'#60a5fa','95':'#c084fc','96':'#22d3ee','97':'#f9fafb',
+                '30': '#374151', '31': '#ef4444', '32': '#22c55e', '33': '#f59e0b',
+                '34': '#3b82f6', '35': '#a855f7', '36': '#06b6d4', '37': '#d1d5db',
+                '90': '#6b7280', '91': '#f87171', '92': '#4ade80', '93': '#fbbf24',
+                '94': '#60a5fa', '95': '#c084fc', '96': '#22d3ee', '97': '#f9fafb',
             };
 
             // Build a 256-colour palette (xterm-256)
@@ -1769,8 +1769,8 @@
                 n = parseInt(n, 10);
                 if (n < 0 || n > 255) return '#ffffff';
                 if (n < 16) {
-                    const basic = ['#000000','#800000','#008000','#808000','#000080','#800080','#008080','#c0c0c0',
-                                   '#808080','#ff0000','#00ff00','#ffff00','#0000ff','#ff00ff','#00ffff','#ffffff'];
+                    const basic = ['#000000', '#800000', '#008000', '#808000', '#000080', '#800080', '#008080', '#c0c0c0',
+                        '#808080', '#ff0000', '#00ff00', '#ffff00', '#0000ff', '#ff00ff', '#00ffff', '#ffffff'];
                     return basic[n];
                 }
                 if (n < 232) {
@@ -1789,7 +1789,7 @@
             const ST = '(?:\x1b\\\\|\x07)';
             // Match: ESC ] 8 ; params ; URL ST  link-text  ESC ] 8 ;; ST
             let s = text.replace(
-                new RegExp('\x1b\\]8;[^;]*;([^\x07\x1b]*)'+ ST +'((?:(?!\x1b\\]8;;)[\s\S])*?)\x1b\\]8;;' + ST, 'g'),
+                new RegExp('\x1b\\]8;[^;]*;([^\x07\x1b]*)' + ST + '((?:(?!\x1b\\]8;;)[\s\S])*?)\x1b\\]8;;' + ST, 'g'),
                 (_, url, linkText) => {
                     if (/^https?:\/\//.test(url)) {
                         return `\x02HREF_OPEN:${url}\x02${linkText}\x02HREF_CLOSE\x02`;
@@ -1823,16 +1823,16 @@
                 let i = 0;
                 while (i < parts.length) {
                     const p = parts[i];
-                    if ((p === '38' || p === '48') && parts[i+1] === '5' && parts[i+2] !== undefined) {
-                        const colour = xterm256(parts[i+2]);
+                    if ((p === '38' || p === '48') && parts[i + 1] === '5' && parts[i + 2] !== undefined) {
+                        const colour = xterm256(parts[i + 2]);
                         style += p === '38' ? `color:${colour};` : `background:${colour};`;
                         i += 3; continue;
                     }
-                    if (p === '1')       style += 'font-weight:bold;';
-                    else if (p === '2')  style += 'opacity:0.65;';
-                    else if (p === '3')  style += 'font-style:italic;';
-                    else if (p === '4')  style += 'text-decoration:underline;';
-                    else if (C16[p])     style += `color:${C16[p]};`;
+                    if (p === '1') style += 'font-weight:bold;';
+                    else if (p === '2') style += 'opacity:0.65;';
+                    else if (p === '3') style += 'font-style:italic;';
+                    else if (p === '4') style += 'text-decoration:underline;';
+                    else if (C16[p]) style += `color:${C16[p]};`;
                     i++;
                 }
                 if (style) { depth++; return `<span style="${style}">`; }
@@ -1922,31 +1922,6 @@
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape') { closeCommandModal(); }
         });
-
-        // Extend toggleCollapse for commands section
-        const _origToggleCollapse = toggleCollapse;
-        toggleCollapse = function (section) {
-            if (section === 'commands') {
-                const content = document.getElementById('commands-content');
-                const icon = document.getElementById('commands-icon');
-                if (content.style.display === 'none') {
-                    content.style.display = 'block';
-                    icon.textContent = '▼';
-                    localStorage.setItem('commandsCollapsed', 'false');
-                } else {
-                    content.style.display = 'none';
-                    icon.textContent = '▶';
-                    localStorage.setItem('commandsCollapsed', 'true');
-                }
-            } else {
-                _origToggleCollapse(section);
-            }
-        };
-
-        // Restore commands collapsed state
-        if (localStorage.getItem('commandsCollapsed') === 'false') {
-            toggleCollapse('commands');
-        }
 
         function waitForChart() {
             return new Promise(resolve => {
