@@ -306,9 +306,9 @@ class SetupConfig:
             # Update package lists
             print(f"│  [░░░░░░░░░░░░░░░░░░░░] 0%   Updating package lists...", end='\r')
             if VERBOSE:
-                self.remote_exec(host, user, port, "apt-get update", password)
+                self.remote_exec(host, user, port, "apt-get update -o Acquire::Retries=3", password)
             else:
-                self.remote_exec(host, user, port, "apt-get update -qq >/dev/null 2>&1", password)
+                self.remote_exec(host, user, port, "apt-get update -o Acquire::Retries=3 -qq >/dev/null 2>&1", password)
             print(f"│  [████░░░░░░░░░░░░░░░░] 20%  Package lists updated     ")
             
             # Install packages (this is the slow part)
@@ -316,13 +316,20 @@ class SetupConfig:
             pkg_list = " ".join(packages)
             if VERBOSE:
                 print(f"\n│  Installing: {pkg_list}")
-                self.remote_exec(host, user, port, 
-                    f"DEBIAN_FRONTEND=noninteractive apt-get install -y {pkg_list}", 
-                    password)
-            else:
-                self.remote_exec(host, user, port, 
-                    f"DEBIAN_FRONTEND=noninteractive apt-get install -y -qq {pkg_list} >/dev/null 2>&1", 
-                    password)
+            self.remote_exec(
+                host,
+                user,
+                port,
+                (
+                    "DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a "
+                    "apt-get install -y "
+                    "-o Dpkg::Use-Pty=0 "
+                    "-o DPkg::Lock::Timeout=120 "
+                    "-o Acquire::Retries=3 "
+                    f"{pkg_list}"
+                ),
+                password,
+            )
             
             print(f"│  [████████████████████] 100% Installation complete!    ")
             print(f"└─ ✓ Dependencies installed on {host}\n")
@@ -813,8 +820,8 @@ global_defs {{
 vrrp_script chk_pihole_service {{
     script "/usr/local/bin/check_pihole_service.sh"
     interval 5
-    fall 3
-    rise 2
+    fall 5
+    rise 3
 }}
 
 {f'''vrrp_script chk_dhcp_service {{
@@ -830,6 +837,7 @@ vrrp_instance VI_1 {{
     virtual_router_id 51
     priority 150
     advert_int 1
+    preempt_delay 60
     
     authentication {{
         auth_type PASS
@@ -850,13 +858,17 @@ vrrp_instance VI_1 {{
     notify_fault "/usr/local/bin/keepalived_notify.sh FAULT"
 }}"""
 
-        # Create secondary keepalived config (similar but with BACKUP state)
+        # Create secondary keepalived config (similar but with BACKUP state).
+        # preempt_delay is only meaningful on a node that can preempt (i.e. primary);
+        # secondary starts as BACKUP with lower priority so it is stripped here.
         secondary_keepalived = primary_keepalived.replace(
             "state MASTER", "state BACKUP"
         ).replace(
             "priority 150", "priority 100"
         ).replace(
             "router_id PIHOLE1", "router_id PIHOLE2"
+        ).replace(
+            "\n    preempt_delay 60\n", "\n"
         )
 
         # Create monitor configuration
@@ -1766,10 +1778,12 @@ def resolve_package_name(pkg):
     """
     py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
     
-    # Packages that might have version-specific variants
+    # Packages that might have version-specific variants or Debian-version renames
     versioned_packages = {
         'python3-dev': [f'python{py_version}-dev', 'python3-dev', 'libpython3-dev'],
         'python3-venv': [f'python{py_version}-venv', 'python3-venv'],
+        # Debian 12+ renamed dnsutils → bind9-dnsutils (dnsutils is now transitional)
+        'dnsutils': ['dnsutils', 'bind9-dnsutils'],
     }
     
     if pkg not in versioned_packages:
@@ -1794,11 +1808,37 @@ def resolve_all_packages(packages):
     return resolved
 
 def check_package_installed(pkg, pkg_manager="apt"):
-    """Check if a package is installed."""
+    """Check if a package is installed.
+
+    Uses dpkg-query for reliable status checking.
+    Falls back to checking the command the package provides
+    (e.g. dnsutils → dig) for transitional packages on Debian 12+/13
+    where `dpkg -l` may return 'un' even when the tools are present.
+    """
+    # Packages that are considered satisfied when a command exists
+    cmd_fallbacks = {
+        'dnsutils': 'dig',
+        'bind9-dnsutils': 'dig',
+        'iputils-ping': 'ping',
+        'iproute2': 'ip',
+        'arping': 'arping',
+        'curl': 'curl',
+    }
     try:
         if pkg_manager == "apt":
-            result = subprocess.run(["dpkg", "-l", pkg], capture_output=True, text=True)
-            return result.returncode == 0 and "ii" in result.stdout
+            result = subprocess.run(
+                ["dpkg-query", "-W", "-f=${Status}", pkg],
+                capture_output=True, text=True
+            )
+            if result.returncode == 0 and "install ok installed" in result.stdout:
+                return True
+            # Fallback: if the command this package provides exists, treat as installed
+            fallback_cmd = cmd_fallbacks.get(pkg)
+            if fallback_cmd:
+                return subprocess.run(
+                    ["which", fallback_cmd], capture_output=True
+                ).returncode == 0
+            return False
         elif pkg_manager == "yum":
             result = subprocess.run(["rpm", "-q", pkg], capture_output=True, text=True)
             return result.returncode == 0
@@ -2020,20 +2060,47 @@ def main():
                 # Detect package manager
                 if platform.system() == "Linux":
                     if os.path.exists("/usr/bin/apt-get"):
-                        print(f"│  [░░░░░░░░░░░░░░░░░░░░] 0%   Updating package lists...", end='\r')
-                        result = subprocess.run(["apt-get", "update", "-qq"], 
-                                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-                        print(f"│  [████░░░░░░░░░░░░░░░░] 20%  Package lists updated     ")
-                        
-                        # Resolve version-specific package names
-                        print(f"│  [████░░░░░░░░░░░░░░░░] 20%  Resolving packages...", end='\r')
-                        resolved_pkgs = resolve_all_packages(pkgs)
-                        print(f"│  [██████░░░░░░░░░░░░░░] 30%  Packages resolved        ")
-                        
-                        print(f"│  [██████░░░░░░░░░░░░░░] 30%  Installing packages...", end='\r')
-                        result = subprocess.run(["apt-get", "install", "-y", "-qq"] + resolved_pkgs,
-                                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-                        print(f"│  [████████████████████] 100% Installation complete!    ")
+                        apt_env = os.environ.copy()
+                        apt_env["DEBIAN_FRONTEND"] = "noninteractive"
+                        apt_env["NEEDRESTART_MODE"] = "a"
+                        try:
+                            print(f"│  [░░░░░░░░░░░░░░░░░░░░] 0%   Updating package lists...", end='\r')
+                            result = subprocess.run(
+                                ["apt-get", "update", "-o", "Acquire::Retries=3", "-qq"],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                                check=True,
+                                timeout=300,
+                                env=apt_env,
+                            )
+                            print(f"│  [████░░░░░░░░░░░░░░░░] 20%  Package lists updated     ")
+
+                            # Resolve version-specific package names
+                            print(f"│  [████░░░░░░░░░░░░░░░░] 20%  Resolving packages...", end='\r')
+                            resolved_pkgs = resolve_all_packages(pkgs)
+                            print(f"│  [██████░░░░░░░░░░░░░░] 30%  Packages resolved        ")
+
+                            print(f"│  [██████░░░░░░░░░░░░░░] 30%  Installing packages...", end='\r')
+                            print(f"\n│  ℹ apt output enabled to prevent silent hangs")
+                            result = subprocess.run(
+                                [
+                                    "apt-get", "install", "-y",
+                                    "-o", "Dpkg::Use-Pty=0",
+                                    "-o", "DPkg::Lock::Timeout=120",
+                                    "-o", "Acquire::Retries=3",
+                                ] + resolved_pkgs,
+                                check=True,
+                                timeout=1800,
+                                env=apt_env,
+                            )
+                            print(f"│  [████████████████████] 100% Installation complete!    ")
+                        except subprocess.TimeoutExpired:
+                            print("\n│  ✗ Package installation timed out (30 minutes)")
+                            print("│  ℹ Check apt lock/network, then rerun setup with --verbose")
+                            print("└─")
+                            sys.exit(1)
+                    
+                    
                     elif os.path.exists("/usr/bin/yum"):
                         print(f"│  [░░░░░░░░░░░░░░░░░░░░] 0%   Installing packages...", end='\r')
                         result = subprocess.run(["yum", "install", "-y", "-q"] + pkgs,

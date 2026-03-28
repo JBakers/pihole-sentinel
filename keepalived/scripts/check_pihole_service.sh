@@ -7,9 +7,6 @@ if ! systemctl is-active --quiet pihole-FTL; then
     exit 1
 fi
 
-# Add a short pause to give FTL time to fully initialize
-sleep 1
-
 # 2. Check if DNS functionality responds locally
 if ! timeout 2 dig @127.0.0.1 pi.hole +short &>/dev/null; then
     exit 1

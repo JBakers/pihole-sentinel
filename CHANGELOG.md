@@ -5,6 +5,36 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0-beta.11] - 2026-03-28
+
+### Fixed
+- **🐛 setup.py deploy_keepalived_remote: keepalived start-fouten waren niet zichtbaar**
+  - `keepalived --config-test` stap toegevoegd vóór `systemctl restart keepalived`
+  - Bij falen: `systemctl status keepalived`, `journalctl -n 40` en volledige `keepalived.conf` getoond
+  - `systemctl stop keepalived || true` vóór restart voor schone state
+  - Fallback diagnose-commando's getoond in foutmelding als handmatige vervolgstap
+
+## [0.12.0-beta.10] - 2026-03-28
+
+### Fixed
+- **🐛 dhcp_control.sh: CRITICAL - node freeze door FTL-restart flapping loop**
+  - `enable_dhcp`/`disable_dhcp` controleren nu eerst de huidige DHCP-staat vóór ze FTL herstarten
+  - Zonder deze fix: MASTER-transitie → `systemctl restart pihole-FTL` → healthcheck faalt → secondary neemt over → secondary FTL-restart → primary recovert en preempt terug → FTL-restart opnieuw → **oneindige loop** die de Pi volledig overbelastte en deed vastlopen
+  - FTL wordt nu alleen herstart als de DHCP-staat daadwerkelijk verandert
+- **🐛 keepalived primary config: preempt_delay 60 toegevoegd**
+  - Primary wacht nu 60 seconden na FTL-recovery voordat hij MASTER terugneemt van secondary
+- **🐛 keepalived primary config: fall 3→5 / rise 2→3**
+- **🐛 check_pihole_service.sh: onnodige `sleep 1` verwijderd**
+- **🐛 keepalived/pihole2/keepalived.conf: weight -25 → -60 (aligned met gegenereerde config)**
+- **🐛 setup.py generate_configs: secondary krijgt geen preempt_delay**
+
+## [0.12.0-beta.9-setup] - 2026-03-28
+
+### Fixed
+- **🐛 setup.py: dependency install leek vast te hangen op dnsutils**
+  - `DEBIAN_FRONTEND=noninteractive`, `NEEDRESTART_MODE=a`, `DPkg::Lock::Timeout=120`
+  - Stille `-qq` output verwijderd; expliciete timeout toegevoegd (30 min)
+
 ## [0.12.0-beta.9] - 2026-02-13
 
 ### Fixed
