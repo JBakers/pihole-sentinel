@@ -1,15 +1,21 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
-**Last Updated:** 2026-02-06
+**Last Updated:** 2026-02-13
 
-**Version:** 0.12.0-beta.8
+**Version:** 0.12.0-beta.9
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
 
 This document provides comprehensive guidance for AI assistants working with the Pi-hole Sentinel codebase. It covers architecture, structure, conventions, development workflows, and quality assurance.
 
+> **📌 Planning & TODO's:** Zie **[PLAN.md](PLAN.md)** voor het actuele uitvoeringsplan,
+> alle openstaande taken, bugs, en design beslissingen.
+> Dit bestand (CLAUDE.md) is het **referentiedocument** — PLAN.md is het **werkdocument**.
+
 **Recent Updates:**
+- Container architecture: sentinel-node sidecar with keepalived + sync agent (Feb 2026)
+- Installer wizard planned (web UI in Docker) — see [PLAN.md](PLAN.md)
 - Repository cleanup and documentation consolidation (Feb 2026)
 - OpenAPI/Swagger documentation and error handling added
 - Comprehensive testing framework with Docker dev environment
@@ -459,6 +465,19 @@ See `.githooks/README.md` for complete hook documentation.
 
 ---
 
+### Critical: Language — Dutch Communication, English Code (ALWAYS)
+
+**🗣️ VERPLICHTE TAALREGEL:**
+
+- **Communicatie met de gebruiker:** ALTIJD in het **Nederlands**
+  - Antwoorden, uitleg, vragen, foutmeldingen, commit-toelichtingen
+- **Code:** ALTIJD in het **Engels**
+  - Variable/function names, comments, docstrings, log messages, UI tekst, API responses
+
+> Zie de sectie [Communicatie & Taal](#️-communicatie--taal) voor uitgebreide voorbeelden.
+
+---
+
 ### Required: Provide Git Commands for Learning
 
 **🎓 ALWAYS SHOW GIT COMMANDS TO HELP USER LEARN 🎓**
@@ -640,7 +659,7 @@ def controleer_pihole_status(ip: str) -> bool:
 
 - [Mandatory Rules](#️-mandatory-rules---read-first)
 - [Project Overview](#project-overview)
-- [Architecture](#architecture)
+- [Architecture](#architecture) (incl. Container Architecture)
 - [Codebase Structure](#codebase-structure)
 - [Tech Stack](#tech-stack)
 - [Development Environment Setup](#development-environment-setup)
@@ -652,6 +671,7 @@ def controleer_pihole_status(ip: str) -> bool:
 - [Deployment Process](#deployment-process)
 - [Common Pitfalls](#common-pitfalls)
 - [Security Considerations](#security-considerations)
+- **[PLAN.md](PLAN.md)** — Active development plan, TODO's, and bug tracking
 
 ---
 
@@ -755,6 +775,58 @@ Pi-hole Sentinel is a High Availability (HA) solution for Pi-hole DNS servers th
    Notification sent
    ```
 
+### Container Architecture (Docker Sidecar Model)
+
+> **Status:** In development on `feature/container-architecture` branch.
+> See **[PLAN.md](PLAN.md)** for full plan and progress.
+
+The new container architecture runs sentinel as a sidecar alongside each Pi-hole:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    Docker Network                         │
+│                                                          │
+│  ┌─────────────┐  ┌──────────────┐     VIP: x.x.x.100  │
+│  │  Pi-hole 1  │  │ Sentinel     │                      │
+│  │  (DNS+DHCP) │◄─│ Node 1       │  ◄── MASTER          │
+│  │  :80, :53   │  │ (keepalived  │      priority: 102   │
+│  └─────────────┘  │  + sync agent│                      │
+│                    │  :5000)      │                      │
+│                    └──────────────┘                      │
+│                                                          │
+│  ┌─────────────┐  ┌──────────────┐                      │
+│  │  Pi-hole 2  │  │ Sentinel     │                      │
+│  │  (DNS+DHCP) │◄─│ Node 2       │  ◄── BACKUP          │
+│  │  :80, :53   │  │ (keepalived  │      priority: 101   │
+│  └─────────────┘  │  + sync agent│                      │
+│                    │  :5000)      │                      │
+│                    └──────────────┘                      │
+│                                                          │
+│  ┌──────────────┐  ┌──────────────┐                     │
+│  │  Monitor     │  │  Installer   │  ◄── WEB WIZARD     │
+│  │  (Dashboard) │  │  (Wizard UI) │      :8888           │
+│  │  :8080       │  │  :8888       │      (one-time use)  │
+│  └──────────────┘  └──────────────┘                     │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Key components:**
+- **sentinel-node** (`docker/sentinel-node/`) — Alpine container with keepalived + FastAPI sync agent
+- **sync agent** (port 5000) — Endpoints: `/health`, `/state`, `/sync/gravity`, `/sync/status`
+- **sentinel-installer** (`docker/sentinel-installer/`) — Web-based setup wizard (planned)
+- **Keepalived VRRP** — Manages VIP failover between nodes (NET_ADMIN capability)
+- **Sync token** — Peer-to-peer auth for gravity.db synchronization
+
+**Sync Agent Endpoints:**
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/health` | GET | None | Health check |
+| `/state` | GET | None | VRRP state (MASTER/BACKUP) |
+| `/internal/state-change` | POST | Internal | Keepalived notify trigger |
+| `/sync/gravity` | POST | Token | Push/pull gravity.db |
+| `/sync/status` | GET | Token | Sync status overview |
+
 ---
 
 ## Codebase Structure
@@ -785,10 +857,24 @@ pihole-sentinel/
 │   ├── pihole-monitor.service     # Monitor service definition
 │   ├── pihole-sync.service        # Sync service definition
 │   └── pihole-sync.timer          # Sync timer (cron-like)
+├── docker/                         # Docker container definitions
+│   ├── sentinel-node/             # Production sidecar (keepalived + sync agent)
+│   │   ├── Dockerfile
+│   │   ├── entrypoint.sh
+│   │   ├── requirements.txt
+│   │   ├── keepalived/            # VRRP config templates + health checks
+│   │   └── sync_agent/agent.py    # FastAPI sync agent
+│   ├── sentinel-installer/        # Web-based installer wizard (planned)
+│   ├── mock-pihole/               # Mock Pi-hole for testing
+│   └── fake-client/               # Fake DHCP clients for testing
+├── docker-compose.poc.yml          # PoC: 2 Pi-holes + 2 sentinel-nodes + VIP
+├── docker-compose.test.yml         # Test: monitor + mock Pi-holes + clients
+├── Dockerfile.dev                  # Dev image for monitor container
 ├── setup.py                        # Automated setup/deployment script (1480 lines)
 ├── sync-pihole-config.sh          # Configuration synchronization script
 ├── requirements.txt                # Main Python dependencies
 ├── system-requirements.txt         # System packages (apt/yum)
+├── PLAN.md                         # 📌 Development plan & TODO tracking
 ├── docs/                           # Documentation directory
 │   ├── README.md                  # Documentation index/navigation
 │   ├── installation/
@@ -807,7 +893,7 @@ pihole-sentinel/
 ├── CHANGELOG.md                    # Version history
 ├── README.md                       # Project overview (concise, 410 lines)
 ├── LICENSE                         # GPLv3 License
-├── VERSION                         # Current version (0.12.0-beta.7)
+├── VERSION                         # Current version (0.12.0-beta.9)
 ├── .gitignore                      # Git ignore rules
 ├── .markdownlint.json             # Markdown linting config
 ├── logo.svg                        # Project logo
@@ -818,8 +904,10 @@ pihole-sentinel/
 ### Directory Purposes
 
 - **`dashboard/`** - Self-contained monitoring service with web UI
-- **`keepalived/`** - All VRRP failover logic and health checks
+- **`docker/`** - Docker container definitions (sentinel-node, installer, mocks)
+- **`keepalived/`** - Bare-metal VRRP failover logic and health checks
 - **`systemd/`** - Service definitions for systemd
+- **`tests/`** - Unit tests (pytest)
 - **Root scripts** - Setup automation and synchronization
 
 ---
@@ -892,7 +980,6 @@ source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
-pip install -r dashboard/requirements.txt
 
 # Verify installation
 python -c "import fastapi, uvicorn, aiohttp; print('✓ All imports OK')"
@@ -2000,6 +2087,8 @@ cat /opt/pihole-monitor/.env         # View monitor config (sensitive!)
 
 ### Project Management
 
+- **[PLAN.md](PLAN.md)** - 📌 **Active development plan, TODO's, bugs, and design decisions**
+- **[TODO_USER.md](TODO_USER.md)** - User-facing bug tracker and improvement list
 - **`.github/MERGE_FLOW.md`** - Merge flow documentation
 - **`.github/CODEOWNERS`** - Code ownership and review assignments
 - **`.github/workflows/code-quality.yml`** - Automated CI/CD quality checks
@@ -2011,6 +2100,10 @@ cat /opt/pihole-monitor/.env         # View monitor config (sensitive!)
 - **`.github/PULL_REQUEST_TEMPLATE.md`** - Pull request template
 
 ---
+
+---
+
+> **📌 Voor het actuele ontwikkelplan, openstaande taken en bugs: zie [PLAN.md](PLAN.md)**
 
 **Last Updated:** 2026-02-06
 **Maintainer:** JBakers

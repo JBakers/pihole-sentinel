@@ -5,6 +5,24 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0-beta.9] - 2026-02-13
+
+### Fixed
+- Dashboard API key loading via `/api/client-config` to avoid hardcoded placeholders in HTML
+- Failover notification master/backup name selection uses correct primary/secondary config
+- Favicon arrow alignment in dashboard tabs
+
+### Changed
+- Dashboard HTML served as static files; UI now fetches client config at runtime
+- Makefile test targets use `python3 -m pytest` for consistent invocation
+- CI workflow and docs now reference only the root requirements file
+
+### Removed
+- Deprecated `docker/keepalived-sidecar/` directory
+- Redundant `dashboard/requirements.txt` and empty `dashboard/.env`
+
+**Version:** 0.12.0-beta.8 → 0.12.0-beta.9
+
 ## [0.12.0-beta.8] - 2026-02-06
 
 ### Fixed

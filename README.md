@@ -23,7 +23,7 @@
 > [!WARNING]
 > **🚧 ACTIVE DEVELOPMENT - BETA STATUS**
 >
-> Pi-hole Sentinel is currently in **active beta development** (v0.12.0-beta.7).
+> Pi-hole Sentinel is currently in **active beta development** (v0.12.0-beta.9).
 >
 > While the codebase has passed quality audits (89/100 - Excellent) and is well-tested, it is **still in beta** and may receive breaking changes before the v1.0.0 stable release.
 >
