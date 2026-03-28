@@ -5,6 +5,13 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [0.12.5-beta.1] - 2026-03-28
+
+### Improved
+- **Release workflow:** whitespace opgeschoond, stapnaam verbeterd, tweede tarball toegevoegd voor stabiele download-URL.
+- **Installatie-instructies:** README.md vereenvoudigd, download en setup nu in één stap, minder kans op fouten.
+
 ## [0.12.4-beta.10] - 2026-03-28
 
 ### Improved

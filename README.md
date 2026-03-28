@@ -104,24 +104,15 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 
 ### Installation
 
-**1. Download Pi-hole Sentinel:**
-
+**1. Download Pi-hole Sentinel and run the setup:**
 ```bash
-# Download latest release (works for both stable and beta releases)
-curl -sL https://api.github.com/repos/JBakers/pihole-sentinel/releases \
-  | grep -m1 tarball_url | cut -d'"' -f4 | xargs curl -sL -o pihole-sentinel.tar.gz
+curl -sLO https://github.com/JBakers/pihole-sentinel/releases/latest/download/pihole-sentinel.tar.gz
 tar xzf pihole-sentinel.tar.gz
-mv JBakers-pihole-sentinel-* pihole-sentinel
 cd pihole-sentinel/
-```
-
-**2. Run the setup script:**
-
-```bash
 sudo python3 setup.py
 ```
 
-**3. Follow the interactive wizard:**
+**2. Follow the interactive wizard:**
 
 The script will guide you through:
 - Network configuration (IPs, VIP, interface name)
@@ -130,13 +121,14 @@ The script will guide you through:
 - Automated deployment to all servers
 - Service startup and verification
 
-**4. Access the dashboard:**
+**3. Access the dashboard:**
 
 ```
 http://<monitor-ip>:8080
 ```
 
 That's it! Your Pi-hole infrastructure now has automatic failover.
+
 
 ### What Gets Installed
 
