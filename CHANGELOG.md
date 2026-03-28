@@ -5,6 +5,16 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.4-beta.1] - 2026-03-28
+
+### Security
+- **Rate limiting on all write endpoints** — POST endpoints for settings, commands, and snooze now rate-limited (20 req/min per IP)
+- **Safe template formatting** — switched from `format(**vars)` to `format_map(defaultdict)` to prevent KeyError injection from malformed templates
+- **Explicit state tracking** — replaced fragile `hasattr(monitor_loop, ...)` pattern with explicit state dict
+
+### Improved
+- **Database cleanup batching** — large DELETEs are now batched (5000 rows) with async yields between batches to prevent database locks during cleanup
+
 ## [0.12.3-beta.10] - 2026-03-28
 
 ### Security
