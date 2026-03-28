@@ -1810,7 +1810,8 @@
             // Step 3: SGR — parse \x1b[ ... m
             // Normalise colon sub-parameter separators to semicolons first
             // (systemd uses 38:5:n per ECMA-48; most parsers expect 38;5;n)
-            s = s.replace(/\x1b\[([0-9:;]*)m/g, (_, raw) => raw.replace(/:/g, ';'));  // normalise
+            // Keep the \x1b[ prefix and m suffix so the second pass can match.
+            s = s.replace(/\x1b\[([0-9:;]*)m/g, (_, raw) => '\x1b[' + raw.replace(/:/g, ';') + 'm');
             // Now actually render
             let depth = 0;
             s = s.replace(/\x1b\[([0-9;]*)m/g, (_, codes) => {
