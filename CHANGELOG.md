@@ -5,6 +5,11 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.4-beta.3] - 2026-03-28
+
+### Fixed
+- **Uninstall: removed invalid `pihole -a setdns` command** — this Pi-hole v5 command doesn't exist in v6, causing the full pihole help text to print during uninstall. DHCP state is preserved in pihole.toml after sentinel removal; no pihole command needed.
+
 ## [0.12.4-beta.2] - 2026-03-28
 
 ### New
