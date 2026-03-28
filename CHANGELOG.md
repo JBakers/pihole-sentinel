@@ -5,10 +5,19 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.4-beta.9] - 2026-03-28
+
+### Fixed
+- **API docs auth mismatch** — `/api/version` and `/api/client-config` were documented as unauthenticated but require `X-API-Key` in code. Updated docs and overview table to reflect actual auth requirements.
+- **Version fallback stuck on "loading..."** — `loadVersionFallback()` in index.html and settings.html now sends `X-API-Key` header and falls back to "unknown" on failure instead of staying on "loading..." forever.
+- **Stale version strings in API docs** — replaced all pinned version literals in docs/api/README.md with `<current version>` placeholders and linked header/footer to VERSION file.
+- **TODO_USER.md version reference** — updated from v0.12.4-beta.7 to match current release.
+- **CHANGELOG accuracy** — corrected beta.8 entry that incorrectly claimed "all" hardcoded versions were eliminated.
+
 ## [0.12.4-beta.8] - 2026-03-28
 
 ### Fixed
-- **Eliminated all hardcoded version strings** — monitor.py, pisen CLI, settings.html, and API docs now read version dynamically from VERSION file. No more stale version references after updates.
+- **Removed most hardcoded version strings** — monitor.py, pisen CLI, and settings.html now read the version dynamically from the VERSION file. API docs use placeholder values instead of pinned versions to avoid staleness.
 
 ## [0.12.4-beta.7] - 2026-03-28
 

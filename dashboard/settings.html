@@ -1170,13 +1170,17 @@ Monitoring {primary} and {secondary}</textarea>
 
         async function loadVersionFallback() {
             try {
-                const response = await fetch(`${API_BASE}/api/version`);
+                const headers = API_KEY ? { 'X-API-Key': API_KEY } : {};
+                const response = await fetch(`${API_BASE}/api/version`, { headers });
                 if (response.ok) {
                     const data = await response.json();
                     updateVersionDisplay(data.version || 'unknown');
+                } else {
+                    updateVersionDisplay('unknown');
                 }
             } catch (error) {
                 console.error('Failed to load version:', error);
+                updateVersionDisplay('unknown');
             }
         }
 
