@@ -13,11 +13,14 @@ This script helps you configure your Pi-hole Sentinel High Availability setup by
 import os
 import re
 import sys
+import json
 import socket
 import secrets
 import string
 import subprocess
 import datetime
+import urllib.request
+import urllib.error
 from ipaddress import ip_network, ip_address
 from getpass import getpass
 
@@ -802,6 +805,98 @@ class SetupConfig:
             if not proceed:
                 sys.exit(1)
 
+    def _check_pihole_api(self, ip, password):
+        """Return (ok: bool, message: str) for Pi-hole v6 API authentication."""
+        url = f"http://{ip}/api/auth"
+        payload = json.dumps({"password": password}).encode()
+        req = urllib.request.Request(
+            url, data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                body = json.loads(resp.read().decode())
+            if body.get("session", {}).get("valid"):
+                return True, "OK"
+            return False, "wrong password (API returned invalid session)"
+        except urllib.error.HTTPError as e:
+            return False, f"HTTP {e.code}"
+        except urllib.error.URLError as e:
+            return False, f"unreachable ({e.reason})"
+        except Exception as e:
+            return False, str(e)
+
+    def preflight_checks(self):
+        """Validate all credentials and SSH access before touching any server.
+
+        Checks (in order):
+          1. SSH connectivity + command execution on every target host
+          2. Pi-hole web API password for primary and secondary
+
+        Calls sys.exit(1) with a clear summary if anything fails so the user
+        can fix credentials before any files are modified on the servers.
+        """
+        print(f"\n{Colors.CYAN}{Colors.BOLD}═══ Pre-flight Credential Check ═══{Colors.END}")
+        failures = []
+
+        # --- SSH checks ---
+        ssh_targets = []
+        if self.config.get('separate_monitor'):
+            ssh_targets.append(("Monitor",
+                                self.config['monitor_ip'],
+                                self.config['monitor_ssh_user'],
+                                self.config['monitor_ssh_port']))
+        ssh_targets += [
+            ("Primary Pi-hole",
+             self.config['primary_ip'],
+             self.config['primary_ssh_user'],
+             self.config['primary_ssh_port']),
+            ("Secondary Pi-hole",
+             self.config['secondary_ip'],
+             self.config['secondary_ssh_user'],
+             self.config['secondary_ssh_port']),
+        ]
+
+        for name, host, user, port in ssh_targets:
+            label = f"SSH {user}@{host}"
+            print(f"  Checking {label} … ", end="", flush=True)
+            try:
+                self.remote_exec(host, user, port, "echo ok")
+                print(f"{Colors.GREEN}✓{Colors.END}")
+            except subprocess.CalledProcessError:
+                print(f"{Colors.RED}✗  authentication failed{Colors.END}")
+                failures.append(f"{name}: SSH login failed for {user}@{host}:{port}")
+            except FileNotFoundError:
+                print(f"{Colors.RED}✗  ssh not found{Colors.END}")
+                failures.append(f"{name}: 'ssh' command not found on this machine")
+            except Exception as e:
+                print(f"{Colors.RED}✗  {e}{Colors.END}")
+                failures.append(f"{name}: SSH error — {e}")
+
+        # --- Pi-hole API checks (only when passwords have been collected) ---
+        for name, ip, pw_key in [
+            ("Primary Pi-hole API",   self.config['primary_ip'],   'primary_password'),
+            ("Secondary Pi-hole API", self.config['secondary_ip'], 'secondary_password'),
+        ]:
+            password = self.config.get(pw_key, "")
+            print(f"  Checking {name} ({ip}) … ", end="", flush=True)
+            ok, msg = self._check_pihole_api(ip, password)
+            if ok:
+                print(f"{Colors.GREEN}✓{Colors.END}")
+            else:
+                print(f"{Colors.RED}✗  {msg}{Colors.END}")
+                failures.append(f"{name}: {msg}")
+
+        if failures:
+            print(f"\n{Colors.RED}{Colors.BOLD}Pre-flight check failed — no files have been changed on any server.{Colors.END}")
+            print(f"{Colors.RED}Fix the following issues and re-run setup:{Colors.END}")
+            for f in failures:
+                print(f"  {Colors.RED}✗{Colors.END}  {f}")
+            sys.exit(1)
+
+        print(f"\n{Colors.GREEN}✓ All credentials verified — starting deployment.{Colors.END}\n")
+
     def generate_configs(self):
         """Generate configuration files."""
         print("\n=== Generating Configuration Files ===")
@@ -1052,9 +1147,6 @@ NODE_STATE=MASTER
         try:
             print(f"\nDeploying monitor to {host} via SSH...")
 
-            # Backup existing configurations
-            self.backup_existing_configs(host, user, port, password, "monitor")
-
             # Install system dependencies first
             if not self.install_remote_dependencies(host, user, port, password):
                 return False
@@ -1240,13 +1332,10 @@ NODE_STATE=MASTER
         user = self.config[f'{node_type}_ssh_user']
         port = self.config[f'{node_type}_ssh_port']
         password = self.config.get(f'{node_type}_ssh_pass')
-        
+
         try:
             print(f"\nDeploying {node_type} keepalived to {host} via SSH...")
-            
-            # Backup existing configurations
-            self.backup_existing_configs(host, user, port, password, node_type)
-            
+
             # Install system dependencies first
             if not self.install_remote_dependencies(host, user, port, password):
                 return False
@@ -1431,7 +1520,12 @@ NODE_STATE=MASTER
             print(f"{Colors.GREEN}✓ No sensitive files to cleanup{Colors.END}")
     
     def backup_existing_configs(self, host, user, port, password=None, config_type="monitor"):
-        """Backup existing configuration files on remote server."""
+        """Backup existing configuration files on remote server.
+
+        Returns the backup timestamp string so callers can pass it to
+        rollback_deployment() if they need to undo this backup later.
+        Returns None when nothing was backed up.
+        """
         import datetime
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         
@@ -1488,9 +1582,219 @@ NODE_STATE=MASTER
             for source, backup in backed_up:
                 print(f"  {Colors.GREEN}✓{Colors.END} {source} → {backup}")
             print(f"\n{Colors.YELLOW}💡 You can restore these backups if needed.{Colors.END}")
-            return True
-        
-        return False
+            return timestamp
+
+        return None
+
+    def rollback_deployment(self, deployed_hosts):
+        """Restore all servers from their backups.
+
+        deployed_hosts is a list of dicts created during mode-2 deployment:
+          [
+            {"type": "monitor",   "host": ip, "user": user, "port": port,
+             "backup_ts": "20260328_101648"},
+            {"type": "primary",   "host": ip, "user": user, "port": port,
+             "backup_ts": "20260328_101659"},
+            {"type": "secondary", "host": ip, "user": user, "port": port,
+             "backup_ts": "20260328_101707"},
+          ]
+        Servers are rolled back in reverse deployment order.
+        """
+        if not deployed_hosts:
+            return
+
+        print(f"\n{Colors.YELLOW}{Colors.BOLD}═══ Rolling Back Deployment ═══{Colors.END}")
+        print(f"{Colors.YELLOW}Restoring previous configuration on all touched servers…{Colors.END}\n")
+
+        restore_map = {
+            "monitor": [
+                ("/opt/pihole-monitor/.env",           "/opt/pihole-monitor/.env"),
+                ("/opt/pihole-monitor/monitor.py",     "/opt/pihole-monitor/monitor.py"),
+                ("/opt/pihole-monitor/index.html",     "/opt/pihole-monitor/index.html"),
+                ("/opt/pihole-monitor/settings.html",  "/opt/pihole-monitor/settings.html"),
+            ],
+            "keepalived": [
+                ("/etc/keepalived/keepalived.conf", "/etc/keepalived/keepalived.conf"),
+                ("/etc/keepalived/.env",            "/etc/keepalived/.env"),
+            ],
+        }
+        restart_cmd = {
+            "monitor":   "systemctl restart pihole-monitor 2>/dev/null || true",
+            "primary":   "systemctl restart keepalived    2>/dev/null || true",
+            "secondary": "systemctl restart keepalived    2>/dev/null || true",
+        }
+
+        for entry in reversed(deployed_hosts):
+            host      = entry["host"]
+            user      = entry["user"]
+            port      = entry["port"]
+            node_type = entry["type"]
+            ts        = entry.get("backup_ts")
+            label     = f"{node_type} ({host})"
+
+            print(f"  Rolling back {label}…")
+
+            if not ts:
+                print(f"    {Colors.YELLOW}⚠ No backup timestamp — skipping file restore{Colors.END}")
+            else:
+                file_list = restore_map.get(
+                    "monitor" if node_type == "monitor" else "keepalived", []
+                )
+                for _dest, target in file_list:
+                    backup_path = f"{target}.backup_{ts}"
+                    cmd = (
+                        f"[ -f {backup_path} ] "
+                        f"&& cp {backup_path} {target} "
+                        f"&& echo 'restored' "
+                        f"|| echo 'no backup'"
+                    )
+                    try:
+                        self.remote_exec(host, user, port, cmd)
+                    except Exception:
+                        pass
+
+            # Restart service so the restored config takes effect
+            try:
+                self.remote_exec(host, user, port, restart_cmd[node_type])
+                print(f"    {Colors.GREEN}✓ Restored and restarted {node_type}{Colors.END}")
+            except Exception as e:
+                print(f"    {Colors.YELLOW}⚠ Restart failed: {e}{Colors.END}")
+
+        print(f"\n{Colors.GREEN}Rollback complete.{Colors.END}")
+
+    def collect_minimal_config(self):
+        """Collect only the SSH+server details needed for uninstall/rollback.
+
+        Does not ask for Pi-hole passwords, DHCP settings, or VIP.
+        """
+        print(f"\n{Colors.CYAN}{Colors.BOLD}=== Server Configuration ==={Colors.END}")
+
+        # Detect range for quick input
+        detected = detect_local_ip_range()
+        default_range = detected or "192.168.178"
+
+        method = input("IP input method: 1=Quick (last octet only)  2=Full IP  [1]: ").strip() or "1"
+        if method == "1":
+            ip_range = input(f"IP range [{default_range}]: ").strip() or default_range
+            def ask_ip(label):
+                octet = input(f"{label} (last octet, {ip_range}.X): ").strip()
+                return f"{ip_range}.{octet}"
+        else:
+            def ask_ip(label):
+                return input(f"{label}: ").strip()
+
+        has_monitor = input("Is the monitor on a separate server? (Y/n): ").strip().lower() != "n"
+        self.config['separate_monitor'] = has_monitor
+        if has_monitor:
+            self.config['monitor_ip']       = ask_ip("Monitor IP")
+            self.config['monitor_ssh_user'] = input("Monitor SSH user [root]: ").strip() or "root"
+            self.config['monitor_ssh_port'] = input("Monitor SSH port [22]: ").strip() or "22"
+        else:
+            self.config['monitor_ip']       = None
+            self.config['monitor_ssh_user'] = "root"
+            self.config['monitor_ssh_port'] = "22"
+
+        self.config['primary_ip']        = ask_ip("Primary Pi-hole IP")
+        self.config['secondary_ip']      = ask_ip("Secondary Pi-hole IP")
+
+        ssh_user = input("SSH user for Pi-holes [root]: ").strip() or "root"
+        ssh_port = input("SSH port for Pi-holes [22]: ").strip() or "22"
+        self.config['primary_ssh_user']   = ssh_user
+        self.config['primary_ssh_port']   = ssh_port
+        self.config['secondary_ssh_user'] = ssh_user
+        self.config['secondary_ssh_port'] = ssh_port
+
+        # Set up SSH key (reuse existing if present)
+        key_path = os.path.expanduser("~/.ssh/id_pihole_sentinel")
+        if os.path.exists(key_path):
+            self.config['ssh_key_path'] = key_path
+        else:
+            self.config['ssh_key_path'] = None
+
+    def uninstall(self):
+        """Remove Pi-hole Sentinel from all configured servers.
+
+        Stops and disables services, removes all installed files, and
+        optionally removes system users created by the monitor installer.
+        Pi-hole itself is never touched.
+        """
+        print(f"\n{Colors.RED}{Colors.BOLD}═══ Uninstall Pi-hole Sentinel ═══{Colors.END}")
+        print(f"{Colors.YELLOW}This will remove Pi-hole Sentinel from all servers.{Colors.END}")
+        print(f"{Colors.YELLOW}Pi-hole itself will NOT be touched.{Colors.END}\n")
+
+        confirm = input(
+            f"{Colors.RED}{Colors.BOLD}Type 'yes' to confirm uninstall: {Colors.END}"
+        ).strip().lower()
+        if confirm != "yes":
+            print("Uninstall cancelled.")
+            return
+
+        errors = []
+
+        def _exec_quiet(host, user, port, cmd):
+            """Return True on success, False on failure (never raises)."""
+            try:
+                self.remote_exec(host, user, port, cmd)
+                return True
+            except Exception as e:
+                errors.append(f"{host}: {e}")
+                return False
+
+        # --- Monitor ---
+        if self.config.get('separate_monitor') and self.config.get('monitor_ip'):
+            host = self.config['monitor_ip']
+            user = self.config['monitor_ssh_user']
+            port = self.config['monitor_ssh_port']
+            print(f"  Uninstalling monitor from {host}…")
+            cmds = [
+                "systemctl stop  pihole-monitor 2>/dev/null || true",
+                "systemctl disable pihole-monitor 2>/dev/null || true",
+                "rm -f /etc/systemd/system/pihole-monitor.service",
+                "systemctl daemon-reload",
+                "rm -rf /opt/pihole-monitor",
+                # Remove service user (only if it was created by sentinel)
+                "id pihole-monitor >/dev/null 2>&1 && userdel -r pihole-monitor 2>/dev/null || true",
+            ]
+            ok = all(_exec_quiet(host, user, port, c) for c in cmds)
+            print(f"    {Colors.GREEN}✓ Done{Colors.END}" if ok else f"    {Colors.YELLOW}⚠ Some steps failed{Colors.END}")
+
+        # --- Pi-hole nodes (primary + secondary) ---
+        for label, ip_key, user_key, port_key in [
+            ("Primary Pi-hole",   "primary_ip",   "primary_ssh_user",   "primary_ssh_port"),
+            ("Secondary Pi-hole", "secondary_ip", "secondary_ssh_user", "secondary_ssh_port"),
+        ]:
+            host = self.config.get(ip_key)
+            user = self.config.get(user_key, "root")
+            port = self.config.get(port_key, "22")
+            if not host:
+                continue
+            print(f"  Uninstalling keepalived sentinel from {label} ({host})…")
+            cmds = [
+                # Stop keepalived (Pi-hole keeps running — only VRRP/HA bits are removed)
+                "systemctl stop  keepalived 2>/dev/null || true",
+                "systemctl disable keepalived 2>/dev/null || true",
+                # Remove Sentinel-managed files only; keepalived package stays
+                "rm -f /etc/keepalived/keepalived.conf",
+                "rm -f /etc/keepalived/.env",
+                "rm -f /usr/local/bin/check_pihole_service.sh",
+                "rm -f /usr/local/bin/check_dhcp_service.sh",
+                "rm -f /usr/local/bin/dhcp_control.sh",
+                "rm -f /usr/local/bin/keepalived_notify.sh",
+                "rm -f /var/log/keepalived-notify.log",
+                # Re-enable DHCP on Pi-hole (was possibly disabled by sentinel)
+                "pihole -a setdns 2>/dev/null || true",
+            ]
+            ok = all(_exec_quiet(host, user, port, c) for c in cmds)
+            print(f"    {Colors.GREEN}✓ Done{Colors.END}" if ok else f"    {Colors.YELLOW}⚠ Some steps failed{Colors.END}")
+
+        if errors:
+            print(f"\n{Colors.YELLOW}The following errors occurred during uninstall:{Colors.END}")
+            for e in errors:
+                print(f"  {Colors.YELLOW}⚠{Colors.END}  {e}")
+            print(f"{Colors.YELLOW}You may need to clean up manually on those hosts.{Colors.END}")
+        else:
+            print(f"\n{Colors.GREEN}{Colors.BOLD}✓ Pi-hole Sentinel has been removed from all servers.{Colors.END}")
+            print(f"{Colors.CYAN}Pi-hole continues to run; only the HA layer has been removed.{Colors.END}")
 
     def show_deployment_success(self):
         """Show successful deployment message with instructions."""
@@ -2209,15 +2513,25 @@ def main():
 {Colors.BOLD}3.{Colors.END} Deploy monitor only (local installation)
 {Colors.BOLD}4.{Colors.END} Deploy primary node only (local installation)
 {Colors.BOLD}5.{Colors.END} Deploy secondary node only (local installation)
+{Colors.RED}{Colors.BOLD}6.{Colors.END} Uninstall Pi-hole Sentinel from all servers
 {Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}
 """)
 
-        mode = input(f"{Colors.BOLD}Enter your choice (1-5):{Colors.END} ").strip()
+        mode = input(f"{Colors.BOLD}Enter your choice (1-6):{Colors.END} ").strip()
+
+        # Uninstall path: only needs SSH info, no passwords or config generation
+        if mode == "6":
+            setup.collect_minimal_config()
+            setup.uninstall()
+            return
 
         # Collect Pi-hole passwords (needed for monitoring)
         print(f"\n{Colors.CYAN}{Colors.BOLD}═══ Pi-hole Web Interface Passwords ═══{Colors.END}")
         setup.collect_pihole_passwords()
-        
+
+        # Pre-flight: validate all credentials before touching any server
+        setup.preflight_checks()
+
         # Generate configurations
         print(f"\n{Colors.CYAN}{Colors.BOLD}═══ Generating Configuration Files ═══{Colors.END}")
         setup.generate_configs()
@@ -2227,26 +2541,83 @@ def main():
         elif mode == "2":
             print(f"\n{Colors.CYAN}{Colors.BOLD}═══ Remote Deployment via SSH ═══{Colors.END}")
             print("This will deploy to all configured servers via SSH.\n")
-            
-            # Deploy monitor
-            if setup.config['separate_monitor']:
-                print(f"\n{Colors.BOLD}[1/3] Deploying monitor to {setup.config['monitor_ip']}...{Colors.END}")
-                setup.deploy_monitor_remote()
-            else:
-                print(f"\n{Colors.BOLD}[1/3] Deploying monitor locally on primary...{Colors.END}")
-                setup.deploy_monitor()
-            
-            # Deploy primary
-            print(f"\n{Colors.BOLD}[2/3] Deploying primary keepalived to {setup.config['primary_ip']}...{Colors.END}")
-            setup.deploy_keepalived_remote("primary")
-            
-            # Deploy secondary
-            print(f"\n{Colors.BOLD}[3/3] Deploying secondary keepalived to {setup.config['secondary_ip']}...{Colors.END}")
-            setup.deploy_keepalived_remote("secondary")
-            
+
+            # Track which servers have been touched so we can roll back on error
+            deployed_hosts = []
+            deploy_failed  = False
+
+            try:
+                # Deploy monitor
+                if setup.config['separate_monitor']:
+                    print(f"\n{Colors.BOLD}[1/3] Deploying monitor to {setup.config['monitor_ip']}...{Colors.END}")
+                    ts = setup.backup_existing_configs(
+                        setup.config['monitor_ip'],
+                        setup.config['monitor_ssh_user'],
+                        setup.config['monitor_ssh_port'],
+                        config_type="monitor"
+                    )
+                    ok = setup.deploy_monitor_remote()
+                    deployed_hosts.append({
+                        "type": "monitor",
+                        "host": setup.config['monitor_ip'],
+                        "user": setup.config['monitor_ssh_user'],
+                        "port": setup.config['monitor_ssh_port'],
+                        "backup_ts": ts,
+                    })
+                    if not ok:
+                        raise RuntimeError(f"Monitor deployment failed on {setup.config['monitor_ip']}")
+                else:
+                    print(f"\n{Colors.BOLD}[1/3] Deploying monitor locally on primary...{Colors.END}")
+                    setup.deploy_monitor()
+
+                # Deploy primary
+                print(f"\n{Colors.BOLD}[2/3] Deploying primary keepalived to {setup.config['primary_ip']}...{Colors.END}")
+                ts = setup.backup_existing_configs(
+                    setup.config['primary_ip'],
+                    setup.config['primary_ssh_user'],
+                    setup.config['primary_ssh_port'],
+                    config_type="primary"
+                )
+                ok = setup.deploy_keepalived_remote("primary")
+                deployed_hosts.append({
+                    "type": "primary",
+                    "host": setup.config['primary_ip'],
+                    "user": setup.config['primary_ssh_user'],
+                    "port": setup.config['primary_ssh_port'],
+                    "backup_ts": ts,
+                })
+                if not ok:
+                    raise RuntimeError(f"Primary keepalived deployment failed on {setup.config['primary_ip']}")
+
+                # Deploy secondary
+                print(f"\n{Colors.BOLD}[3/3] Deploying secondary keepalived to {setup.config['secondary_ip']}...{Colors.END}")
+                ts = setup.backup_existing_configs(
+                    setup.config['secondary_ip'],
+                    setup.config['secondary_ssh_user'],
+                    setup.config['secondary_ssh_port'],
+                    config_type="secondary"
+                )
+                ok = setup.deploy_keepalived_remote("secondary")
+                deployed_hosts.append({
+                    "type": "secondary",
+                    "host": setup.config['secondary_ip'],
+                    "user": setup.config['secondary_ssh_user'],
+                    "port": setup.config['secondary_ssh_port'],
+                    "backup_ts": ts,
+                })
+                if not ok:
+                    raise RuntimeError(f"Secondary keepalived deployment failed on {setup.config['secondary_ip']}")
+
+            except Exception as deploy_err:
+                deploy_failed = True
+                print(f"\n{Colors.RED}{Colors.BOLD}Deployment error: {deploy_err}{Colors.END}")
+                setup.cleanup_sensitive_files()
+                setup.rollback_deployment(deployed_hosts)
+                sys.exit(1)
+
             # Cleanup sensitive files
             setup.cleanup_sensitive_files()
-            
+
             # Show success message
             setup.show_deployment_success()
         elif mode == "3":
