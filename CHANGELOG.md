@@ -5,6 +5,11 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.4-beta.4] - 2026-03-28
+
+### Fixed
+- **Download URLs in install docs** — previous commands failed because `/releases/latest` ignores pre-releases and `wget` can't use shell wildcards in URLs. Now uses GitHub API `/releases` endpoint which works for both stable and beta releases.
+
 ## [0.12.4-beta.3] - 2026-03-28
 
 ### Fixed
