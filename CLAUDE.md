@@ -13,7 +13,7 @@ This document provides comprehensive guidance for AI assistants working with the
 > all open tasks, bugs, and design decisions.
 > This file (CLAUDE.md) is the **reference document** — PLAN.md is the **working document**.
 
-**Recent Updates (v0.12.2, March 2026):**
+**Recent Updates (v0.12.4, March 2026):**
 - setup.py end-to-end deployment with preflight checks + automatic rollback
 - Fault debounce + paired recovery notifications
 - System Commands panel + ANSI colour rendering in dashboard
@@ -444,7 +444,7 @@ pihole-sentinel/
 ├── CHANGELOG.md                    # Version history
 ├── README.md                       # Project overview (concise, 410 lines)
 ├── LICENSE                         # GPLv3 License
-├── VERSION                         # Current version (0.12.2-beta.8)
+├── VERSION                         # Current version (see file)
 ├── .gitignore                      # Git ignore rules
 ├── .markdownlint.json             # Markdown linting config
 ├── logo.svg                        # Project logo
