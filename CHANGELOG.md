@@ -5,7 +5,20 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.0-beta.11] - 2026-03-28
+## [0.12.0-beta.12] - 2026-03-28
+
+### Fixed
+- **🐛 setup.py deploy_keepalived_remote: VRRP interface-naam van installer-machine gebruikt i.p.v. Pi-hole interface**
+  - De generated keepalived.conf bevatte altijd de interface van de machine waar setup.py op draait (`eno1`), maar Pi-holes gebruiken vaak een andere naam (`eth0`, `enp3s0`, etc.)
+  - Fix: na het kopiëren van keepalived.conf naar de remote host, wordt de echte interface automatisch gedetecteerd via `ip route get 8.8.8.8` en in de config gezet
+  - Dit was de reden waarom keepalived op beide Pi-holes niet startte (`interface eno1 doesn't exist`)
+- **🐛 setup.py generate_configs: keepalived auth_pass was 32 tekens, keepalived trunceert naar 8**
+  - `generate_secure_password()` genereerde een 32-teken wachtwoord, maar keepalived PASS auth ondersteunt maximaal 8 tekens
+  - keepalived gaf `Truncating auth_pass to 8 characters` warning en beide nodes gebruikten onbedoeld een ander gedeelte
+  - Fix: `generate_secure_password(length=8)` voor keepalived password
+
+**Version:** 0.12.0-beta.11 → 0.12.0-beta.12
+
 
 ### Fixed
 - **🐛 setup.py deploy_keepalived_remote: keepalived start-fouten waren niet zichtbaar**

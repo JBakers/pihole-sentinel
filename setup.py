@@ -765,7 +765,8 @@ class SetupConfig:
             sys.exit(1)
         
         # Generate secure keepalived password
-        self.config['keepalived_password'] = self.generate_secure_password()
+        # keepalived PASS auth truncates to 8 characters — generate exactly 8
+        self.config['keepalived_password'] = self.generate_secure_password(length=8)
     
     def collect_pihole_passwords(self):
         """Collect Pi-hole web interface passwords (for monitoring)."""
@@ -1292,6 +1293,18 @@ NODE_STATE=MASTER
                 "cp /tmp/pihole-sentinel-deploy/keepalived.conf /etc/keepalived/keepalived.conf",
                 "chown root:root /etc/keepalived/keepalived.conf",
                 "chmod 644 /etc/keepalived/keepalived.conf",
+                # Auto-detect actual network interface on this host and patch keepalived.conf.
+                # The config was generated on the installer machine (which may use eno1/wlan0/etc.)
+                # but this Pi-hole may use a completely different interface name (eth0, enp3s0, …).
+                # We use the interface of the default IPv4 route — that is always the correct one
+                # for VRRP to run on.
+                "REMOTE_IFACE=$(ip route get 8.8.8.8 2>/dev/null "
+                "| awk '{for(i=1;i<=NF;i++) if($i==\"dev\") print $(i+1)}' "
+                "| head -1 | tr -d '[:space:]') && "
+                "[ -n \"$REMOTE_IFACE\" ] && "
+                "sed -i \"s/^    interface .*/    interface $REMOTE_IFACE/\" /etc/keepalived/keepalived.conf && "
+                "echo \"Auto-configured VRRP interface: $REMOTE_IFACE\" || "
+                "echo 'Warning: could not auto-detect interface, keeping installer value'",
                 "cp /tmp/pihole-sentinel-deploy/.env /etc/keepalived/.env",
                 "chown root:root /etc/keepalived/.env",
                 "chmod 600 /etc/keepalived/.env",
