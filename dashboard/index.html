@@ -1221,11 +1221,17 @@
 
         async function loadVersionFallback() {
             try {
-                const response = await fetch('/api/version');
-                const data = await response.json();
-                updateVersionDisplay(data.version || 'unknown');
+                const headers = API_KEY ? { 'X-API-Key': API_KEY } : {};
+                const response = await fetch('/api/version', { headers });
+                if (response.ok) {
+                    const data = await response.json();
+                    updateVersionDisplay(data.version || 'unknown');
+                } else {
+                    updateVersionDisplay('unknown');
+                }
             } catch (error) {
                 console.error('Failed to load version:', error);
+                updateVersionDisplay('unknown');
             }
         }
 

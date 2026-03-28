@@ -1,7 +1,7 @@
 # Pi-hole Sentinel API Documentation
 
-**Version:** 0.12.0-beta.9  
-**Last Updated:** 2025-12-07  
+**Version:** See [VERSION](../../VERSION) file  
+**Last Updated:** 2026-03-28  
 **Base URL:** `http://<monitor-ip>:8080`
 
 ---
@@ -94,8 +94,8 @@ HTTP Status: `429 Too Many Requests`
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | `/api/version` | No | Get current version |
-| GET | `/api/client-config` | No | Get API key + version for UI |
+| GET | `/api/version` | Yes | Get current version |
+| GET | `/api/client-config` | Yes | Get API key + version for UI |
 | GET | `/api/check-update` | Yes | Check for available updates |
 | GET | `/api/status` | Yes | Get real-time system status |
 | GET | `/api/history` | Yes | Get historical data (24h default) |
@@ -121,12 +121,12 @@ GET /api/version
 
 **Description:** Get current Pi-hole Sentinel version
 
-**Authentication:** No
+**Authentication:** Yes
 
 **Response:**
 ```json
 {
-  "version": "0.12.0-beta.9"
+  "version": "<current version>"
 }
 ```
 
@@ -137,13 +137,13 @@ GET /api/client-config
 
 **Description:** Get API key and version for the dashboard UI
 
-**Authentication:** No
+**Authentication:** Yes
 
 **Response:**
 ```json
 {
   "api_key": "your-api-key",
-  "version": "0.12.0-beta.9"
+  "version": "<current version>"
 }
 ```
 
@@ -160,8 +160,8 @@ X-API-Key: your-api-key
 **Response:**
 ```json
 {
-  "current_version": "0.12.0-beta.9",
-  "latest_version": "0.13.0-beta.1",
+  "current_version": "<current version>",
+  "latest_version": "<latest version>",
   "update_available": true,
   "release_url": "https://github.com/JBakers/pihole-sentinel/releases/tag/0.13.0-beta.1",
   "cached": false
@@ -1163,6 +1163,6 @@ For questions or issues:
 
 ---
 
-**Last Updated:** 2026-02-06
-**Version:** 0.12.0-beta.9
+**Last Updated:** 2026-03-28
+**Version:** See [VERSION](../../VERSION) file
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
