@@ -107,11 +107,12 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 **1. Download Pi-hole Sentinel:**
 
 ```bash
-# Download latest release
-wget -q $(curl -s https://api.github.com/repos/JBakers/pihole-sentinel/releases/latest \
-  | grep -o 'https://.*pihole-sentinel-.*\.tar\.gz') -O pihole-sentinel.tar.gz
+# Download latest release (works for both stable and beta releases)
+curl -sL https://api.github.com/repos/JBakers/pihole-sentinel/releases \
+  | grep -m1 tarball_url | cut -d'"' -f4 | xargs curl -sL -o pihole-sentinel.tar.gz
 tar xzf pihole-sentinel.tar.gz
-cd pihole-sentinel-*/
+mv JBakers-pihole-sentinel-* pihole-sentinel
+cd pihole-sentinel/
 ```
 
 **2. Run the setup script:**
