@@ -5,7 +5,17 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.0-beta.15] - 2026-03-28
+## [0.12.0-beta.16] - 2026-03-28
+
+### Fixed
+- **🐛 setup.py / keepalived.conf: `preempt_delay` op `state MASTER` node (keepalived exit code 1)**
+  - `preempt_delay` is alleen geldig op BACKUP-nodes; op een MASTER-node geeft keepalived 2.3.x een warning én exit code 1 bij `--config-test`, waardoor deployment bleef falen na de VRRP v2-fix
+  - Fix: `preempt_delay 60` verwijderd uit het primary (MASTER) config-template in `generate_configs()` en uit `keepalived/pihole1/keepalived.conf`
+  - De overtollige `.replace("\n    preempt_delay 60\n", ...)` in de secondary-template-generatie verwijderd
+  - `--config-test` geeft nu clean exit code 0 op beide nodes
+
+**Version:** 0.12.0-beta.15 → 0.12.0-beta.16
+
 
 ### Added
 - **🧪 tests/test_setup.py: 30 tests voor setup.py pre-flight, rollback en uninstall**
