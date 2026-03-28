@@ -176,6 +176,23 @@ docker-recover:
 	@echo "Wait ~10s for monitor to detect recovery, then check:"
 	@echo "  make docker-status"
 
+# Setup.py tests against live Docker mock environment
+docker-setup-test: docker-up
+	@echo ""
+	@echo "🧪 Running setup.py unit + Docker integration tests..."
+	@echo ""
+	python3 -m pytest tests/test_setup.py -v --tb=short
+	@echo ""
+	@echo "✅ Setup tests done"
+
+docker-setup-test-only:
+	@echo "🧪 Running setup.py tests (Docker must already be running)..."
+	python3 -m pytest tests/test_setup.py -v --tb=short -m "not docker or docker"
+
+docker-setup-unit:
+	@echo "🧪 Running setup.py unit tests (no Docker needed)..."
+	python3 -m pytest tests/test_setup.py -v --tb=short -m "not docker"
+
 # Automated Test Scripts
 run-all-tests:
 	@./.github/scripts/run-all-tests.sh

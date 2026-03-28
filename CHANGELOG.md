@@ -5,7 +5,27 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.0-beta.14] - 2026-03-28
+## [0.12.0-beta.15] - 2026-03-28
+
+### Added
+- **🧪 tests/test_setup.py: 30 tests voor setup.py pre-flight, rollback en uninstall**
+  - **Unit tests (21)** — geen externe dependencies, SSH gemockt:
+    - `TestCheckPiholeApi` — geldige/ongeldige credentials, HTTP-errors, unreachable host
+    - `TestPreflightChecks` — alles-ok pad, SSH-fout, API-fout, meerdere fouten, zonder aparte monitor
+    - `TestRollbackDeployment` — alle hosts geraakt, omgekeerde volgorde, lege lijst, SSH-fout tolerantie, ontbrekende backup-ts
+    - `TestUninstall` — services gestopt, bestanden verwijderd, annulering, zonder aparte monitor, SSH-fout tolerantie
+    - `TestBackupExistingConfigs` — timestamp teruggegeven bij backup, None bij geen bestanden
+  - **Integratie tests (9)** — draaien tegen de echte Docker mock Pi-holes (automatisch overgeslagen als Docker niet draait):
+    - `TestCheckPiholeApiDocker` — correcte/verkeerde credentials tegen `localhost:8001/8002`
+    - `TestMockPiholeStateDocker` — `fail_auth`-state via control endpoints, reset herstelt auth
+  - Alle 30 tests groen (unit: 0.55s, met Docker: 0.29s)
+- **🛠️ Makefile: 3 nieuwe targets voor setup tests**
+  - `make docker-setup-test` — start Docker + draait alle 30 tests
+  - `make docker-setup-test-only` — draait tests (Docker moet al draaien)
+  - `make docker-setup-unit` — draait alleen unit tests (geen Docker)
+
+**Version:** 0.12.0-beta.14 → 0.12.0-beta.15
+
 
 ### Added
 - **✨ setup.py: Pre-flight credential check vóór deployment**
