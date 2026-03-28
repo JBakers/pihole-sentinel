@@ -2748,9 +2748,8 @@ def main():
 
         mode = input(f"{Colors.BOLD}Enter your choice (1-4):{Colors.END} ").strip()
 
-        # Uninstall path: only needs SSH info, no passwords or config generation
+        # Uninstall path: IPs already collected above, just run uninstall
         if mode == "4":
-            setup.collect_minimal_config()
             setup.uninstall()
             return
 
