@@ -2009,8 +2009,6 @@ WantedBy=timers.target
                 "rm -f /usr/local/bin/dhcp_control.sh",
                 "rm -f /usr/local/bin/keepalived_notify.sh",
                 "rm -f /var/log/keepalived-notify.log",
-                # Re-enable DHCP on Pi-hole (was possibly disabled by sentinel)
-                "pihole -a setdns 2>/dev/null || true",
             ]
             ok = all(_exec_quiet(host, user, port, c) for c in cmds)
             print(f"    {Colors.GREEN}✓ Done{Colors.END}" if ok else f"    {Colors.YELLOW}⚠ Some steps failed{Colors.END}")
