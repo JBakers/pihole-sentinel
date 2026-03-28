@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-03-28
 
-**Version:** 0.12.0-beta.16
+**Version:** 0.12.1-beta.6
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
@@ -206,9 +206,11 @@ We are currently in **beta** phase (0.x.x-beta.y). Version format: `MAJOR.MINOR.
   - Each new minor gets `-beta.1` suffix
   - Example: `0.10.0-beta.1` (license change was significant enough for minor bump)
 
-- **Beta increment (beta.1 → beta.2 → beta.3):** Changes within same minor version
+- **Beta increment (beta.1 → beta.2 → … → beta.10):** Changes within same minor version
   - Bug fixes: increment beta (e.g., `0.10.0-beta.1` → `0.10.0-beta.2`)
   - New features: increment beta (e.g., `0.10.0-beta.2` → `0.10.0-beta.3`)
+  - **Maximum 10 betas per patch level** — after beta.10 bump PATCH and reset to beta.1
+  - Example: `0.12.0-beta.10` → `0.12.1-beta.1` (not `0.12.0-beta.11`)
   - Keep same MINOR version unless change is truly significant
 
 - **Major version 1.0.0:** Reserved for production-ready release
@@ -218,13 +220,14 @@ We are currently in **beta** phase (0.x.x-beta.y). Version format: `MAJOR.MINOR.
 
 **Examples:**
 ```
-0.9.0-beta.1  → Initial beta release
-0.9.0-beta.2  → Bug fix in same series
-0.10.0-beta.1 → Significant change (e.g., license change)
-0.10.0-beta.2 → Bug fix after significant change
-0.10.0-beta.3 → New feature in same series
-0.11.0-beta.1 → Next significant feature
-1.0.0         → Production release (NO beta suffix)
+0.9.0-beta.1   → Initial beta release
+0.9.0-beta.2   → Bug fix in same series
+0.10.0-beta.1  → Significant change (e.g., license change)
+0.10.0-beta.2  → Bug fix after significant change
+0.10.0-beta.10 → Max betas reached for 0.10.0
+0.10.1-beta.1  → Next fix after max betas (patch bump, reset)
+0.11.0-beta.1  → Next significant feature
+1.0.0          → Production release (NO beta suffix)
 ```
 
 **Quick Decision Tree:**
