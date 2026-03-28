@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **CRITICAL:** API key no longer exposed via unauthenticated `/api/client-config` endpoint; key is now injected server-side via HTML meta tags
+- **CRITICAL:** API key comparison uses `hmac.compare_digest()` for timing-safe verification
+- **CRITICAL:** Generated API key written to secured file (mode 600) instead of plaintext log output
+- **HIGH:** Sync agent token comparison is now timing-safe with startup warning when unset
+- **HIGH:** `/internal/state-change` endpoint now requires sync token authentication
+- **HIGH:** HTML-escape all event descriptions and command output rendered via `innerHTML`
+- **HIGH:** Strip control characters (newlines, carriage returns) in bash config escape function
+- **MEDIUM:** Restrictive file permissions (0o700/0o600) on generated configs and notification settings
+- **MEDIUM:** Shell-quote timezone value and use heredoc for SSH public key distribution
+- **MEDIUM:** Add SRI integrity hash to Chart.js CDN script tag
+
 ### Changed
 - Consolidated testing documentation into one file: `docs/development/testing.md`
 - Reduced and refocused `CLAUDE.md` to remove duplicated workflow/reference content
