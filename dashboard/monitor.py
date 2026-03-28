@@ -27,6 +27,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
+from urllib.parse import urlparse
+import ipaddress as _ipaddress
 from dotenv import load_dotenv
 import hmac
 import secrets
@@ -263,11 +265,39 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
         )
     return api_key
 
-# Rate limiting for notification test endpoint
+def validate_webhook_url(url: str) -> bool:
+    """Validate that a webhook URL is safe to call (anti-SSRF).
+
+    Blocks private/loopback/reserved IPs and non-HTTP schemes.
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        # Check if hostname resolves to a private/reserved IP
+        try:
+            addr = _ipaddress.ip_address(hostname)
+            if addr.is_private or addr.is_loopback or addr.is_reserved or addr.is_link_local:
+                return False
+        except ValueError:
+            pass  # Hostname is a domain name, not an IP — allowed
+        return True
+    except Exception:
+        return False
+
+# Rate limiting configuration
 # Stores {ip_address: [timestamp1, timestamp2, ...]}
 rate_limit_store = defaultdict(list)
 RATE_LIMIT_REQUESTS = 3  # Max 3 requests
 RATE_LIMIT_WINDOW = 60  # Per 60 seconds
+
+# Separate, more generous rate limiter for general write endpoints
+write_rate_limit_store = defaultdict(list)
+WRITE_RATE_LIMIT_REQUESTS = 20  # Max 20 requests
+WRITE_RATE_LIMIT_WINDOW = 60  # Per 60 seconds
 
 async def rate_limit_check(request: Request):
     """Rate limiting: max 3 requests per 60 seconds per IP."""
@@ -290,6 +320,23 @@ async def rate_limit_check(request: Request):
 
     # Add current request
     rate_limit_store[client_ip].append(now)
+    return True
+
+async def write_rate_limit_check(request: Request):
+    """Rate limiting for general write endpoints: max 20 requests per 60 seconds per IP."""
+    client_ip = request.client.host if request.client else "unknown"
+    now = datetime.now()
+    write_rate_limit_store[client_ip] = [
+        ts for ts in write_rate_limit_store[client_ip]
+        if now - ts < timedelta(seconds=WRITE_RATE_LIMIT_WINDOW)
+    ]
+    if len(write_rate_limit_store[client_ip]) >= WRITE_RATE_LIMIT_REQUESTS:
+        logger.warning(f"Write rate limit exceeded for {client_ip}")
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Max {WRITE_RATE_LIMIT_REQUESTS} requests per {WRITE_RATE_LIMIT_WINDOW} seconds."
+        )
+    write_rate_limit_store[client_ip].append(now)
     return True
 
 # Global aiohttp ClientSession for connection pooling
@@ -509,7 +556,7 @@ async def send_notification(event_type: str, template_vars: dict, is_reminder: b
         template = f"Pi-hole Sentinel Alert: {event_type}"
 
     try:
-        message = template.format(**template_vars)
+        message = template.format_map(defaultdict(lambda: "[unknown]", template_vars))
         # Add reminder prefix if this is a repeat notification
         if is_reminder:
             message = f"🔔 REMINDER:\n{message}"
@@ -551,7 +598,7 @@ async def send_notification(event_type: str, template_vars: dict, is_reminder: b
     if settings.get('discord', {}).get('enabled'):
         webhook_url = settings['discord'].get('webhook_url')
 
-        if webhook_url:
+        if webhook_url and validate_webhook_url(webhook_url):
             try:
                 session = await get_http_session()
                 # Convert HTML formatting to Discord markdown
@@ -601,7 +648,7 @@ async def send_notification(event_type: str, template_vars: dict, is_reminder: b
         topic = settings['ntfy'].get('topic')
         server = settings['ntfy'].get('server', 'https://ntfy.sh')
 
-        if topic:
+        if topic and validate_webhook_url(server):
             try:
                 session = await get_http_session()
                 url = f"{server}/{topic}"
@@ -625,7 +672,7 @@ async def send_notification(event_type: str, template_vars: dict, is_reminder: b
     if settings.get('webhook', {}).get('enabled'):
         webhook_url = settings['webhook'].get('url')
 
-        if webhook_url:
+        if webhook_url and validate_webhook_url(webhook_url):
             try:
                 session = await get_http_session()
                 payload = {
@@ -762,6 +809,24 @@ app.add_middleware(
     allow_headers=["X-API-Key", "Content-Type"],
 )
 
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    """Add security headers to every response."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+    return response
+
 # ============================================================================
 # Register Custom Exception Handlers
 # ============================================================================
@@ -840,12 +905,15 @@ async def get_client_config():
     }
 
 @app.get("/api/version", response_model=VersionResponse, tags=["System"])
-async def get_version():
+async def get_version(api_key: str = Depends(verify_api_key)):
     """
     Get current Pi-hole Sentinel version.
     
     Returns the version number from the VERSION file. Checks multiple locations
     including dev environment and production paths.
+    
+    Security:
+        - X-API-Key header required
     
     Returns:
         VersionResponse: Contains the current version string
@@ -1052,25 +1120,43 @@ async def cleanup_old_data():
 
     try:
         async with aiosqlite.connect(CONFIG["db_path"]) as db:
-            # Delete old status_history records
-            cursor_history = await db.execute(
-                "DELETE FROM status_history WHERE timestamp < ?",
-                (cutoff_history.isoformat(),)
-            )
+            # Delete old status_history records in batches
+            batch_size = 5000
+            total_history = 0
+            while True:
+                cursor = await db.execute(
+                    "DELETE FROM status_history WHERE rowid IN "
+                    "(SELECT rowid FROM status_history WHERE timestamp < ? LIMIT ?)",
+                    (cutoff_history.isoformat(), batch_size)
+                )
+                deleted = cursor.rowcount
+                total_history += deleted
+                if deleted < batch_size:
+                    break
+                await db.commit()
+                await asyncio.sleep(0.1)  # Yield between batches
 
-            # Delete old events
-            cursor_events = await db.execute(
-                "DELETE FROM events WHERE timestamp < ?",
-                (cutoff_events.isoformat(),)
-            )
+            # Delete old events in batches
+            total_events = 0
+            while True:
+                cursor = await db.execute(
+                    "DELETE FROM events WHERE rowid IN "
+                    "(SELECT rowid FROM events WHERE timestamp < ? LIMIT ?)",
+                    (cutoff_events.isoformat(), batch_size)
+                )
+                deleted = cursor.rowcount
+                total_events += deleted
+                if deleted < batch_size:
+                    break
+                await db.commit()
+                await asyncio.sleep(0.1)
 
             await db.commit()
 
-            # Get row counts (SQLite doesn't return rowcount reliably, so we log what we attempted)
             logger.info(
                 f"Database cleanup completed: "
-                f"removed status_history older than {retention_days_history} days, "
-                f"removed events older than {retention_days_events} days"
+                f"removed {total_history} status_history rows (>{retention_days_history} days), "
+                f"removed {total_events} event rows (>{retention_days_events} days)"
             )
     except Exception as e:
         logger.error(f"Database cleanup failed: {e}", exc_info=True)
@@ -1630,10 +1716,10 @@ async def monitor_loop():
             # Check DHCP misconfiguration (with debounce)
             # Only warn every 5 minutes to avoid log spam
             current_time = time.time()
-            if not hasattr(monitor_loop, "last_dhcp_warning"):
-                 monitor_loop.last_dhcp_warning = 0
+            if not hasattr(monitor_loop, "_state"):
+                monitor_loop._state = {"last_dhcp_warning": 0}
             
-            should_warn = (current_time - monitor_loop.last_dhcp_warning) > 300
+            should_warn = (current_time - monitor_loop._state["last_dhcp_warning"]) > 300
 
             primary_dhcp = primary_data.get("dhcp_enabled", False)
             secondary_dhcp = secondary_data.get("dhcp_enabled", False)
@@ -1658,7 +1744,7 @@ async def monitor_loop():
             if misconfigured and should_warn:
                 await log_event("warning", msg)
                 logger.warning(msg)
-                monitor_loop.last_dhcp_warning = current_time
+                monitor_loop._state["last_dhcp_warning"] = current_time
             elif misconfigured and not should_warn:
                 logger.debug(f"Suppressing DHCP warning (debounce): {msg}")
 
@@ -1916,8 +2002,10 @@ def merge_settings(existing, new):
 
 @app.post("/api/notifications/settings", tags=["Notifications"])
 async def save_notification_settings(
+    request: Request,
     settings: dict,
-    api_key: str = Depends(verify_api_key)
+    api_key: str = Depends(verify_api_key),
+    _rate_limit: bool = Depends(write_rate_limit_check)
 ):
     """
     Save notification service configuration.
@@ -1959,7 +2047,17 @@ async def save_notification_settings(
     
     # Merge settings, keeping existing values where new value is None
     merged_settings = merge_settings(existing_settings, settings)
-    
+
+    # Validate webhook URLs to prevent SSRF
+    for svc, url_key in [("discord", "webhook_url"), ("webhook", "url")]:
+        svc_cfg = merged_settings.get(svc, {})
+        url_val = svc_cfg.get(url_key, "")
+        if url_val and not url_val.startswith("***") and not validate_webhook_url(url_val):
+            raise HTTPException(status_code=400, detail=f"Invalid {svc} URL: only http/https to public hosts allowed")
+    ntfy_server = merged_settings.get("ntfy", {}).get("server", "")
+    if ntfy_server and not ntfy_server.startswith("***") and not validate_webhook_url(ntfy_server):
+        raise HTTPException(status_code=400, detail="Invalid ntfy server URL: only http/https to public hosts allowed")
+
     def escape_for_bash_config(value):
         """Escape value for safe use in bash double-quoted string."""
         if not value:
@@ -2032,7 +2130,7 @@ class CommandRequest(BaseModel):
     command: str
 
 @app.post("/api/commands/{command_name}", tags=["System"])
-async def execute_command(command_name: str, api_key: str = Depends(verify_api_key)):
+async def execute_command(command_name: str, request: Request, api_key: str = Depends(verify_api_key), _rate_limit: bool = Depends(write_rate_limit_check)):
     """
     Execute a predefined system command and return structured output.
 
@@ -2497,7 +2595,7 @@ async def get_snooze_status(api_key: str = Depends(verify_api_key)):
     return {"snoozed": False, "until": None, "remaining_seconds": None}
 
 @app.post("/api/notifications/snooze", response_model=SnoozeResponse, tags=["Notifications"])
-async def set_snooze(data: dict, api_key: str = Depends(verify_api_key)):
+async def set_snooze(request: Request, data: dict, api_key: str = Depends(verify_api_key), _rate_limit: bool = Depends(write_rate_limit_check)):
     """
     Snooze notifications for a specified duration.
     

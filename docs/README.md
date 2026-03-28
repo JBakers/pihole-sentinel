@@ -1,6 +1,6 @@
 # Pi-hole Sentinel Documentation
 
-**Version:** 0.12.0-beta.9 — **Last Updated:** 2026-02-06
+**Latest version:** see [VERSION](../VERSION) — **Last Updated:** 2026-03-28
 
 > [!WARNING]
 > **Beta Software:** Pi-hole Sentinel is in active development. While stable enough for testing, expect potential breaking changes before v1.0.0. See [main README](../README.md) for details.

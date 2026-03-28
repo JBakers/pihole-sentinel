@@ -100,7 +100,20 @@ Version: {_get_version_banner()}
 class SetupConfig:
     def __init__(self):
         self.config = {}
-        
+
+    @staticmethod
+    def _ask_required(prompt, validator=None, error_msg=None):
+        """Ask for input and repeat until a non-empty, valid value is given."""
+        while True:
+            value = input(prompt).strip()
+            if not value:
+                print(f"{Colors.RED}This field is required.{Colors.END}")
+                continue
+            if validator and not validator(value):
+                print(f"{Colors.RED}{error_msg or 'Invalid input.'}{Colors.END}")
+                continue
+            return value
+
     def validate_ip(self, ip):
         """Validate IP address format."""
         try:
@@ -163,7 +176,7 @@ class SetupConfig:
         return sanitized
 
     def escape_for_sed(self, text):
-        r"""Escape special characters for safe use in sed replacement string.
+        """Escape special characters for safe use in sed replacement string.
 
         Escapes: /  \\  &  newline
         Uses # as delimiter to avoid issues with / in the text.
@@ -303,8 +316,9 @@ class SetupConfig:
         
         print(f"{Colors.CYAN}├─ Configuring timezone ({timezone}) and NTP...{Colors.END}")
         try:
-            # Set timezone (timezone is validated, safe to use in shell)
-            self.remote_exec(host, user, port, f"timedatectl set-timezone '{timezone}'", password)
+            # Set timezone — pass as positional argument, not embedded in shell string
+            self.remote_exec(host, user, port,
+                f"timedatectl set-timezone -- {timezone}", password)
             
             # Try to enable NTP (will be skipped in containers, which sync from host)
             try:
@@ -486,18 +500,18 @@ class SetupConfig:
                     print(f"{Colors.RED}Error: Invalid IP range! Each octet must be 0-255{Colors.END}")
                     continue
 
+                def _valid_octet(v):
+                    return v.isdigit() and 0 <= int(v) <= 255
+
                 print(f"\n{Colors.CYAN}Enter last octet for each device (using {ip_range}.X):{Colors.END}")
-                primary_octet = input(f"Primary Pi-hole    ({ip_range}.): ").strip()
-                secondary_octet = input(f"Secondary Pi-hole  ({ip_range}.): ").strip()
-                vip_octet = input(f"Virtual IP (VIP)   ({ip_range}.): ").strip()
-                gateway_octet = input(f"Network gateway    ({ip_range}.): ").strip()
+                primary_octet = self._ask_required(f"Primary Pi-hole    ({ip_range}.): ", _valid_octet, "Must be 0-255")
+                secondary_octet = self._ask_required(f"Secondary Pi-hole  ({ip_range}.): ", _valid_octet, "Must be 0-255")
+                vip_octet = self._ask_required(f"Virtual IP (VIP)   ({ip_range}.): ", _valid_octet, "Must be 0-255")
+                gateway_octet = self._ask_required(f"Network gateway    ({ip_range}.): ", _valid_octet, "Must be 0-255")
 
                 # Validate octets
                 try:
                     octets = [primary_octet, secondary_octet, vip_octet, gateway_octet]
-                    if not all(octet.isdigit() and 0 <= int(octet) <= 255 for octet in octets):
-                        print(f"{Colors.RED}Error: Invalid octet! Must be 0-255{Colors.END}")
-                        continue
 
                     primary_ip = f"{ip_range}.{primary_octet}"
                     secondary_ip = f"{ip_range}.{secondary_octet}"
@@ -511,10 +525,10 @@ class SetupConfig:
                 # Manual setup - full IP addresses
                 print(f"\n{Colors.CYAN}Manual Setup:{Colors.END}")
                 print("Enter full IP addresses:")
-                primary_ip = input("Primary Pi-hole IP: ").strip()
-                secondary_ip = input("Secondary Pi-hole IP: ").strip()
-                vip = input("Virtual IP (VIP) address: ").strip()
-                gateway = input("Network gateway IP: ").strip()
+                primary_ip = self._ask_required("Primary Pi-hole IP: ", self.validate_ip, "Invalid IP address")
+                secondary_ip = self._ask_required("Secondary Pi-hole IP: ", self.validate_ip, "Invalid IP address")
+                vip = self._ask_required("Virtual IP (VIP) address: ", self.validate_ip, "Invalid IP address")
+                gateway = self._ask_required("Network gateway IP: ", self.validate_ip, "Invalid IP address")
 
             # Validate all IPs
             if not all(map(self.validate_ip, [primary_ip, secondary_ip, vip, gateway])):
@@ -564,6 +578,18 @@ class SetupConfig:
                 self.config['dhcp_enabled'] = dhcp != 'n'
                 break
             print(f"{Colors.RED}Please enter 'y' or 'n'{Colors.END}")
+
+        # Config sync interval (deployed to primary, syncs to secondary)
+        print(f"\n{Colors.CYAN}{Colors.BOLD}=== Configuration Sync ==={Colors.END}")
+        print(f"{Colors.CYAN}Pi-hole Sentinel automatically syncs settings from primary → secondary.{Colors.END}")
+        print(f"{Colors.CYAN}This replaces tools like nebula-sync. Syncs: gravity, DNS, DHCP, config.{Colors.END}")
+        while True:
+            interval = input(f"\n{Colors.BOLD}Sync interval in minutes [{Colors.CYAN}10{Colors.END}]:{Colors.END} ").strip() or "10"
+            if interval.isdigit() and 1 <= int(interval) <= 1440:
+                self.config['sync_interval'] = int(interval)
+                print(f"{Colors.GREEN}✓ Config sync every {interval} minutes{Colors.END}")
+                break
+            print(f"{Colors.RED}Enter a number between 1 and 1440 (24 hours){Colors.END}")
             
     def setup_ssh_keys(self):
         """Generate SSH key and distribute to all servers."""
@@ -647,12 +673,60 @@ class SetupConfig:
             print(f"{Colors.RED}✗ (error: {e}){Colors.END}")
             return False
 
+    def _setup_cross_node_ssh(self, host_a, user_a, port_a, host_b, user_b, port_b):
+        """Setup passwordless SSH between two Pi-hole nodes.
+
+        Generates an ed25519 key on host_a (if not present) and adds its
+        public key to host_b's authorized_keys, then vice versa.
+        Uses the already-established SSH from the installer to orchestrate.
+        """
+        try:
+            for src, src_u, src_p, dst, dst_u, dst_p, label in [
+                (host_a, user_a, port_a, host_b, user_b, port_b, f"{host_a} → {host_b}"),
+                (host_b, user_b, port_b, host_a, user_a, port_a, f"{host_b} → {host_a}"),
+            ]:
+                print(f"  Setting up {label}...", end=" ", flush=True)
+                # Generate key on source if it doesn't exist
+                self.remote_exec(src, src_u, src_p,
+                    'test -f /root/.ssh/id_ed25519 || '
+                    'ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N "" -q')
+                # Read public key from source
+                ssh_cmd = ["ssh", "-p", src_p,
+                           "-o", "StrictHostKeyChecking=no",
+                           "-o", "ConnectTimeout=10"]
+                if self.config.get('ssh_key_path'):
+                    ssh_cmd += ["-i", self.config['ssh_key_path']]
+                else:
+                    ssh_cmd += ["-o", "BatchMode=yes"]
+                result = subprocess.run(
+                    ssh_cmd + [f"{src_u}@{src}", "cat /root/.ssh/id_ed25519.pub"],
+                    capture_output=True, text=True, timeout=15)
+                if result.returncode != 0:
+                    print(f"{Colors.RED}✗ (failed to read key){Colors.END}")
+                    return False
+                pub_key = result.stdout.strip()
+                # Add to destination authorized_keys (idempotent — skip if already present)
+                self.remote_exec(dst, dst_u, dst_p,
+                    f'mkdir -p /root/.ssh && chmod 700 /root/.ssh && '
+                    f'grep -qF "{pub_key}" /root/.ssh/authorized_keys 2>/dev/null || '
+                    f'cat >> /root/.ssh/authorized_keys << \'SENTINEL_CROSS_EOF\'\n{pub_key}\nSENTINEL_CROSS_EOF\n'
+                    f'chmod 600 /root/.ssh/authorized_keys')
+                # Accept host key on source so first sync doesn't hang on prompt
+                self.remote_exec(src, src_u, src_p,
+                    f'ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 '
+                    f'{dst_u}@{dst} "echo ok" >/dev/null 2>&1 || true')
+                print(f"{Colors.GREEN}✓{Colors.END}")
+            return True
+        except Exception as e:
+            print(f"{Colors.RED}✗ (error: {e}){Colors.END}")
+            return False
+
     def collect_monitor_config(self):
         """Collect monitoring server configuration."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== Monitor Configuration ==={Colors.END}")
         
         while True:
-            monitor_type = input(f"\n{Colors.BOLD}Where to install the monitor?{Colors.END}\n1. Separate server {Colors.GREEN}(recommended){Colors.END}\n2. On primary Pi-hole\nChoice (1/2): ")
+            monitor_type = input(f"\n{Colors.BOLD}Where to install the monitor?{Colors.END}\n1. Separate server {Colors.GREEN}(recommended){Colors.END}\n2. On primary Pi-hole\nChoice [{Colors.CYAN}1{Colors.END}]: ").strip() or "1"
             if monitor_type in ['1', '2']:
                 self.config['separate_monitor'] = monitor_type == '1'
                 break
@@ -752,9 +826,17 @@ class SetupConfig:
         servers.append(('secondary', self.config['secondary_ip'], self.config['secondary_ssh_user'], self.config['secondary_ssh_port']))
         
         passwords = {}
-        print()
-        for name, ip, user, port in servers:
-            passwords[name] = getpass(f"{Colors.BOLD}SSH password for {user}@{ip}:{Colors.END} ")
+        same_pw = input(f"\n{Colors.BOLD}Use the same SSH password for all servers? (Y/n):{Colors.END} ").strip().lower()
+        if same_pw != 'n':
+            shared_pw = getpass(f"{Colors.BOLD}SSH password for all servers:{Colors.END} ")
+            for name, ip, user, port in servers:
+                passwords[name] = shared_pw
+            # Clear reference immediately
+            shared_pw = None
+        else:
+            print()
+            for name, ip, user, port in servers:
+                passwords[name] = getpass(f"{Colors.BOLD}SSH password for {user}@{ip}:{Colors.END} ")
         
         # Setup SSH keys
         key_path = self.setup_ssh_keys()
@@ -774,25 +856,40 @@ class SetupConfig:
                 print(f"{Colors.RED}✗ Failed to setup SSH key for {name}{Colors.END}")
                 success = False
         
+        if not success:
+            for key in passwords:
+                passwords[key] = None
+            passwords.clear()
+            del passwords
+            print(f"\n{Colors.RED}Failed to distribute SSH keys to all servers.{Colors.END}")
+            sys.exit(1)
+
+        # Store key path NOW so remote_exec can use it for cross-node setup
+        self.config['ssh_key_path'] = key_path
+
+        # Setup cross-node SSH: primary ↔ secondary (needed for config sync)
+        print(f"\n{Colors.CYAN}Setting up cross-node SSH between Pi-holes...{Colors.END}")
+        cross_ok = self._setup_cross_node_ssh(
+            self.config['primary_ip'], self.config['primary_ssh_user'], self.config['primary_ssh_port'],
+            self.config['secondary_ip'], self.config['secondary_ssh_user'], self.config['secondary_ssh_port'],
+        )
+        if not cross_ok:
+            print(f"{Colors.YELLOW}⚠ Cross-node SSH setup failed — config sync may not work automatically{Colors.END}")
+            print(f"{Colors.YELLOW}  You can fix this manually: ssh-copy-id root@pihole2 (from pihole1){Colors.END}")
+
         # Securely clear passwords from memory immediately after use
         for key in passwords:
             passwords[key] = None
         passwords.clear()
         del passwords
         
-        if success:
-            print(f"\n{Colors.GREEN}{Colors.BOLD}✓ SSH keys successfully distributed to all servers!{Colors.END}")
-            print(f"{Colors.GREEN}  Passwordless access is now configured.{Colors.END}")
-            
-            # Store key path for later use
-            self.config['ssh_key_path'] = key_path
-            # Clear passwords - not needed anymore (defense in depth)
-            self.config['primary_ssh_pass'] = None
-            self.config['secondary_ssh_pass'] = None
-            self.config['monitor_ssh_pass'] = None
-        else:
-            print(f"\n{Colors.RED}Failed to distribute SSH keys to all servers.{Colors.END}")
-            sys.exit(1)
+        print(f"\n{Colors.GREEN}{Colors.BOLD}✓ SSH keys successfully distributed to all servers!{Colors.END}")
+        print(f"{Colors.GREEN}  Passwordless access is now configured.{Colors.END}")
+        
+        # Clear passwords - not needed anymore (defense in depth)
+        self.config['primary_ssh_pass'] = None
+        self.config['secondary_ssh_pass'] = None
+        self.config['monitor_ssh_pass'] = None
         
         # Generate secure keepalived password
         # keepalived PASS auth truncates to 8 characters — generate exactly 8
@@ -1048,6 +1145,8 @@ NETWORK_GATEWAY={self.config['gateway']}
 VRRP_AUTH_PASS={self.config['keepalived_password']}
 NODE_PRIORITY=150
 NODE_STATE=MASTER
+PRIMARY_IP={self.config['primary_ip']}
+SECONDARY_IP={self.config['secondary_ip']}
 """
 
         secondary_env = primary_env.replace(
@@ -1384,6 +1483,7 @@ NODE_STATE=MASTER
                 ("keepalived/scripts/check_dhcp_service.sh", "/tmp/pihole-sentinel-deploy/check_dhcp_service.sh"),
                 ("keepalived/scripts/dhcp_control.sh", "/tmp/pihole-sentinel-deploy/dhcp_control.sh"),
                 ("keepalived/scripts/keepalived_notify.sh", "/tmp/pihole-sentinel-deploy/keepalived_notify.sh"),
+                ("bin/pisen", "/tmp/pihole-sentinel-deploy/pisen"),
             ]
 
             total_files = len(files_to_copy)
@@ -1429,6 +1529,11 @@ NODE_STATE=MASTER
                 "mv /tmp/$script /usr/local/bin/$script && " +
                 "chown root:root /usr/local/bin/$script && " +
                 "chmod 755 /usr/local/bin/$script; done",
+                # Install pisen CLI tool
+                "cp /tmp/pihole-sentinel-deploy/pisen /usr/local/bin/pisen && "
+                "sed -i 's/\\r$//' /usr/local/bin/pisen && "
+                "chown root:root /usr/local/bin/pisen && "
+                "chmod 755 /usr/local/bin/pisen",
                 "systemctl enable keepalived",
             ]
 
@@ -1475,6 +1580,118 @@ NODE_STATE=MASTER
             print(f"  ssh root@{host} 'systemctl status keepalived --no-pager -l'")
             print(f"  ssh root@{host} 'journalctl -xeu keepalived --no-pager -n 50'")
             print(f"  ssh root@{host} 'keepalived --config-test'")
+            return False
+
+    def deploy_sync_remote(self, sync_interval=10, sync_options=None):
+        """Deploy the sync script and systemd timer to the primary Pi-hole.
+
+        Args:
+            sync_interval: Sync interval in minutes (default: 10)
+            sync_options: Dict of sync toggles (SYNC_GRAVITY, SYNC_CUSTOM_DNS, etc.)
+        """
+        host = self.config['primary_ip']
+        user = self.config.get('primary_ssh_user', 'root')
+        port = self.config.get('primary_ssh_port', '22')
+        password = self.config.get('primary_ssh_pass')
+
+        if sync_options is None:
+            sync_options = {}
+
+        try:
+            print(f"\nDeploying sync service to primary Pi-hole ({host})...")
+
+            # Generate sync config
+            sync_conf_lines = [
+                "# Pi-hole Sentinel Sync Configuration",
+                "# Auto-generated by setup.py",
+                "",
+                f"PRIMARY_IP={self.config['primary_ip']}",
+                f"SECONDARY_IP={self.config['secondary_ip']}",
+                f"SYNC_INTERVAL_MINUTES={sync_interval}",
+                f"SYNC_GRAVITY={sync_options.get('gravity', 'true')}",
+                f"SYNC_CUSTOM_DNS={sync_options.get('custom_dns', 'true')}",
+                f"SYNC_CNAME={sync_options.get('cname', 'true')}",
+                f"SYNC_DHCP_LEASES={sync_options.get('dhcp_leases', 'true')}",
+                f"SYNC_CONFIG_DHCP={sync_options.get('config_dhcp', 'true')}",
+                f"SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE={sync_options.get('dhcp_exclude_active', 'true')}",
+                f"SYNC_CONFIG_DNS={sync_options.get('config_dns', 'true')}",
+                f"SYNC_RESTART_FTL={sync_options.get('restart_ftl', 'true')}",
+            ]
+            sync_conf = "\n".join(sync_conf_lines) + "\n"
+
+            # Generate timer with custom interval
+            timer_content = f"""[Unit]
+Description=Pi-hole Configuration Sync Timer
+Requires=pihole-sync.service
+
+[Timer]
+OnCalendar=*:0/{sync_interval}
+OnBootSec=2min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+"""
+
+            # Write temp files
+            os.makedirs('generated_configs', mode=0o700, exist_ok=True)
+            with open('generated_configs/sync.conf', 'w') as f:
+                f.write(sync_conf)
+            with open('generated_configs/pihole-sync.timer', 'w') as f:
+                f.write(timer_content)
+
+            # Prepare staging area
+            print("├─ Preparing deployment staging area...")
+            self.remote_exec(host, user, port, "mkdir -p /tmp/pihole-sentinel-deploy", password)
+
+            # Copy files
+            print("├─ Copying sync files...")
+            files_to_copy = [
+                ("sync-pihole-config.sh", "/tmp/pihole-sentinel-deploy/sync-pihole-config.sh"),
+                ("systemd/pihole-sync.service", "/tmp/pihole-sentinel-deploy/pihole-sync.service"),
+                ("generated_configs/pihole-sync.timer", "/tmp/pihole-sentinel-deploy/pihole-sync.timer"),
+                ("generated_configs/sync.conf", "/tmp/pihole-sentinel-deploy/sync.conf"),
+            ]
+            for local, remote in files_to_copy:
+                self.remote_copy(local, host, user, port, remote, password)
+
+            # Install
+            print("├─ Installing sync service...")
+            commands = [
+                # Install sync script
+                "cp /tmp/pihole-sentinel-deploy/sync-pihole-config.sh /usr/local/bin/sync-pihole-config.sh",
+                "chown root:root /usr/local/bin/sync-pihole-config.sh",
+                "chmod 755 /usr/local/bin/sync-pihole-config.sh",
+                # Install sync config
+                "mkdir -p /etc/pihole-sentinel",
+                "cp /tmp/pihole-sentinel-deploy/sync.conf /etc/pihole-sentinel/sync.conf",
+                "chmod 600 /etc/pihole-sentinel/sync.conf",
+                # Install systemd units
+                "cp /tmp/pihole-sentinel-deploy/pihole-sync.service /etc/systemd/system/pihole-sync.service",
+                "cp /tmp/pihole-sentinel-deploy/pihole-sync.timer /etc/systemd/system/pihole-sync.timer",
+                "systemctl daemon-reload",
+                "systemctl enable --now pihole-sync.timer",
+                # Cleanup
+                "rm -rf /tmp/pihole-sentinel-deploy",
+            ]
+            for cmd in commands:
+                self.remote_exec(host, user, port, cmd, password)
+
+            # Verify
+            print("├─ Verifying sync timer...")
+            self.remote_exec(host, user, port, "systemctl is-active pihole-sync.timer", password)
+
+            print(f"✓ Sync service deployed to {host}!")
+            print(f"  Interval: every {sync_interval} minutes")
+            enabled = [k for k, v in sync_options.items() if v == 'true' or v is True]
+            if enabled:
+                print(f"  Syncing: {', '.join(enabled)}")
+            else:
+                print("  Syncing: all (default)")
+            return True
+
+        except subprocess.CalledProcessError as e:
+            print(f"\n{Colors.RED}✗ Error deploying sync to {host}: {e}{Colors.END}")
             return False
 
     def show_next_steps(self):
@@ -1692,38 +1909,25 @@ NODE_STATE=MASTER
 
         Does not ask for Pi-hole passwords, DHCP settings, or VIP.
         """
-        print(f"\n{Colors.CYAN}{Colors.BOLD}=== Server Configuration ==={Colors.END}")
+        print(f"\n{Colors.CYAN}{Colors.BOLD}=== Which servers should be uninstalled? ==={Colors.END}")
+        print(f"{Colors.CYAN}Enter the IP addresses of your Pi-hole servers.{Colors.END}\n")
 
-        # Detect range for quick input
-        detected = detect_local_ip_range()
-        default_range = detected or "192.168.178"
+        self.config['primary_ip']   = self._ask_required(f"{Colors.BOLD}Primary Pi-hole IP:{Colors.END} ", self.validate_ip, "Invalid IP address")
+        self.config['secondary_ip'] = self._ask_required(f"{Colors.BOLD}Secondary Pi-hole IP:{Colors.END} ", self.validate_ip, "Invalid IP address")
 
-        method = input("IP input method: 1=Quick (last octet only)  2=Full IP  [1]: ").strip() or "1"
-        if method == "1":
-            ip_range = input(f"IP range [{default_range}]: ").strip() or default_range
-            def ask_ip(label):
-                octet = input(f"{label} (last octet, {ip_range}.X): ").strip()
-                return f"{ip_range}.{octet}"
-        else:
-            def ask_ip(label):
-                return input(f"{label}: ").strip()
-
-        has_monitor = input("Is the monitor on a separate server? (Y/n): ").strip().lower() != "n"
+        has_monitor = input(f"\n{Colors.BOLD}Is the monitor on a separate server? (Y/n):{Colors.END} ").strip().lower() != "n"
         self.config['separate_monitor'] = has_monitor
         if has_monitor:
-            self.config['monitor_ip']       = ask_ip("Monitor IP")
-            self.config['monitor_ssh_user'] = input("Monitor SSH user [root]: ").strip() or "root"
-            self.config['monitor_ssh_port'] = input("Monitor SSH port [22]: ").strip() or "22"
+            self.config['monitor_ip']       = self._ask_required(f"{Colors.BOLD}Monitor server IP:{Colors.END} ", self.validate_ip, "Invalid IP address")
+            self.config['monitor_ssh_user'] = input(f"Monitor SSH user [{Colors.CYAN}root{Colors.END}]: ").strip() or "root"
+            self.config['monitor_ssh_port'] = input(f"Monitor SSH port [{Colors.CYAN}22{Colors.END}]: ").strip() or "22"
         else:
             self.config['monitor_ip']       = None
             self.config['monitor_ssh_user'] = "root"
             self.config['monitor_ssh_port'] = "22"
 
-        self.config['primary_ip']        = ask_ip("Primary Pi-hole IP")
-        self.config['secondary_ip']      = ask_ip("Secondary Pi-hole IP")
-
-        ssh_user = input("SSH user for Pi-holes [root]: ").strip() or "root"
-        ssh_port = input("SSH port for Pi-holes [22]: ").strip() or "22"
+        ssh_user = input(f"\nSSH user for Pi-holes [{Colors.CYAN}root{Colors.END}]: ").strip() or "root"
+        ssh_port = input(f"SSH port for Pi-holes [{Colors.CYAN}22{Colors.END}]: ").strip() or "22"
         self.config['primary_ssh_user']   = ssh_user
         self.config['primary_ssh_port']   = ssh_port
         self.config['secondary_ssh_user'] = ssh_user
@@ -1806,8 +2010,6 @@ NODE_STATE=MASTER
                 "rm -f /usr/local/bin/dhcp_control.sh",
                 "rm -f /usr/local/bin/keepalived_notify.sh",
                 "rm -f /var/log/keepalived-notify.log",
-                # Re-enable DHCP on Pi-hole (was possibly disabled by sentinel)
-                "pihole -a setdns 2>/dev/null || true",
             ]
             ok = all(_exec_quiet(host, user, port, c) for c in cmds)
             print(f"    {Colors.GREEN}✓ Done{Colors.END}" if ok else f"    {Colors.YELLOW}⚠ Some steps failed{Colors.END}")
@@ -2513,6 +2715,7 @@ def main():
 
 {Colors.BOLD}This script will help you set up:{Colors.END}
 {Colors.GREEN}✓{Colors.END} Automatic failover between your Pi-holes
+{Colors.GREEN}✓{Colors.END} Configuration sync (replaces nebula-sync)
 {Colors.GREEN}✓{Colors.END} Optional DHCP failover
 {Colors.GREEN}✓{Colors.END} Real-time monitoring dashboard
 
@@ -2536,20 +2739,17 @@ def main():
 
 {Colors.CYAN}{Colors.BOLD}Choose deployment mode:{Colors.END}
 {Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}
-{Colors.BOLD}1.{Colors.END} Generate configuration files only (manual deployment)
-{Colors.BOLD}2.{Colors.END} Deploy complete setup via SSH {Colors.GREEN}(recommended - deploys to all servers){Colors.END}
-{Colors.BOLD}3.{Colors.END} Deploy monitor only (local installation)
-{Colors.BOLD}4.{Colors.END} Deploy primary node only (local installation)
-{Colors.BOLD}5.{Colors.END} Deploy secondary node only (local installation)
-{Colors.RED}{Colors.BOLD}6.{Colors.END} Uninstall Pi-hole Sentinel from all servers
+{Colors.BOLD}1.{Colors.END} Full deploy via SSH {Colors.GREEN}(recommended — deploys everything to all servers){Colors.END}
+{Colors.BOLD}2.{Colors.END} Generate configuration files only (manual deployment)
+{Colors.BOLD}3.{Colors.END} Advanced: deploy single component (monitor/primary/secondary only)
+{Colors.RED}{Colors.BOLD}4.{Colors.END} Uninstall Pi-hole Sentinel from all servers
 {Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}
 """)
 
-        mode = input(f"{Colors.BOLD}Enter your choice (1-6):{Colors.END} ").strip()
+        mode = input(f"{Colors.BOLD}Enter your choice (1-4):{Colors.END} ").strip()
 
-        # Uninstall path: only needs SSH info, no passwords or config generation
-        if mode == "6":
-            setup.collect_minimal_config()
+        # Uninstall path: IPs already collected above, just run uninstall
+        if mode == "4":
             setup.uninstall()
             return
 
@@ -2564,9 +2764,9 @@ def main():
         print(f"\n{Colors.CYAN}{Colors.BOLD}═══ Generating Configuration Files ═══{Colors.END}")
         setup.generate_configs()
 
-        if mode == "1":
+        if mode == "2":
             setup.show_next_steps()
-        elif mode == "2":
+        elif mode == "1":
             print(f"\n{Colors.CYAN}{Colors.BOLD}═══ Remote Deployment via SSH ═══{Colors.END}")
             print("This will deploy to all configured servers via SSH.\n")
 
@@ -2577,7 +2777,7 @@ def main():
             try:
                 # Deploy monitor
                 if setup.config['separate_monitor']:
-                    print(f"\n{Colors.BOLD}[1/3] Deploying monitor to {setup.config['monitor_ip']}...{Colors.END}")
+                    print(f"\n{Colors.BOLD}[1/4] Deploying monitor to {setup.config['monitor_ip']}...{Colors.END}")
                     ts = setup.backup_existing_configs(
                         setup.config['monitor_ip'],
                         setup.config['monitor_ssh_user'],
@@ -2595,11 +2795,11 @@ def main():
                     if not ok:
                         raise RuntimeError(f"Monitor deployment failed on {setup.config['monitor_ip']}")
                 else:
-                    print(f"\n{Colors.BOLD}[1/3] Deploying monitor locally on primary...{Colors.END}")
+                    print(f"\n{Colors.BOLD}[1/4] Deploying monitor locally on primary...{Colors.END}")
                     setup.deploy_monitor()
 
                 # Deploy primary
-                print(f"\n{Colors.BOLD}[2/3] Deploying primary keepalived to {setup.config['primary_ip']}...{Colors.END}")
+                print(f"\n{Colors.BOLD}[2/4] Deploying primary keepalived to {setup.config['primary_ip']}...{Colors.END}")
                 ts = setup.backup_existing_configs(
                     setup.config['primary_ip'],
                     setup.config['primary_ssh_user'],
@@ -2618,7 +2818,7 @@ def main():
                     raise RuntimeError(f"Primary keepalived deployment failed on {setup.config['primary_ip']}")
 
                 # Deploy secondary
-                print(f"\n{Colors.BOLD}[3/3] Deploying secondary keepalived to {setup.config['secondary_ip']}...{Colors.END}")
+                print(f"\n{Colors.BOLD}[3/4] Deploying secondary keepalived to {setup.config['secondary_ip']}...{Colors.END}")
                 ts = setup.backup_existing_configs(
                     setup.config['secondary_ip'],
                     setup.config['secondary_ssh_user'],
@@ -2636,6 +2836,14 @@ def main():
                 if not ok:
                     raise RuntimeError(f"Secondary keepalived deployment failed on {setup.config['secondary_ip']}")
 
+                # Deploy sync service to primary
+                print(f"\n{Colors.BOLD}[4/4] Deploying config sync to {setup.config['primary_ip']}...{Colors.END}")
+                sync_interval = setup.config.get('sync_interval', 10)
+                ok = setup.deploy_sync_remote(sync_interval=sync_interval)
+                if not ok:
+                    # Sync failure is non-fatal — warn but continue
+                    print(f"{Colors.YELLOW}⚠ Sync deployment failed — you can deploy it later with pisen sync{Colors.END}")
+
             except Exception as deploy_err:
                 deploy_failed = True
                 print(f"\n{Colors.RED}{Colors.BOLD}Deployment error: {deploy_err}{Colors.END}")
@@ -2649,17 +2857,18 @@ def main():
             # Show success message
             setup.show_deployment_success()
         elif mode == "3":
-            setup.deploy_monitor()
+            sub = input(f"\n{Colors.BOLD}Which component?{Colors.END}\n  a. Monitor (local)\n  b. Primary keepalived (local)\n  c. Secondary keepalived (local)\n\n{Colors.BOLD}Choice (a/b/c):{Colors.END} ").strip().lower()
+            if sub == "a":
+                setup.deploy_monitor()
+            elif sub == "b":
+                setup.deploy_keepalived("primary")
+            elif sub == "c":
+                setup.deploy_keepalived("secondary")
+            else:
+                print(f"\n{Colors.RED}Invalid choice!{Colors.END}")
+                sys.exit(1)
             setup.cleanup_sensitive_files()
-            setup.show_deployment_success()
-        elif mode == "4":
-            setup.deploy_keepalived("primary")
-            setup.cleanup_sensitive_files()
-            print(f"\n{Colors.GREEN}✓ Primary keepalived deployed successfully!{Colors.END}")
-        elif mode == "5":
-            setup.deploy_keepalived("secondary")
-            setup.cleanup_sensitive_files()
-            print(f"\n{Colors.GREEN}✓ Secondary keepalived deployed successfully!{Colors.END}")
+            print(f"\n{Colors.GREEN}✓ Component deployed successfully!{Colors.END}")
         else:
             print(f"\n{Colors.RED}Invalid choice!{Colors.END}")
             sys.exit(1)

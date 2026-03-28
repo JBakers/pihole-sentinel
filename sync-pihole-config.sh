@@ -21,21 +21,71 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Configuration - Update these with your IPs
-PRIMARY_IP="${PRIMARY_IP:-192.168.1.10}"
-SECONDARY_IP="${SECONDARY_IP:-192.168.1.11}"
+# Configuration — IPs are loaded from /etc/keepalived/.env (deployed by setup.py)
+# These defaults are only used if .env is missing (manual install)
+PRIMARY_IP="${PRIMARY_IP:-}"
+SECONDARY_IP="${SECONDARY_IP:-}"
 PIHOLE_DIR="/etc/pihole"
 BACKUP_DIR="/root/pihole-sync-backup"
+
+# Sync configuration file (deployed by setup.py)
+SYNC_CONF="/etc/pihole-sentinel/sync.conf"
+if [ -f "$SYNC_CONF" ]; then
+    # Parse key=value safely (no source to avoid arbitrary code execution)
+    while IFS='=' read -r key value; do
+        key=$(echo "$key" | tr -d '[:space:]')
+        value=$(echo "$value" | tr -d '[:space:]' | tr -d '"')
+        case "$key" in
+            PRIMARY_IP)        PRIMARY_IP="$value" ;;
+            SECONDARY_IP)      SECONDARY_IP="$value" ;;
+            SYNC_INTERVAL_MINUTES) SYNC_INTERVAL_MINUTES="$value" ;;
+            SYNC_GRAVITY)          SYNC_GRAVITY="$value" ;;
+            SYNC_CUSTOM_DNS)       SYNC_CUSTOM_DNS="$value" ;;
+            SYNC_CNAME)            SYNC_CNAME="$value" ;;
+            SYNC_DHCP_LEASES)      SYNC_DHCP_LEASES="$value" ;;
+            SYNC_CONFIG)           SYNC_CONFIG_DHCP="$value"; SYNC_CONFIG_DNS="$value" ;;
+            SYNC_CONFIG_DHCP)      SYNC_CONFIG_DHCP="$value" ;;
+            SYNC_CONFIG_DNS)       SYNC_CONFIG_DNS="$value" ;;
+            SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE) SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE="$value" ;;
+            SYNC_RESTART_FTL)      SYNC_RESTART_FTL="$value" ;;
+        esac
+    done < <(grep -v '^\s*#' "$SYNC_CONF" | grep '=')
+fi
+
+# Defaults (matching nebula-sync feature parity)
+SYNC_GRAVITY="${SYNC_GRAVITY:-true}"
+SYNC_CUSTOM_DNS="${SYNC_CUSTOM_DNS:-true}"
+SYNC_CNAME="${SYNC_CNAME:-true}"
+SYNC_DHCP_LEASES="${SYNC_DHCP_LEASES:-true}"
+SYNC_CONFIG_DHCP="${SYNC_CONFIG_DHCP:-true}"
+SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE="${SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE:-true}"
+SYNC_CONFIG_DNS="${SYNC_CONFIG_DNS:-true}"
+SYNC_RESTART_FTL="${SYNC_RESTART_FTL:-true}"
 
 # Determine node type
 NODE_TYPE=""
 if [ -f "/etc/keepalived/.env" ]; then
-    source /etc/keepalived/.env
-    NODE_TYPE="$NODE_STATE"
+    # Parse IPs and node state from keepalived env
+    while IFS='=' read -r key value; do
+        key=$(echo "$key" | tr -d '[:space:]')
+        value=$(echo "$value" | tr -d '[:space:]' | tr -d '"')
+        case "$key" in
+            NODE_STATE)    NODE_TYPE="$value" ;;
+            PRIMARY_IP)    PRIMARY_IP="${PRIMARY_IP:-$value}" ;;
+            SECONDARY_IP)  SECONDARY_IP="${SECONDARY_IP:-$value}" ;;
+        esac
+    done < <(grep -v '^\s*#' /etc/keepalived/.env | grep '=')
 else
     echo -e "${YELLOW}Warning: Could not determine node type from /etc/keepalived/.env${NC}"
     echo "Please specify node type as argument: primary or secondary"
     NODE_TYPE="$1"
+fi
+
+# Validate IPs are set
+if [ -z "$PRIMARY_IP" ] || [ -z "$SECONDARY_IP" ]; then
+    echo -e "${RED}[ERROR] PRIMARY_IP or SECONDARY_IP not set.${NC}"
+    echo "Deploy sync via setup.py, or set IPs in /etc/pihole-sentinel/sync.conf"
+    exit 1
 fi
 
 # Convert to lowercase
@@ -87,82 +137,145 @@ sync_from_primary() {
     # Create backup before sync
     create_backup
     
-    # Stop Pi-hole temporarily
-    log_info "Stopping Pi-hole..."
-    systemctl stop pihole-FTL
-    local ftl_was_stopped=true
+    # Stop Pi-hole temporarily (only if we'll restart it)
+    if [ "$SYNC_RESTART_FTL" = "true" ]; then
+        log_info "Stopping Pi-hole..."
+        systemctl stop pihole-FTL
+        local ftl_was_stopped=true
+    fi
     
     # Sync gravity database (contains all lists, groups, clients, etc.)
-    log_info "Syncing gravity database..."
-    rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/gravity.db" "${PIHOLE_DIR}/" || {
-        log_error "Failed to sync gravity.db"
-        if [ "$ftl_was_stopped" = "true" ]; then
-            systemctl start pihole-FTL
-        fi
-        exit 1
-    }
-    
-    # Sync custom DNS records
-    log_info "Syncing custom DNS records..."
-    # Check if file exists on remote before syncing
-    if ssh "root@${PRIMARY_IP}" "[ -f ${PIHOLE_DIR}/custom.list ]"; then
-        rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/custom.list" "${PIHOLE_DIR}/" || {
-            log_error "Failed to sync custom.list - network or permission issue"
+    if [ "$SYNC_GRAVITY" = "true" ]; then
+        log_info "Syncing gravity database..."
+        rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/gravity.db" "${PIHOLE_DIR}/" || {
+            log_error "Failed to sync gravity.db"
             if [ "$ftl_was_stopped" = "true" ]; then
                 systemctl start pihole-FTL
             fi
             exit 1
         }
     else
-        log_warn "custom.list does not exist on primary (skipping)"
+        log_info "Skipping gravity database (SYNC_GRAVITY=false)"
+    fi
+    
+    # Sync custom DNS records
+    if [ "$SYNC_CUSTOM_DNS" = "true" ]; then
+        log_info "Syncing custom DNS records..."
+        if ssh "root@${PRIMARY_IP}" "[ -f ${PIHOLE_DIR}/custom.list ]"; then
+            rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/custom.list" "${PIHOLE_DIR}/" || {
+                log_error "Failed to sync custom.list - network or permission issue"
+                if [ "$ftl_was_stopped" = "true" ]; then
+                    systemctl start pihole-FTL
+                fi
+                exit 1
+            }
+        else
+            log_warn "custom.list does not exist on primary (skipping)"
+        fi
+    else
+        log_info "Skipping custom DNS records (SYNC_CUSTOM_DNS=false)"
     fi
     
     # Sync CNAME records
-    if ssh "root@${PRIMARY_IP}" "[ -f ${PIHOLE_DIR}/05-pihole-custom-cname.conf ]"; then
-        rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/05-pihole-custom-cname.conf" "${PIHOLE_DIR}/" || {
-            log_error "Failed to sync CNAME records - network or permission issue"
-            if [ "$ftl_was_stopped" = "true" ]; then
-                systemctl start pihole-FTL
-            fi
-            exit 1
-        }
-    else
-        log_warn "No custom CNAME records on primary (skipping)"
-    fi
-    
-    # Sync DHCP static leases (maar niet dynamische leases)
-    log_info "Syncing DHCP static leases..."
-    if ssh "root@${PRIMARY_IP}" "[ -f ${PIHOLE_DIR}/dhcp.leases ]"; then
-        rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/dhcp.leases" "${PIHOLE_DIR}/" || {
-            log_warn "Failed to sync dhcp.leases"
-        }
-    fi
-    
-    # Sync Pi-hole configuration
-    # DHCP config wordt gesynchroniseerd, maar 'active' state blijft lokaal
-    log_info "Syncing Pi-hole configuration..."
-    
-    # Download remote pihole.toml
-    rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/pihole.toml" "/tmp/pihole.toml.remote" || {
-        log_warn "Failed to download pihole.toml"
-    }
-    
-    # Behoud de lokale DHCP 'active' status
-    if [ -f "/tmp/pihole.toml.remote" ] && [ -f "${PIHOLE_DIR}/pihole.toml" ]; then
-        # Extract local DHCP active state
-        local_dhcp_active=$(grep -A 5 '^\[dhcp\]' "${PIHOLE_DIR}/pihole.toml" | grep '^active = ' | head -n1)
-        
-        # Kopieer remote config
-        cp "/tmp/pihole.toml.remote" "${PIHOLE_DIR}/pihole.toml"
-        
-        # Restore local DHCP active state als deze bestaat
-        if [ -n "$local_dhcp_active" ]; then
-            sed -i "/^\[dhcp\]/,/^\[/ s/^active = .*/$local_dhcp_active/" "${PIHOLE_DIR}/pihole.toml"
-            log_info "Preserved local DHCP active state: $local_dhcp_active"
+    if [ "$SYNC_CNAME" = "true" ]; then
+        if ssh "root@${PRIMARY_IP}" "[ -f ${PIHOLE_DIR}/05-pihole-custom-cname.conf ]"; then
+            rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/05-pihole-custom-cname.conf" "${PIHOLE_DIR}/" || {
+                log_error "Failed to sync CNAME records - network or permission issue"
+                if [ "$ftl_was_stopped" = "true" ]; then
+                    systemctl start pihole-FTL
+                fi
+                exit 1
+            }
+        else
+            log_warn "No custom CNAME records on primary (skipping)"
         fi
-        
-        rm -f "/tmp/pihole.toml.remote"
+    else
+        log_info "Skipping CNAME records (SYNC_CNAME=false)"
     fi
+    
+    # Sync DHCP static leases
+    if [ "$SYNC_DHCP_LEASES" = "true" ]; then
+        log_info "Syncing DHCP static leases..."
+        if ssh "root@${PRIMARY_IP}" "[ -f ${PIHOLE_DIR}/dhcp.leases ]"; then
+            rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/dhcp.leases" "${PIHOLE_DIR}/" || {
+                log_warn "Failed to sync dhcp.leases"
+            }
+        fi
+    else
+        log_info "Skipping DHCP leases (SYNC_DHCP_LEASES=false)"
+    fi
+    
+    # Sync Pi-hole DHCP configuration from pihole.toml
+    # (Only the [dhcp] section — never overwrites the whole file)
+    if [ "$SYNC_CONFIG_DHCP" = "true" ] || [ "$SYNC_CONFIG_DNS" = "true" ]; then
+        log_info "Downloading remote pihole.toml for selective sync..."
+        rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/pihole.toml" "/tmp/pihole.toml.remote" || {
+            log_warn "Failed to download pihole.toml"
+        }
+    fi
+
+    if [ "$SYNC_CONFIG_DHCP" = "true" ] && [ -f "/tmp/pihole.toml.remote" ]; then
+        log_info "Syncing DHCP configuration..."
+
+        # Extract [dhcp] section from remote (everything between [dhcp] and next [section])
+        sed -n '/^\[dhcp\]/,/^\[/{ /^\[dhcp\]/p; /^\[/!p; }' "/tmp/pihole.toml.remote" > /tmp/dhcp_remote.toml
+
+        if [ -s /tmp/dhcp_remote.toml ]; then
+            # Preserve local DHCP active state
+            if [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ]; then
+                local_dhcp_active=$(sed -n '/^\[dhcp\]/,/^\[/{ /^active = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
+            fi
+
+            # Replace local [dhcp] section with remote
+            # 1) Delete old [dhcp] section from local
+            sed -i '/^\[dhcp\]/,/^\[/{ /^\[dhcp\]/d; /^\[/!d; }' "${PIHOLE_DIR}/pihole.toml"
+            # 2) Find insertion point (line before the section that followed [dhcp])
+            # We insert just before the next section header after where [dhcp] was
+            # Simpler: append [dhcp] block at the end (pihole-FTL tolerates section order)
+            printf '\n' >> "${PIHOLE_DIR}/pihole.toml"
+            cat /tmp/dhcp_remote.toml >> "${PIHOLE_DIR}/pihole.toml"
+
+            # Restore local DHCP active state
+            if [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ] && [ -n "$local_dhcp_active" ]; then
+                sed -i "/^\[dhcp\]/,/^\[/ s/^active = .*/$local_dhcp_active/" "${PIHOLE_DIR}/pihole.toml"
+                log_info "Preserved local DHCP active state: $local_dhcp_active"
+            fi
+            log_info "DHCP configuration synced"
+        fi
+        rm -f /tmp/dhcp_remote.toml
+    elif [ "$SYNC_CONFIG_DHCP" != "true" ]; then
+        log_info "Skipping DHCP config (SYNC_CONFIG_DHCP=false)"
+    fi
+
+    # Sync DNS configuration from pihole.toml (hosts/upstream settings)
+    if [ "$SYNC_CONFIG_DNS" = "true" ] && [ -f "/tmp/pihole.toml.remote" ]; then
+        log_info "Syncing DNS configuration..."
+
+        # Extract [dns] section from remote
+        sed -n '/^\[dns\]/,/^\[/{ /^\[dns\]/p; /^\[/!p; }' "/tmp/pihole.toml.remote" > /tmp/dns_remote.toml
+
+        if [ -s /tmp/dns_remote.toml ]; then
+            # Preserve local DNS listening settings (node-specific)
+            local_dns_listening=$(sed -n '/^\[dns\]/,/^\[/{ /^listeningMode = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
+
+            # Replace local [dns] section with remote
+            sed -i '/^\[dns\]/,/^\[/{ /^\[dns\]/d; /^\[/!d; }' "${PIHOLE_DIR}/pihole.toml"
+            printf '\n' >> "${PIHOLE_DIR}/pihole.toml"
+            cat /tmp/dns_remote.toml >> "${PIHOLE_DIR}/pihole.toml"
+
+            # Restore local listening mode
+            if [ -n "$local_dns_listening" ]; then
+                sed -i "/^\[dns\]/,/^\[/ s/^listeningMode = .*/$local_dns_listening/" "${PIHOLE_DIR}/pihole.toml"
+            fi
+            log_info "DNS configuration synced"
+        fi
+        rm -f /tmp/dns_remote.toml
+    elif [ "$SYNC_CONFIG_DNS" != "true" ]; then
+        log_info "Skipping DNS config (SYNC_CONFIG_DNS=false)"
+    fi
+
+    # Cleanup remote toml
+    rm -f /tmp/pihole.toml.remote
     
     # Set correct permissions
     chown pihole:pihole "${PIHOLE_DIR}/gravity.db" 2>/dev/null || true
@@ -213,51 +326,76 @@ sync_to_secondary() {
         tar czf $BACKUP_DIR/pihole-backup-\$(date +%Y%m%d-%H%M%S).tar.gz \
         $PIHOLE_DIR/gravity.db $PIHOLE_DIR/custom.list $PIHOLE_DIR/pihole.toml 2>/dev/null || true"
     
-    # Stop Pi-hole on secondary
-    log_info "Stopping Pi-hole on secondary..."
-    ssh "root@${SECONDARY_IP}" "systemctl stop pihole-FTL"
+    # Stop Pi-hole on secondary (only if restart enabled)
+    if [ "$SYNC_RESTART_FTL" = "true" ]; then
+        log_info "Stopping Pi-hole on secondary..."
+        ssh "root@${SECONDARY_IP}" "systemctl stop pihole-FTL"
+    fi
     
-    # Push configuration files
-    log_info "Pushing gravity database..."
-    rsync -avz --progress "${PIHOLE_DIR}/gravity.db" "root@${SECONDARY_IP}:${PIHOLE_DIR}/" || {
-        log_error "Failed to push gravity.db"
-        ssh "root@${SECONDARY_IP}" "systemctl start pihole-FTL"
-        exit 1
-    }
+    # Push gravity database
+    if [ "$SYNC_GRAVITY" = "true" ]; then
+        log_info "Pushing gravity database..."
+        rsync -avz --progress "${PIHOLE_DIR}/gravity.db" "root@${SECONDARY_IP}:${PIHOLE_DIR}/" || {
+            log_error "Failed to push gravity.db"
+            ssh "root@${SECONDARY_IP}" "systemctl start pihole-FTL"
+            exit 1
+        }
+    else
+        log_info "Skipping gravity database (SYNC_GRAVITY=false)"
+    fi
     
-    log_info "Pushing custom DNS records..."
-    rsync -avz --progress "${PIHOLE_DIR}/custom.list" "root@${SECONDARY_IP}:${PIHOLE_DIR}/" 2>/dev/null || {
-        log_warn "No custom.list to push"
-    }
+    # Push custom DNS records
+    if [ "$SYNC_CUSTOM_DNS" = "true" ]; then
+        log_info "Pushing custom DNS records..."
+        rsync -avz --progress "${PIHOLE_DIR}/custom.list" "root@${SECONDARY_IP}:${PIHOLE_DIR}/" 2>/dev/null || {
+            log_warn "No custom.list to push"
+        }
+    else
+        log_info "Skipping custom DNS records (SYNC_CUSTOM_DNS=false)"
+    fi
     
-    rsync -avz --progress "${PIHOLE_DIR}/05-pihole-custom-cname.conf" "root@${SECONDARY_IP}:${PIHOLE_DIR}/" 2>/dev/null || {
-        log_warn "No custom CNAME records to push"
-    }
+    # Push CNAME records
+    if [ "$SYNC_CNAME" = "true" ]; then
+        rsync -avz --progress "${PIHOLE_DIR}/05-pihole-custom-cname.conf" "root@${SECONDARY_IP}:${PIHOLE_DIR}/" 2>/dev/null || {
+            log_warn "No custom CNAME records to push"
+        }
+    else
+        log_info "Skipping CNAME records (SYNC_CNAME=false)"
+    fi
     
     # Push DHCP static leases
-    log_info "Pushing DHCP static leases..."
-    if [ -f "${PIHOLE_DIR}/dhcp.leases" ]; then
-        rsync -avz --progress "${PIHOLE_DIR}/dhcp.leases" "root@${SECONDARY_IP}:${PIHOLE_DIR}/" || {
-            log_warn "Failed to push dhcp.leases"
-        }
+    if [ "$SYNC_DHCP_LEASES" = "true" ]; then
+        log_info "Pushing DHCP static leases..."
+        if [ -f "${PIHOLE_DIR}/dhcp.leases" ]; then
+            rsync -avz --progress "${PIHOLE_DIR}/dhcp.leases" "root@${SECONDARY_IP}:${PIHOLE_DIR}/" || {
+                log_warn "Failed to push dhcp.leases"
+            }
+        fi
+    else
+        log_info "Skipping DHCP leases (SYNC_DHCP_LEASES=false)"
     fi
     
-    log_info "Pushing configuration..."
-    
-    # Get secondary's current DHCP active state
-    secondary_dhcp_active=$(ssh "root@${SECONDARY_IP}" "grep -A 5 '^\[dhcp\]' ${PIHOLE_DIR}/pihole.toml | grep '^active = ' | head -n1" 2>/dev/null || echo "")
-    
-    # Push config
-    rsync -avz --progress "${PIHOLE_DIR}/pihole.toml" "root@${SECONDARY_IP}:/tmp/pihole.toml.new"
-    
-    # Restore secondary's DHCP active state
-    if [ -n "$secondary_dhcp_active" ]; then
-        ssh "root@${SECONDARY_IP}" "sed -i \"/^\[dhcp\]/,/^\[/ s/^active = .*/$secondary_dhcp_active/\" /tmp/pihole.toml.new"
-        log_info "Preserved secondary DHCP active state"
+    # Push Pi-hole configuration
+    if [ "$SYNC_CONFIG" = "true" ]; then
+        log_info "Pushing configuration..."
+        
+        # Get secondary's current DHCP active state
+        if [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ]; then
+            secondary_dhcp_active=$(ssh "root@${SECONDARY_IP}" "grep -A 5 '^\[dhcp\]' ${PIHOLE_DIR}/pihole.toml | grep '^active = ' | head -n1" 2>/dev/null || echo "")
+        fi
+        
+        rsync -avz --progress "${PIHOLE_DIR}/pihole.toml" "root@${SECONDARY_IP}:/tmp/pihole.toml.new"
+        
+        # Restore secondary's DHCP active state
+        if [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ] && [ -n "$secondary_dhcp_active" ]; then
+            ssh "root@${SECONDARY_IP}" "sed -i \"/^\[dhcp\]/,/^\[/ s/^active = .*/$secondary_dhcp_active/\" /tmp/pihole.toml.new"
+            log_info "Preserved secondary DHCP active state"
+        fi
+        
+        ssh "root@${SECONDARY_IP}" "mv /tmp/pihole.toml.new ${PIHOLE_DIR}/pihole.toml"
+    else
+        log_info "Skipping Pi-hole config (SYNC_CONFIG=false)"
     fi
-    
-    # Move into place
-    ssh "root@${SECONDARY_IP}" "mv /tmp/pihole.toml.new ${PIHOLE_DIR}/pihole.toml"
     
     # Fix permissions on secondary
     ssh "root@${SECONDARY_IP}" "chown pihole:pihole ${PIHOLE_DIR}/gravity.db ${PIHOLE_DIR}/custom.list 2>/dev/null || true && \

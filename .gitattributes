@@ -14,3 +14,34 @@
 *.gif binary
 *.ico binary
 *.svg binary
+
+# ── export-ignore: excluded from `git archive` / GitHub release tarballs ──
+# Development & testing
+tests/                  export-ignore
+pytest.ini              export-ignore
+requirements-dev.txt    export-ignore
+Makefile                export-ignore
+.markdownlint.json      export-ignore
+
+# Docker (dev/test only — production uses bare-metal setup.py)
+docker/                 export-ignore
+docker-compose.poc.yml  export-ignore
+docker-compose.test.yml export-ignore
+Dockerfile.dev          export-ignore
+.dockerignore           export-ignore
+
+# AI assistant / internal planning
+CLAUDE.md               export-ignore
+PLAN.md                 export-ignore
+TODO_USER.md            export-ignore
+
+# Git hooks & GitHub internals
+.githooks/              export-ignore
+.github/copilot-instructions.md export-ignore
+.github/scripts/        export-ignore
+.github/MERGE_FLOW.md   export-ignore
+
+# Branding (not needed for installation)
+logo.svg                export-ignore
+logo-horizontal.svg     export-ignore
+social-preview.svg      export-ignore

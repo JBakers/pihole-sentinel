@@ -8,7 +8,7 @@
 
 *Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
 
-[![Version](https://img.shields.io/badge/version-v0.12.2--beta.8-blue.svg)](VERSION)
+[![Version](https://img.shields.io/github/v/tag/JBakers/pihole-sentinel?label=version&sort=semver&color=blue)](https://github.com/JBakers/pihole-sentinel/releases)
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
@@ -23,7 +23,7 @@
 > [!WARNING]
 > **🚧 ACTIVE DEVELOPMENT - BETA STATUS**
 >
-> Pi-hole Sentinel is currently in **active beta development** (v0.12.2-beta.8).
+> Pi-hole Sentinel is currently in **active beta development**.
 >
 > While the codebase has passed quality audits (89/100 - Excellent) and is well-tested, it is **still in beta** and may receive breaking changes before the v1.0.0 stable release.
 >
@@ -104,11 +104,15 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 
 ### Installation
 
-**1. Clone the repository:**
+**1. Download Pi-hole Sentinel:**
 
 ```bash
-git clone https://github.com/JBakers/pihole-sentinel.git
-cd pihole-sentinel
+# Download latest release (works for both stable and beta releases)
+curl -sL https://api.github.com/repos/JBakers/pihole-sentinel/releases \
+  | grep -m1 tarball_url | cut -d'"' -f4 | xargs curl -sL -o pihole-sentinel.tar.gz
+tar xzf pihole-sentinel.tar.gz
+mv JBakers-pihole-sentinel-* pihole-sentinel
+cd pihole-sentinel/
 ```
 
 **2. Run the setup script:**
