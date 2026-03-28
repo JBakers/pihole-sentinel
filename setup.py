@@ -659,6 +659,49 @@ class SetupConfig:
             print(f"{Colors.RED}✗ (error: {e}){Colors.END}")
             return False
 
+    def _setup_cross_node_ssh(self, host_a, user_a, port_a, host_b, user_b, port_b):
+        """Setup passwordless SSH between two Pi-hole nodes.
+
+        Generates an ed25519 key on host_a (if not present) and adds its
+        public key to host_b's authorized_keys, then vice versa.
+        Uses the already-established SSH from the installer to orchestrate.
+        """
+        try:
+            for src, src_u, src_p, dst, dst_u, dst_p, label in [
+                (host_a, user_a, port_a, host_b, user_b, port_b, f"{host_a} → {host_b}"),
+                (host_b, user_b, port_b, host_a, user_a, port_a, f"{host_b} → {host_a}"),
+            ]:
+                print(f"  Setting up {label}...", end=" ", flush=True)
+                # Generate key on source if it doesn't exist
+                self.remote_exec(src, src_u, src_p,
+                    'test -f /root/.ssh/id_ed25519 || '
+                    'ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N "" -q')
+                # Read public key from source
+                result = subprocess.run(
+                    ["ssh", "-p", src_p, "-o", "StrictHostKeyChecking=no",
+                     "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
+                     f"{src_u}@{src}", "cat /root/.ssh/id_ed25519.pub"],
+                    capture_output=True, text=True, timeout=15)
+                if result.returncode != 0:
+                    print(f"{Colors.RED}✗ (failed to read key){Colors.END}")
+                    return False
+                pub_key = result.stdout.strip()
+                # Add to destination authorized_keys (idempotent — skip if already present)
+                self.remote_exec(dst, dst_u, dst_p,
+                    f'mkdir -p /root/.ssh && chmod 700 /root/.ssh && '
+                    f'grep -qF "{pub_key}" /root/.ssh/authorized_keys 2>/dev/null || '
+                    f'cat >> /root/.ssh/authorized_keys << \'SENTINEL_CROSS_EOF\'\n{pub_key}\nSENTINEL_CROSS_EOF\n'
+                    f'chmod 600 /root/.ssh/authorized_keys')
+                # Accept host key on source so first sync doesn't hang on prompt
+                self.remote_exec(src, src_u, src_p,
+                    f'ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 '
+                    f'{dst_u}@{dst} "echo ok" >/dev/null 2>&1 || true')
+                print(f"{Colors.GREEN}✓{Colors.END}")
+            return True
+        except Exception as e:
+            print(f"{Colors.RED}✗ (error: {e}){Colors.END}")
+            return False
+
     def collect_monitor_config(self):
         """Collect monitoring server configuration."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== Monitor Configuration ==={Colors.END}")
@@ -794,25 +837,39 @@ class SetupConfig:
                 print(f"{Colors.RED}✗ Failed to setup SSH key for {name}{Colors.END}")
                 success = False
         
+        if not success:
+            for key in passwords:
+                passwords[key] = None
+            passwords.clear()
+            del passwords
+            print(f"\n{Colors.RED}Failed to distribute SSH keys to all servers.{Colors.END}")
+            sys.exit(1)
+
+        # Setup cross-node SSH: primary ↔ secondary (needed for config sync)
+        print(f"\n{Colors.CYAN}Setting up cross-node SSH between Pi-holes...{Colors.END}")
+        cross_ok = self._setup_cross_node_ssh(
+            self.config['primary_ip'], self.config['primary_ssh_user'], self.config['primary_ssh_port'],
+            self.config['secondary_ip'], self.config['secondary_ssh_user'], self.config['secondary_ssh_port'],
+        )
+        if not cross_ok:
+            print(f"{Colors.YELLOW}⚠ Cross-node SSH setup failed — config sync may not work automatically{Colors.END}")
+            print(f"{Colors.YELLOW}  You can fix this manually: ssh-copy-id root@pihole2 (from pihole1){Colors.END}")
+
         # Securely clear passwords from memory immediately after use
         for key in passwords:
             passwords[key] = None
         passwords.clear()
         del passwords
         
-        if success:
-            print(f"\n{Colors.GREEN}{Colors.BOLD}✓ SSH keys successfully distributed to all servers!{Colors.END}")
-            print(f"{Colors.GREEN}  Passwordless access is now configured.{Colors.END}")
-            
-            # Store key path for later use
-            self.config['ssh_key_path'] = key_path
-            # Clear passwords - not needed anymore (defense in depth)
-            self.config['primary_ssh_pass'] = None
-            self.config['secondary_ssh_pass'] = None
-            self.config['monitor_ssh_pass'] = None
-        else:
-            print(f"\n{Colors.RED}Failed to distribute SSH keys to all servers.{Colors.END}")
-            sys.exit(1)
+        print(f"\n{Colors.GREEN}{Colors.BOLD}✓ SSH keys successfully distributed to all servers!{Colors.END}")
+        print(f"{Colors.GREEN}  Passwordless access is now configured.{Colors.END}")
+        
+        # Store key path for later use
+        self.config['ssh_key_path'] = key_path
+        # Clear passwords - not needed anymore (defense in depth)
+        self.config['primary_ssh_pass'] = None
+        self.config['secondary_ssh_pass'] = None
+        self.config['monitor_ssh_pass'] = None
         
         # Generate secure keepalived password
         # keepalived PASS auth truncates to 8 characters — generate exactly 8
