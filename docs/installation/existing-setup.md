@@ -14,18 +14,17 @@ You already have working Pi-holes and want to add:
 
 ## 🚀 Quick Setup (30 minutes)
 
-### Step 1: Generate Configurations (5 min)
+### Step 1: Download Pi-hole Sentinel (5 min)
 
-**On your Windows machine (or Linux workstation):**
+```bash
+curl -sL https://github.com/JBakers/pihole-sentinel/releases/latest/download/pihole-sentinel-*.tar.gz -o pihole-sentinel.tar.gz
+tar xzf pihole-sentinel.tar.gz
+cd pihole-sentinel-*/
+```
 
-```powershell
-# Navigate to the project folder
-cd c:\path\to\pihole-sentinel
+**Run setup script:**
 
-# Or on Linux:
-# cd /path/to/pihole-sentinel
-
-# Run setup script
+```bash
 python3 setup.py
 ```
 

@@ -104,11 +104,13 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 
 ### Installation
 
-**1. Clone the repository:**
+**1. Download Pi-hole Sentinel:**
 
 ```bash
-git clone https://github.com/JBakers/pihole-sentinel.git
-cd pihole-sentinel
+# Download latest release tarball from GitHub
+curl -sL https://github.com/JBakers/pihole-sentinel/releases/latest/download/pihole-sentinel-*.tar.gz -o pihole-sentinel.tar.gz
+tar xzf pihole-sentinel.tar.gz
+cd pihole-sentinel-*/
 ```
 
 **2. Run the setup script:**

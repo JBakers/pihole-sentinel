@@ -1,0 +1,52 @@
+# Automatic release tarball on version tags
+#
+# Triggers on tags: v0.12.4-beta.1, v0.13.0-beta.1, v1.0.0, etc.
+# Pattern: vX.Y.Z-beta.1 (first beta of new patch) or vX.Y.Z (stable release)
+#
+# Creates a GitHub Release with a clean tarball (export-ignore files excluded).
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+-beta.1'   # First beta of each patch: v0.12.4-beta.1
+      - 'v[0-9]+.[0-9]+.[0-9]+'           # Stable releases: v1.0.0
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Create clean tarball
+        run: |
+          # git archive respects .gitattributes export-ignore
+          git archive --format=tar.gz --prefix=pihole-sentinel-${{ steps.version.outputs.version }}/ \
+            -o pihole-sentinel-${{ steps.version.outputs.version }}.tar.gz HEAD
+
+      - name: Determine pre-release
+        id: prerelease
+        run: |
+          if echo "${{ steps.version.outputs.version }}" | grep -q "beta"; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Pi-hole Sentinel ${{ steps.version.outputs.version }}"
+          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
+          generate_release_notes: true
+          files: pihole-sentinel-${{ steps.version.outputs.version }}.tar.gz

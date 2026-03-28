@@ -16,16 +16,15 @@ Voordat je begint, zorg dat je hebt:
 
 ## 🚀 Installatie in 5 Stappen
 
-### Stap 1: Clone Repository
+### Stap 1: Download Pi-hole Sentinel
 
 Op je **lokale machine** of **monitor server**:
 
 ```bash
-git clone https://github.com/JBakers/pihole-sentinel.git
-cd pihole-sentinel
-
-# Checkout the testing branch (latest features)
-git checkout testing
+# Download latest release
+curl -sL https://github.com/JBakers/pihole-sentinel/releases/latest/download/pihole-sentinel-*.tar.gz -o pihole-sentinel.tar.gz
+tar xzf pihole-sentinel.tar.gz
+cd pihole-sentinel-*/
 ```
 
 ### Stap 2: Run Setup Script
