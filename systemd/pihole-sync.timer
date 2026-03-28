@@ -3,10 +3,10 @@ Description=Pi-hole Configuration Sync Timer
 Requires=pihole-sync.service
 
 [Timer]
-# Run every 6 hours
-OnCalendar=*-*-* 00,06,12,18:00:00
-# Run 5 minutes after boot
-OnBootSec=5min
+# Default: every 10 minutes (configurable via deploy_sync in setup.py)
+OnCalendar=*:0/10
+# Run 2 minutes after boot
+OnBootSec=2min
 # If system was offline during scheduled time, run immediately
 Persistent=true
 

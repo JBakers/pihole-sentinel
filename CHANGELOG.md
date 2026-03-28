@@ -5,7 +5,19 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.12.3-beta.1] - 2026-03-28
+
+### New
+- **Config sync deployment** — setup.py now deploys sync service as step [4/4] in full SSH deployment
+- **Configurable sync options** — per-feature toggles: gravity, custom DNS, CNAME, DHCP leases, pihole.toml config (all enabled by default)
+- **Sync interval** — configurable during setup (default: every 10 minutes), replaces fixed 6-hour timer
+- **`pisen sync`** — new CLI command to view sync status, config, and trigger manual sync (`pisen sync --run`)
+- **Automatic IP injection** — PRIMARY_IP/SECONDARY_IP auto-configured in keepalived .env and sync.conf by setup.py
+
+### Improved
+- **Setup menu simplified** — deployment options reduced from 6 to 4 (full deploy, generate only, advanced, uninstall)
+- **Sync script hardening** — IPs validated at startup, safe config parsing (no `source`), clear error on missing config
+- **nebula-sync feature parity** — built-in sync now covers all nebula-sync capabilities including DHCP active state exclusion
 
 ### Security
 - **CRITICAL:** API key no longer exposed via unauthenticated `/api/client-config` endpoint; key is now injected server-side via HTML meta tags
