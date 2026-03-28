@@ -5,6 +5,22 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.2-beta.8] - 2026-03-28
+
+### Fixed
+- **🐛 index.html: ANSI colours not rendered — raw codes visible as text**
+  - The colon-normalisation step (`38:5:n` → `38;5;n`) replaced the entire
+    `\x1b[...m` sequence with only the bare parameter string, dropping the
+    `\x1b[` prefix and `m` suffix. The second-pass renderer then found no
+    sequences to match and left the raw numbers (`0;1;32`) visible in output.
+  - Fix: normalisation now rebuilds the full escape sequence:
+    `\x1b[` + normalised params + `m` so the renderer can match correctly.
+  - `active (running)` now green, `inactive (dead)` grey, `enabled` bold-green.
+
+**Version:** 0.12.2-beta.7 → 0.12.2-beta.8
+
+---
+
 ## [0.12.2-beta.7] - 2026-03-28
 
 ### Fixed
