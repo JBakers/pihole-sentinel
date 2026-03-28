@@ -316,8 +316,9 @@ class SetupConfig:
         
         print(f"{Colors.CYAN}├─ Configuring timezone ({timezone}) and NTP...{Colors.END}")
         try:
-            # Set timezone (timezone is validated, safe to use in shell)
-            self.remote_exec(host, user, port, f"timedatectl set-timezone '{timezone}'", password)
+            # Set timezone — pass as positional argument, not embedded in shell string
+            self.remote_exec(host, user, port,
+                f"timedatectl set-timezone -- {timezone}", password)
             
             # Try to enable NTP (will be skipped in containers, which sync from host)
             try:

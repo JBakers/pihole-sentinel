@@ -5,6 +5,15 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.3-beta.10] - 2026-03-28
+
+### Security
+- **SSRF protection** — webhook URLs (Discord, Ntfy, custom) are validated at save time and send time; blocks private/loopback/reserved IPs and non-HTTP schemes
+- **Security headers** — all responses now include X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, and Content-Security-Policy
+- **Auth on /api/version** — version endpoint now requires API key to prevent version enumeration
+- **TOCTOU fix in dhcp_control.sh** — added flock-based file locking to prevent race conditions between concurrent enable/disable calls
+- **Timezone injection hardening** — setup.py now uses `--` separator in timedatectl command to prevent option injection
+
 ## [0.12.3-beta.9] - 2026-03-28
 
 ### Fixed

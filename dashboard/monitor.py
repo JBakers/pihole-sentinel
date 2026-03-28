@@ -27,6 +27,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.utils import get_openapi
+from urllib.parse import urlparse
+import ipaddress as _ipaddress
 from dotenv import load_dotenv
 import hmac
 import secrets
@@ -262,6 +264,29 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
             detail="Invalid API key"
         )
     return api_key
+
+def validate_webhook_url(url: str) -> bool:
+    """Validate that a webhook URL is safe to call (anti-SSRF).
+
+    Blocks private/loopback/reserved IPs and non-HTTP schemes.
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        # Check if hostname resolves to a private/reserved IP
+        try:
+            addr = _ipaddress.ip_address(hostname)
+            if addr.is_private or addr.is_loopback or addr.is_reserved or addr.is_link_local:
+                return False
+        except ValueError:
+            pass  # Hostname is a domain name, not an IP — allowed
+        return True
+    except Exception:
+        return False
 
 # Rate limiting for notification test endpoint
 # Stores {ip_address: [timestamp1, timestamp2, ...]}
@@ -551,7 +576,7 @@ async def send_notification(event_type: str, template_vars: dict, is_reminder: b
     if settings.get('discord', {}).get('enabled'):
         webhook_url = settings['discord'].get('webhook_url')
 
-        if webhook_url:
+        if webhook_url and validate_webhook_url(webhook_url):
             try:
                 session = await get_http_session()
                 # Convert HTML formatting to Discord markdown
@@ -601,7 +626,7 @@ async def send_notification(event_type: str, template_vars: dict, is_reminder: b
         topic = settings['ntfy'].get('topic')
         server = settings['ntfy'].get('server', 'https://ntfy.sh')
 
-        if topic:
+        if topic and validate_webhook_url(server):
             try:
                 session = await get_http_session()
                 url = f"{server}/{topic}"
@@ -625,7 +650,7 @@ async def send_notification(event_type: str, template_vars: dict, is_reminder: b
     if settings.get('webhook', {}).get('enabled'):
         webhook_url = settings['webhook'].get('url')
 
-        if webhook_url:
+        if webhook_url and validate_webhook_url(webhook_url):
             try:
                 session = await get_http_session()
                 payload = {
@@ -762,6 +787,24 @@ app.add_middleware(
     allow_headers=["X-API-Key", "Content-Type"],
 )
 
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    """Add security headers to every response."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+    return response
+
 # ============================================================================
 # Register Custom Exception Handlers
 # ============================================================================
@@ -840,12 +883,15 @@ async def get_client_config():
     }
 
 @app.get("/api/version", response_model=VersionResponse, tags=["System"])
-async def get_version():
+async def get_version(api_key: str = Depends(verify_api_key)):
     """
     Get current Pi-hole Sentinel version.
     
     Returns the version number from the VERSION file. Checks multiple locations
     including dev environment and production paths.
+    
+    Security:
+        - X-API-Key header required
     
     Returns:
         VersionResponse: Contains the current version string
@@ -1959,7 +2005,17 @@ async def save_notification_settings(
     
     # Merge settings, keeping existing values where new value is None
     merged_settings = merge_settings(existing_settings, settings)
-    
+
+    # Validate webhook URLs to prevent SSRF
+    for svc, url_key in [("discord", "webhook_url"), ("webhook", "url")]:
+        svc_cfg = merged_settings.get(svc, {})
+        url_val = svc_cfg.get(url_key, "")
+        if url_val and not url_val.startswith("***") and not validate_webhook_url(url_val):
+            raise HTTPException(status_code=400, detail=f"Invalid {svc} URL: only http/https to public hosts allowed")
+    ntfy_server = merged_settings.get("ntfy", {}).get("server", "")
+    if ntfy_server and not ntfy_server.startswith("***") and not validate_webhook_url(ntfy_server):
+        raise HTTPException(status_code=400, detail="Invalid ntfy server URL: only http/https to public hosts allowed")
+
     def escape_for_bash_config(value):
         """Escape value for safe use in bash double-quoted string."""
         if not value:
