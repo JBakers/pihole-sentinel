@@ -1091,10 +1091,10 @@
                 <table id="failover-table" style="width: 100%; border-collapse: collapse;">
                     <thead>
                         <tr style="background: #f3f4f6; text-align: left;">
-                            <th style="padding: 12px; border-bottom: 2px solid #e5e7eb;">Datum & Tijd</th>
+                            <th style="padding: 12px; border-bottom: 2px solid #e5e7eb;">Date &amp; Time</th>
                             <th style="padding: 12px; border-bottom: 2px solid #e5e7eb;">Event</th>
-                            <th style="padding: 12px; border-bottom: 2px solid #e5e7eb;">Nieuwe MASTER</th>
-                            <th style="padding: 12px; border-bottom: 2px solid #e5e7eb;">Uptime sinds switch</th>
+                            <th style="padding: 12px; border-bottom: 2px solid #e5e7eb;">New MASTER</th>
+                            <th style="padding: 12px; border-bottom: 2px solid #e5e7eb;">Uptime since switch</th>
                         </tr>
                     </thead>
                     <tbody id="failover-body">
@@ -1609,8 +1609,8 @@
                 const data = await response.json();
                 const events = Array.isArray(data.recent_events) ? data.recent_events : [];
 
-                const failoverEvents = events.filter(e => e.event_type === 'failover');
-                const otherEvents = events.filter(e => e.event_type !== 'failover');
+                const failoverEvents = events.filter(e => e.event_type === 'failover' || e.event_type === 'recovery');
+                const otherEvents = events.filter(e => e.event_type !== 'failover' && e.event_type !== 'recovery');
 
                 // Update failover table
                 const failoverBody = document.getElementById('failover-body');
@@ -1618,29 +1618,39 @@
                     failoverBody.innerHTML = `
                         <tr>
                             <td colspan="4" style="padding: 20px; text-align: center; color: #9ca3af;">
-                                Nog geen failovers gedetecteerd
+                                No failovers detected yet
                             </td>
                         </tr>
                     `;
-                    document.getElementById('failover-summary').textContent = 'Geen failovers gedetecteerd';
+                    document.getElementById('failover-summary').textContent = 'No failovers detected';
                 } else {
                     failoverBody.innerHTML = failoverEvents.map((event, idx) => {
                         const eventDate = new Date(event.timestamp + ' UTC');
-                        const isMaster = event.description.toLowerCase().includes('primary');
+                        const isRecovery = event.event_type === 'recovery';
+                        const isPrimary = event.description.toLowerCase().includes('primary');
                         const uptime = idx > 0
                             ? calculateUptime(eventDate, new Date(failoverEvents[idx - 1].timestamp + ' UTC'))
                             : calculateUptime(eventDate, new Date());
 
+                        // colour: green = recovery OR primary back as master; amber = failover to secondary
+                        const isPrimaryMaster = isPrimary;
+                        const badgeStyle = isPrimaryMaster
+                            ? 'background: #d1fae5; color: #065f46;'
+                            : 'background: #fed7aa; color: #92400e;';
+                        const badgeLabel = isPrimaryMaster ? 'Primary (LXC)' : 'Secondary (RPi)';
+
+                        // row highlight for recovery
+                        const rowStyle = isRecovery
+                            ? 'border-bottom: 1px solid #e5e7eb; background: rgba(16,185,129,0.04);'
+                            : 'border-bottom: 1px solid #e5e7eb;';
+
                         return `
-                            <tr style="border-bottom: 1px solid #e5e7eb;">
+                            <tr style="${rowStyle}">
                                 <td style="padding: 12px;">${eventDate.toLocaleString('nl-NL')}</td>
-                                <td style="padding: 12px;">${event.description}</td>
+                                <td style="padding: 12px;">${isRecovery ? '✅ ' : '🔄 '}${event.description}</td>
                                 <td style="padding: 12px;">
-                                    <span style="padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 600; ${isMaster
-                                ? 'background: #d1fae5; color: #065f46;'
-                                : 'background: #fed7aa; color: #92400e;'
-                            }">
-                                        ${isMaster ? 'Primary (LXC)' : 'Secondary (RPi)'}
+                                    <span style="padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 600; ${badgeStyle}">
+                                        ${badgeLabel}
                                     </span>
                                 </td>
                                 <td style="padding: 12px; color: #6b7280;">${uptime}</td>
@@ -1649,12 +1659,13 @@
                     }).join('');
 
                     // Update failover summary
-                    const lastFailover = failoverEvents[0];
-                    const lastFailoverDate = new Date(lastFailover.timestamp + ' UTC');
-                    const timeSince = calculateUptime(lastFailoverDate, new Date());
-                    const currentMaster = lastFailover.description.toLowerCase().includes('primary') ? 'Primary' : 'Secondary';
+                    const lastEvent = failoverEvents[0];
+                    const lastEventDate = new Date(lastEvent.timestamp + ' UTC');
+                    const timeSince = calculateUptime(lastEventDate, new Date());
+                    const currentMaster = lastEvent.description.toLowerCase().includes('primary') ? 'Primary' : 'Secondary';
+                    const failoversOnly = failoverEvents.filter(e => e.event_type === 'failover').length;
                     document.getElementById('failover-summary').textContent =
-                        `${failoverEvents.length} failover${failoverEvents.length !== 1 ? 's' : ''} • Laatst: ${currentMaster} (${timeSince} geleden)`;
+                        `${failoversOnly} failover${failoversOnly !== 1 ? 's' : ''} • Last: ${currentMaster} (${timeSince} ago)`;
                 }
 
                 // Update events list
