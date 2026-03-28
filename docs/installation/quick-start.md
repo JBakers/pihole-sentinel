@@ -24,8 +24,8 @@ Op je **lokale machine** of **monitor server**:
 git clone https://github.com/JBakers/pihole-sentinel.git
 cd pihole-sentinel
 
-# Checkout de branch met alle fixes
-git checkout claude/project-review-audit-01KcU4Da3NQyemv38xvUv4sF
+# Checkout the testing branch (latest features)
+git checkout testing
 ```
 
 ### Stap 2: Run Setup Script
@@ -415,9 +415,9 @@ Beide moeten **hetzelfde** virtual_router_id hebben!
 ## 📚 Meer Informatie
 
 Voor uitgebreide tests en troubleshooting, zie:
-- **TESTING-GUIDE.md** - Volledige test suite met 20+ tests
-- **README.md** - Algemene documentatie
-- **SYNC-SETUP.md** - Configuratie synchronisatie
+- **[Testing Guide](../development/testing.md)** - Volledige test suite met 20+ tests
+- **[README.md](../../README.md)** - Algemene documentatie
+- **[Configuration Sync](../maintenance/sync.md)** - Configuratie synchronisatie
 
 ---
 

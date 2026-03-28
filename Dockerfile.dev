@@ -1,0 +1,39 @@
+# Dockerfile for Pi-hole Sentinel Development/Testing
+# This is for local testing - NOT for production
+# For production, use setup.py
+
+FROM python:3.13-slim
+
+LABEL maintainer="Pi-hole Sentinel"
+LABEL description="Pi-hole Sentinel Monitor - Development Image"
+
+WORKDIR /app
+
+# Install system dependencies for VIP detection and DNS checks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    iproute2 \
+    dnsutils \
+    curl \
+    iputils-ping \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies first (cache layer)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy project files
+COPY dashboard/ dashboard/
+COPY setup.py .
+COPY VERSION .
+
+# Create data directory
+RUN mkdir -p /data && chmod 755 /data
+
+COPY docker/mock-pihole/mock-systemctl /usr/bin/systemctl
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
+    CMD curl -sf http://localhost:8080/api/version || exit 1
+
+CMD ["python3", "-u", "dashboard/monitor.py"]

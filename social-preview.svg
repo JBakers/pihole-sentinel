@@ -140,7 +140,7 @@
           opacity="0.8">
       <tspan x="20" y="60">github.com/JBakers/</tspan>
       <tspan x="20" y="82">pihole-sentinel</tspan>
-      <tspan x="20" y="110" font-size="14" opacity="0.7">MIT License • Free &amp; Open Source</tspan>
+      <tspan x="20" y="110" font-size="14" opacity="0.7">GPLv3 License • Free &amp; Open Source</tspan>
       <tspan x="20" y="135" font-size="14" opacity="0.7">Created by JBakers</tspan>
       <tspan x="20" y="160" font-size="14" opacity="0.7">Community Supported</tspan>
     </text>

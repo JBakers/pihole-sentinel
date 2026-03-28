@@ -3,6 +3,7 @@
 fastapi>=0.115.0  # Updated from 0.104.0 - includes CVE fixes
 uvicorn[standard]>=0.30.0  # Updated from 0.24.0 - security updates
 aiohttp>=3.10.0  # Updated from 3.9.0 - fixes CVE-2024-23334
+aiodns>=3.2.0    # Custom resolver for notifications when Pi-holes are offline
 aiosqlite>=0.20.0  # Updated from 0.19.0
 aiofiles>=24.1.0  # Updated from 23.2.0
 python-dotenv>=1.0.0

@@ -1,0 +1,281 @@
+# Pi-hole Sentinel - Full Test Environment
+#
+# Architecture:
+#   pihole-primary   (10.99.0.10) - Mock Pi-hole v6 API (primary, DHCP on)
+#   pihole-secondary (10.99.0.11) - Mock Pi-hole v6 API (secondary, DHCP off)
+#   sentinel-monitor (10.99.0.20) - Pi-hole Sentinel monitor + dashboard
+#   client-01..12    (10.99.0.101-112) - Fake network clients (ARP/DHCP)
+#
+# Usage:
+#   make docker-up        # Build + start full environment
+#   make docker-test      # Rebuild, start, run smoke tests
+#   make docker-down      # Tear down + remove volumes
+#
+# Access:
+#   Dashboard:  http://localhost:8080
+#   API:        http://localhost:8080/api/status  (header: X-API-Key: test-api-key-12345)
+#   API Docs:   http://localhost:8080/api/docs
+#   Pi-hole 1:  http://localhost:8001/mock/state
+#   Pi-hole 2:  http://localhost:8002/mock/state
+#
+# Simulate failover:
+#   curl -X POST http://localhost:8001/mock/set-state \
+#     -H 'Content-Type: application/json' -d '{"pihole_running":false}'
+#   curl -X POST http://localhost:8001/mock/reset
+#
+
+x-fake-client: &fake-client
+  build:
+    context: docker/fake-client
+    dockerfile: Dockerfile
+  environment:
+    PRIMARY_IP: "10.99.0.10"
+    SECONDARY_IP: "10.99.0.11"
+    VIP_IP: "10.99.0.100"
+    PING_INTERVAL: "5"
+  restart: unless-stopped
+  depends_on:
+    pihole-primary:
+      condition: service_healthy
+    pihole-secondary:
+      condition: service_healthy
+
+services:
+  # ── Mock Pi-hole Primary ─────────────────────────────────────
+  pihole-primary:
+    build:
+      context: docker/mock-pihole
+      dockerfile: Dockerfile
+    container_name: sentinel-pihole-primary
+    environment:
+      PIHOLE_NAME: "Primary Pi-hole"
+      PIHOLE_PASSWORD: testpass123
+      DHCP_ENABLED: "true"
+      IS_PRIMARY: "true"
+    ports:
+      - "8001:80"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.10
+    restart: unless-stopped
+
+  # ── Mock Pi-hole Secondary ───────────────────────────────────
+  pihole-secondary:
+    build:
+      context: docker/mock-pihole
+      dockerfile: Dockerfile
+    container_name: sentinel-pihole-secondary
+    environment:
+      PIHOLE_NAME: "Secondary Pi-hole"
+      PIHOLE_PASSWORD: testpass123
+      DHCP_ENABLED: "false"
+      IS_PRIMARY: "false"
+    ports:
+      - "8002:80"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.11
+    restart: unless-stopped
+
+  # ── Pi-hole Sentinel Monitor ─────────────────────────────────
+  sentinel-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: sentinel-monitor
+    environment:
+      PRIMARY_IP: "10.99.0.10"
+      PRIMARY_NAME: "Primary Pi-hole"
+      PRIMARY_PASSWORD: testpass123
+      SECONDARY_IP: "10.99.0.11"
+      SECONDARY_NAME: "Secondary Pi-hole"
+      SECONDARY_PASSWORD: testpass123
+      VIP_ADDRESS: "10.99.0.100"
+      CHECK_INTERVAL: "5"
+      DB_PATH: /data/monitor.db
+      NOTIFY_CONFIG_PATH: /data/notify_settings.json
+      API_KEY: test-api-key-12345
+      LOG_LEVEL: DEBUG
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "8080:8080"
+    volumes:
+      - monitor-data:/data
+    depends_on:
+      pihole-primary:
+        condition: service_healthy
+      pihole-secondary:
+        condition: service_healthy
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.20
+    restart: unless-stopped
+
+  # ── Fake Network Clients (simulate DHCP devices) ─────────────
+  client-01:
+    <<: *fake-client
+    container_name: sentinel-client-01
+    environment:
+      CLIENT_NAME: "desktop-pc"
+      PRIMARY_IP: "10.99.0.10"
+      SECONDARY_IP: "10.99.0.11"
+      VIP_IP: "10.99.0.100"
+      PING_INTERVAL: "5"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.101
+
+  client-02:
+    <<: *fake-client
+    container_name: sentinel-client-02
+    environment:
+      CLIENT_NAME: "laptop"
+      PRIMARY_IP: "10.99.0.10"
+      SECONDARY_IP: "10.99.0.11"
+      VIP_IP: "10.99.0.100"
+      PING_INTERVAL: "5"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.102
+
+  client-03:
+    <<: *fake-client
+    container_name: sentinel-client-03
+    environment:
+      CLIENT_NAME: "phone"
+      PRIMARY_IP: "10.99.0.10"
+      SECONDARY_IP: "10.99.0.11"
+      VIP_IP: "10.99.0.100"
+      PING_INTERVAL: "5"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.103
+
+  client-04:
+    <<: *fake-client
+    container_name: sentinel-client-04
+    environment:
+      CLIENT_NAME: "tablet"
+      PRIMARY_IP: "10.99.0.10"
+      SECONDARY_IP: "10.99.0.11"
+      VIP_IP: "10.99.0.100"
+      PING_INTERVAL: "5"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.104
+
+  client-05:
+    <<: *fake-client
+    container_name: sentinel-client-05
+    environment:
+      CLIENT_NAME: "smart-tv"
+      PRIMARY_IP: "10.99.0.10"
+      SECONDARY_IP: "10.99.0.11"
+      VIP_IP: "10.99.0.100"
+      PING_INTERVAL: "5"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.105
+
+  client-06:
+    <<: *fake-client
+    container_name: sentinel-client-06
+    environment:
+      CLIENT_NAME: "printer"
+      PRIMARY_IP: "10.99.0.10"
+      SECONDARY_IP: "10.99.0.11"
+      VIP_IP: "10.99.0.100"
+      PING_INTERVAL: "5"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.106
+
+  client-07:
+    <<: *fake-client
+    container_name: sentinel-client-07
+    environment:
+      CLIENT_NAME: "gaming-console"
+      PRIMARY_IP: "10.99.0.10"
+      SECONDARY_IP: "10.99.0.11"
+      VIP_IP: "10.99.0.100"
+      PING_INTERVAL: "5"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.107
+
+  client-08:
+    <<: *fake-client
+    container_name: sentinel-client-08
+    environment:
+      CLIENT_NAME: "smart-speaker"
+      PRIMARY_IP: "10.99.0.10"
+      SECONDARY_IP: "10.99.0.11"
+      VIP_IP: "10.99.0.100"
+      PING_INTERVAL: "5"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.108
+
+  client-09:
+    <<: *fake-client
+    container_name: sentinel-client-09
+    environment:
+      CLIENT_NAME: "thermostat"
+      PRIMARY_IP: "10.99.0.10"
+      SECONDARY_IP: "10.99.0.11"
+      VIP_IP: "10.99.0.100"
+      PING_INTERVAL: "5"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.109
+
+  client-10:
+    <<: *fake-client
+    container_name: sentinel-client-10
+    environment:
+      CLIENT_NAME: "doorbell"
+      PRIMARY_IP: "10.99.0.10"
+      SECONDARY_IP: "10.99.0.11"
+      VIP_IP: "10.99.0.100"
+      PING_INTERVAL: "5"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.110
+
+  client-11:
+    <<: *fake-client
+    container_name: sentinel-client-11
+    environment:
+      CLIENT_NAME: "security-cam"
+      PRIMARY_IP: "10.99.0.10"
+      SECONDARY_IP: "10.99.0.11"
+      VIP_IP: "10.99.0.100"
+      PING_INTERVAL: "5"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.111
+
+  client-12:
+    <<: *fake-client
+    container_name: sentinel-client-12
+    environment:
+      CLIENT_NAME: "nas-server"
+      PRIMARY_IP: "10.99.0.10"
+      SECONDARY_IP: "10.99.0.11"
+      VIP_IP: "10.99.0.100"
+      PING_INTERVAL: "5"
+    networks:
+      test-net:
+        ipv4_address: 10.99.0.112
+
+volumes:
+  monitor-data:
+    driver: local
+
+networks:
+  test-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.99.0.0/24
+          gateway: 10.99.0.1

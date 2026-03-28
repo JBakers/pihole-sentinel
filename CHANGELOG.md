@@ -5,6 +5,363 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Consolidated testing documentation into one file: `docs/development/testing.md`
+- Reduced and refocused `CLAUDE.md` to remove duplicated workflow/reference content
+- Updated `PLAN.md` for `develop` branch context and English-only documentation text
+- Cleaned `TODO_USER.md` by moving resolved items to `CHANGELOG.md`
+- Simplified `CHANGELOG.md` by consolidating `0.12.2-beta.*` and `0.12.1-beta.*` details into session summaries
+- Updated docs links to remove references to deleted testing files and removed CLAUDE anchor links
+
+### Removed
+- `dashboard/.env.test` from git tracking (sensitive env file)
+- `merge-to-testing.sh` helper script (superseded by PR merge workflow)
+- `docs/development/TESTING_WORKFLOW.md` (merged)
+- `docs/development/TEST_COVERAGE_PLAN.md` (merged)
+
+### Added
+- Placeholder documentation for future installer container in `docker/sentinel-installer/README.md`
+
+## [0.12.2] Session Summary - 2026-03-28
+
+> Consolidates all `0.12.2-beta.1` through `0.12.2-beta.8` changes from one session.
+> Individual beta entries are consolidated in this summary for readability.
+
+### New
+- **⌨️ System Commands panel** — run `systemctl status`, last 200 log lines, VIP check,
+  and last 500 DB events directly from the browser dashboard
+- **ANSI colour rendering** in command output modal — `active (running)` green,
+  `inactive (dead)` grey, `enabled` bold-green; OSC 8 hyperlinks rendered as `<a>` tags
+- **Offline indicators** — Pi-hole Service / VIP / DNS / DHCP all turn grey with `(?)`
+  when a server is unreachable (was incorrectly green/red based on stale data)
+
+### Fixed
+- **Fault debounce (60 s)** — brief FTL restarts (e.g. keepalived DHCP apply) no longer
+  trigger spurious fault notifications
+- **Paired recovery notifications** — every fault notification is guaranteed to be followed
+  by a recovery notification once the issue resolves
+- **Notifications when both Pi-holes offline** — HTTP session now uses Cloudflare (1.1.1.1) /
+  Google (8.8.8.8) DNS via `aiodns`, bypassing the Pi-hole VIP so Telegram / Discord / etc.
+  remain reachable when both nodes are down
+- **keepalived / journalctl commands on monitor server** — graceful fallback messages with
+  SSH commands to run on Pi-hole nodes; permission-denied journalctl shows the exact fix
+- **Failover History** — recovery events shown alongside failover events (green tint + ✅)
+- **SSH retry on exit 255** — `setup.py` retries up to 3× after keepalived stop causes brief
+  SSH unavailability; added `ConnectTimeout` / `ServerAliveInterval` to all SSH calls
+- **System Commands modal title** — was "undefined undefined"; endpoint now returns full
+  `icon / description / exit_code / status / output` structured response
+- **Test notification response** — `NotificationTestResponse` field mismatch fixed
+- **Translations** — all Dutch table headers, log messages, and UI strings translated to English
+- **System Commands card styling** — section was missing card background/border; now uses
+  same `events-card` + collapsible structure as Failover History and Recent Events
+
+---
+
+## [0.12.1] Session Summary - 2026-03-28
+
+> Consolidates all `0.12.1-beta.1` through `0.12.1-beta.10` changes.
+
+### New
+- **Pre-flight credential checks** — SSH + Pi-hole API validated on all servers before deployment
+- **Automatic rollback** — if deployment fails, all already-deployed servers revert to backup
+- **Uninstall option** — menu option 6 removes all Sentinel files from all servers
+- **30 tests for setup.py** in `tests/test_setup.py` (21 unit + 9 Docker integration)
+- **Startup notification** — `send_notification("startup")` on monitor boot (disabled by default)
+- **Fault notifications** at all 4 detection points (host offline, service down per node)
+
+### Fixed
+- **VRRP v2** — `vrrp_version 3` → `2`; v3 does not support PASS auth or `preempt_delay`
+- **Interface auto-detect** — keepalived config uses Pi-hole's interface, not installer machine's
+- **`auth_pass` length** — 32 → 8 characters (keepalived PASS max)
+- **`preempt_delay`** on MASTER node — removed (only valid on BACKUP); deployment now completes cleanly
+- **Notification templates audit** — all event types (`failover`, `recovery`, `fault`, `startup`)
+  corrected; `{reason}` variable wired through; reminder vars use stored context
+- **`import time` missing** — monitor loop crashed every cycle on DHCP debounce line
+- **SSH retry on exit 255** — 3× retry after keepalived stop causes brief SSH unavailability
+- **`dnsutils` → `bind9-dnsutils`** fallback for Debian 12+
+- **Progress bar formatting** — missing f-string, stray dots, leftover text after overwrite
+
+---
+
+## [0.12.0-beta.10] - 2026-03-28
+
+### Fixed
+  - Without this fix: MASTER transition → `systemctl restart pihole-FTL` → health check fails → secondary takes over → secondary FTL restart → primary recovers and preempts back → FTL restart again → **infinite loop** that fully overloaded the Pi and caused it to lock up
+  - FTL is now only restarted when the DHCP state actually changes
+- **🐛 keepalived primary config: `preempt_delay 60` added**
+  - Primary now waits 60 seconds after FTL recovery before reclaiming MASTER from secondary
+- **🐛 keepalived primary config: `fall 3→5` / `rise 2→3`**
+- **🐛 check_pihole_service.sh: unnecessary `sleep 1` removed**
+- **🐛 keepalived/pihole2/keepalived.conf: `weight -25 → -60` (aligned with generated config)**
+- **🐛 setup.py generate_configs: secondary was not getting `preempt_delay`**
+
+---
+
+## [0.12.0-beta.9-setup] - 2026-03-28
+
+### Fixed
+- **🐛 setup.py: dependency install appeared to hang on dnsutils**
+  - Added `DEBIAN_FRONTEND=noninteractive`, `NEEDRESTART_MODE=a`, `DPkg::Lock::Timeout=120`
+  - Removed silent `-qq` output; added explicit timeout (30 min)
+
+---
+
+## [0.12.0-beta.9] - 2026-02-13
+
+### Fixed
+- Dashboard API key loading via `/api/client-config` to avoid hardcoded placeholders in HTML
+- Failover notification master/backup name selection uses correct primary/secondary config
+- Favicon arrow alignment in dashboard tabs
+
+### Changed
+- Dashboard HTML served as static files; UI now fetches client config at runtime
+- Makefile test targets use `python3 -m pytest` for consistent invocation
+- CI workflow and docs now reference only the root requirements file
+
+### Removed
+- Deprecated `docker/keepalived-sidecar/` directory
+- Redundant `dashboard/requirements.txt` and empty `dashboard/.env`
+
+**Version:** 0.12.0-beta.8 → 0.12.0-beta.9
+
+---
+
+## [0.12.0-beta.8] - 2026-02-06
+
+### Fixed
+- **🐛 index.html: System Commands JS outside `<script>` tag** — ~120 lines of JS were raw text in the HTML body, moved to the main `<script>` block
+- **🐛 index.html: System Commands card nested inside footer** — Commands card and modal moved out of `<div class="footer">`, placed correctly as a standalone section
+- **🐛 monitor.py: SnoozeResponse 500 error** — GET/POST/DELETE `/api/notifications/snooze` returned fields that did not match the Pydantic model (`enabled`/`active` vs `snoozed`/`remaining_seconds`)
+- **🐛 index.html: Events API response parsing** — Frontend expected a flat array but API returns `{total_events, recent_events, ...}`. JS updated to use `data.recent_events` and field names `event_type`/`description`/`timestamp`
+
+### Added
+- **✨ Runtime API key injection** — `serve_index()` and `serve_settings()` now replace `YOUR_API_KEY_HERE` with `CONFIG['api_key']` via `HTMLResponse`. Dashboard works directly in Docker without `sed`
+- **✨ Docker: 12 fake network clients** — `docker/fake-client/` with ARP-based lease discovery, `docker-compose.test.yml` extended to 17 containers
+- **✨ Mock Pi-hole ARP auto-discovery** — `mock_pihole.py` reads `ip neigh show` for automatic DHCP lease simulation
+- **✨ Makefile: docker-status/failover/recover targets** — New commands for easy Docker test management
+- **✨ `.dockerignore`** — Prevents venv, htmlcov, .git etc. from entering Docker image
+- **✨ `.github/copilot-instructions.md`** — AI agent instructions for GitHub Copilot
+
+### Changed
+- **📝 TODO_USER.md fully rewritten** — Master bug/fix list with 10 bugs (B1-B10), 5 features (F1-F5), 4 docs items (D1-D4), pisen CLI analysis, Docker test status
+- **📝 Events API response** — Now returns `{total_events, recent_events, failover_count, last_failover}` instead of a flat array
+
+**Version:** 0.12.0-beta.7 → 0.12.0-beta.8
+
+---
+
+## [0.12.0-beta.7] - 2025-12-07
+
+### Security
+- **🚫 CRITICAL: Added foolproof git hook protection against unauthorized merges**
+  - Created `.githooks/pre-merge-commit` hook to block AI agents from merging to testing/main
+  - Hook enforces CLAUDE.md mandatory rule: "Only user may merge to testing/main"
+  - Provides clear error messages and instructions (Dutch/English)
+  - User can override with `--no-verify` if needed
+
+### Documentation
+- **📚 Extensive CLAUDE.md updates for merge restrictions**
+  - Added new section: "Critical: NEVER Merge to Protected Branches"
+  - 150+ lines of detailed rules, examples, and workflows
+  - Clear forbidden vs. correct workflows for AI agents
+  - Installation instructions for git hooks
+- **📝 Updated `.githooks/README.md`**
+  - Documented pre-merge-commit hook functionality
+  - Added testing instructions for merge protection
+  - Updated installation methods (Option 1 & 2)
+  - Added security notes about hook importance
+- **🔧 Updated Development Workflows section**
+  - Clear explanation of what pre-merge-commit hook does
+  - Testing instructions for both hooks
+  - Critical warning for AI assistants
+
+### Fixed
+- Fixed corrupt shebang in `bin/pisen` (removed erroneous prefix)
+
+**Version:** 0.12.0-beta.6 → 0.12.0-beta.7
+
+---
+
+## [0.11.0-beta.6] - 2025-12-07
+
+### Documentation
+- Added `docs/usage/cli-tool.md` and `docs/README.md`
+- Updated `README.md` with CLI tool and docs links
+
+---
+
+## [0.11.0-beta.4] - 2025-12-07
+
+### New
+- Frontend: System Commands section, modal, CSS, JS in `dashboard/index.html`
+
+### Improved
+- UI: Mobile-friendly command buttons, copy output, dark mode support
+
+---
+
+## [0.12.0-beta.6] - 2025-12-07
+
+### 🔄 Merged from develop
+
+**Merged develop (0.10.0-beta.16) into testing**
+
+All features and improvements from develop branch (v0.10.0-beta.14 through v0.10.0-beta.16).
+
+Version: 0.12.0-beta.5 → 0.12.0-beta.6
+
+#### Commits from develop:
+- 66e9d35 docs: major documentation restructuring with docs/ directory
+- fe796be feat: improve merge helper commit message detail
+- 14d1199 feat: add Discord link in settings UI
+- 8b118e1 feat: add merge helper script for develop → testing
+- 2c75a84 docs: update version references to v0.10.0-beta.15
+- 480645e feat: improve test notification messages with default template examples
+- 97fa56a feat: add comprehensive unit test framework
+
+#### Major Changes:
+
+**📚 Documentation Restructuring (v0.10.0-beta.16):**
+- Created organized `docs/` directory structure
+- Moved all documentation to logical locations
+- README.md reduced from 749 to 410 lines (45% reduction)
+- Created central documentation hub (docs/README.md)
+- Better navigation and maintainability
+
+**🧪 Unit Test Framework (v0.10.0-beta.14):**
+- Added pytest framework with 100+ tests
+- Test coverage for validation, VIP detection, API handlers, DHCP parsing
+- Makefile for development commands
+- Comprehensive test documentation
+
+**📬 Improved Test Notifications (v0.10.0-beta.15):**
+- Test notifications now show default template examples
+- Updated for all services (Telegram, Discord, Pushover, Ntfy, Webhook)
+
+**🔧 Merge Helper Script (v0.10.0-beta.15):**
+- Automated develop → testing merge script
+- Auto-increments version numbers
+- Generates detailed commit messages
+
+**Resolved conflicts:**
+- VERSION: Updated to 0.12.0-beta.6
+- README.md: Used new structure with testing version/license
+- CHANGELOG.md: Merged entries
+- CLAUDE.md: Updated version references
+- Documentation files: Accepted docs/ structure from develop
+
+---
+
+## [0.10.0-beta.16] - 2025-12-07
+
+### 📚 Documentation
+
+#### Major Documentation Restructuring
+- **Created `docs/` directory structure** for organized documentation
+  - `docs/installation/` - Installation guides
+  - `docs/maintenance/` - Maintenance and sync guides
+  - `docs/development/` - Development and testing guides
+  - `docs/api/` - API documentation
+  - `docs/configuration/` - (Future) Configuration guides
+  - `docs/usage/` - (Future) Usage guides
+  - `docs/troubleshooting/` - (Future) Troubleshooting guides
+
+- **Moved existing documentation to docs/ structure:**
+  - `QUICKSTART.md` → `docs/installation/quick-start.md`
+  - `EXISTING-SETUP.md` → `docs/installation/existing-setup.md`
+  - `SYNC-SETUP.md` → `docs/maintenance/sync.md`
+  - `DEVELOPMENT.md` → `docs/development/README.md`
+  - `TESTING-GUIDE.md` → `docs/development/testing.md`
+  - `API.md` → `docs/api/README.md`
+
+- **Created `docs/README.md` navigation index:**
+  - Central documentation hub with clear navigation
+  - Links to all documentation sections
+  - Quick links to common resources
+  - Documentation map showing structure
+
+- **Restructured README.md (major improvement):**
+  - Reduced from **749 lines to 410 lines** (45% reduction)
+  - Focused on overview, features, and quick start
+  - Removed detailed content (moved to `docs/`)
+  - Improved readability and navigation
+  - Clear links to detailed documentation
+  - Maintained all essential information
+
+- **Updated CLAUDE.md:**
+  - Updated codebase structure section with `docs/` directory
+  - Updated Additional Resources with new file locations
+  - All documentation references now point to correct locations
+
+**Impact:**
+- ✅ Much easier to navigate documentation
+- ✅ README.md is concise and focused
+- ✅ Detailed guides in logical locations
+- ✅ Better documentation organization for future growth
+- ✅ Improved maintainability
+
+---
+
+## [0.10.0-beta.15] - 2025-12-07
+
+### 🔧 Improved
+
+#### Notification System
+- **Updated test notification messages with default template examples:**
+  - Shows actual default templates instead of generic messages
+  - Helps users understand what notifications will look like
+  - Updated for all services: Telegram, Discord, Pushover, Ntfy, Webhook
+  - **Telegram:** HTML formatted with failover, recovery, fault, startup examples
+  - **Discord:** Embed fields with default template examples
+  - **Pushover:** Plain text format with template examples
+  - **Ntfy:** Compact format optimized for mobile
+  - **Webhook:** JSON payload with all template examples and metadata
+  - **Impact:** Users can see exactly how notifications will appear before enabling them
+
+---
+
+## [0.10.0-beta.14] - 2025-12-07
+
+### ✨ New
+
+#### Testing Infrastructure
+- **Added comprehensive unit test framework:**
+  - Created `tests/` directory with full pytest configuration
+  - Added 4 test modules with 100+ test cases:
+    - `test_validation.py` - Input validation (IP, interface, port, username)
+    - `test_vip_detection.py` - VIP MAC address detection logic
+    - `test_api_handlers.py` - Pi-hole API request/response handling
+    - `test_dhcp_parsing.py` - DHCP configuration parsing and failover
+  - Added `pytest.ini` with coverage configuration (60% minimum threshold)
+  - Added `conftest.py` with shared fixtures and test utilities
+  - Added `requirements-dev.txt` with development dependencies
+  - Added `Makefile` with common development commands
+  - Added `tests/README.md` with testing guide and examples
+  - **Impact:** Enables automated testing, prevents regressions, improves code quality
+  - **Priority:** 🔴 HIGH - Addresses audit recommendation #1
+
+### 🔧 Improved
+
+#### Documentation
+- **Enhanced test documentation:**
+  - Comprehensive test organization guide
+  - Test category markers (unit, integration, slow, network, asyncio)
+  - Coverage reporting instructions
+  - CI/CD integration examples
+  - Debugging and troubleshooting guide
+
+#### Development Workflow
+- **Added development tooling:**
+  - `make test` - Run all tests with coverage
+  - `make test-unit` - Run only unit tests
+  - `make lint` - Run code linters
+  - `make format` - Format code with black and isort
+  - `make clean` - Remove generated files
+
+---
+
 ## [0.10.0-beta.13] - 2025-12-05
 
 ### 🐛 Fixed
