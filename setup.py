@@ -1284,7 +1284,7 @@ NODE_STATE=MASTER
             # Execute installation commands
             print("Installing keepalived...")
             commands = [
-                "command -v keepalived >/dev/null 2>&1 || (apt-get update && apt-get install -y keepalived arping)",
+                "command -v keepalived >/dev/null 2>&1 || (DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y keepalived arping)",
                 "mkdir -p /etc/keepalived",
                 "chmod 755 /etc/keepalived",
                 "mkdir -p /usr/local/bin",
@@ -1303,18 +1303,51 @@ NODE_STATE=MASTER
                 "chown root:root /usr/local/bin/$script && " +
                 "chmod 755 /usr/local/bin/$script; done",
                 "systemctl enable keepalived",
-                "systemctl restart keepalived",
-                "rm -rf /tmp/pihole-sentinel-deploy"
             ]
-            
+
             for cmd in commands:
                 self.remote_exec(host, user, port, cmd, password)
+
+            # Validate config before starting — surfacing errors early
+            print("├─ Validating keepalived configuration...")
+            self.remote_exec(host, user, port,
+                "keepalived --config-test 2>&1 || "
+                "(echo ''; echo '=== keepalived config test output ===' && "
+                "keepalived --config-test 2>&1; "
+                "echo '=== keepalived.conf content ===' && "
+                "cat /etc/keepalived/keepalived.conf; exit 1)",
+                password)
+
+            # Start service and show diagnostics on failure
+            print("├─ Starting keepalived service...")
+            self.remote_exec(host, user, port,
+                "systemctl stop keepalived 2>/dev/null || true && "
+                "systemctl restart keepalived 2>&1 || ("
+                "echo '' && "
+                "echo '=== keepalived failed to start — diagnostic output ===' && "
+                "systemctl status keepalived --no-pager -l 2>&1 || true && "
+                "echo '' && "
+                "echo '=== last 40 journal lines ===' && "
+                "journalctl -xeu keepalived --no-pager -n 40 2>&1 || true && "
+                "echo '' && "
+                "echo '=== keepalived.conf ===' && "
+                "cat /etc/keepalived/keepalived.conf && "
+                "exit 1)",
+                password)
+
+            # Cleanup staging area
+            self.remote_exec(host, user, port, "rm -rf /tmp/pihole-sentinel-deploy", password)
             
             print(f"✓ Keepalived {node_type} deployed successfully to {host}!")
             return True
             
         except subprocess.CalledProcessError as e:
-            print(f"✗ Error deploying keepalived to {host}: {e}")
+            print(f"\n{Colors.RED}✗ Error deploying keepalived to {host}: {e}{Colors.END}")
+            print(f"\n{Colors.YELLOW}Config files are deployed to {host} but the service failed to start.{Colors.END}")
+            print(f"{Colors.YELLOW}Diagnose manually:{Colors.END}")
+            print(f"  ssh root@{host} 'systemctl status keepalived --no-pager -l'")
+            print(f"  ssh root@{host} 'journalctl -xeu keepalived --no-pager -n 50'")
+            print(f"  ssh root@{host} 'keepalived --config-test'")
             return False
 
     def show_next_steps(self):
