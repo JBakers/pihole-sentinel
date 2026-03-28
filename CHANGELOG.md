@@ -5,6 +5,11 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.3-beta.7] - 2026-03-28
+
+### Improved
+- **Required field validation** — all IP address inputs in setup and uninstall now reject empty values and validate format inline, preventing accidental blank entries
+
 ## [0.12.3-beta.6] - 2026-03-28
 
 ### Fixed

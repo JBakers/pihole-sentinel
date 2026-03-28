@@ -100,7 +100,20 @@ Version: {_get_version_banner()}
 class SetupConfig:
     def __init__(self):
         self.config = {}
-        
+
+    @staticmethod
+    def _ask_required(prompt, validator=None, error_msg=None):
+        """Ask for input and repeat until a non-empty, valid value is given."""
+        while True:
+            value = input(prompt).strip()
+            if not value:
+                print(f"{Colors.RED}This field is required.{Colors.END}")
+                continue
+            if validator and not validator(value):
+                print(f"{Colors.RED}{error_msg or 'Invalid input.'}{Colors.END}")
+                continue
+            return value
+
     def validate_ip(self, ip):
         """Validate IP address format."""
         try:
@@ -486,18 +499,18 @@ class SetupConfig:
                     print(f"{Colors.RED}Error: Invalid IP range! Each octet must be 0-255{Colors.END}")
                     continue
 
+                def _valid_octet(v):
+                    return v.isdigit() and 0 <= int(v) <= 255
+
                 print(f"\n{Colors.CYAN}Enter last octet for each device (using {ip_range}.X):{Colors.END}")
-                primary_octet = input(f"Primary Pi-hole    ({ip_range}.): ").strip()
-                secondary_octet = input(f"Secondary Pi-hole  ({ip_range}.): ").strip()
-                vip_octet = input(f"Virtual IP (VIP)   ({ip_range}.): ").strip()
-                gateway_octet = input(f"Network gateway    ({ip_range}.): ").strip()
+                primary_octet = self._ask_required(f"Primary Pi-hole    ({ip_range}.): ", _valid_octet, "Must be 0-255")
+                secondary_octet = self._ask_required(f"Secondary Pi-hole  ({ip_range}.): ", _valid_octet, "Must be 0-255")
+                vip_octet = self._ask_required(f"Virtual IP (VIP)   ({ip_range}.): ", _valid_octet, "Must be 0-255")
+                gateway_octet = self._ask_required(f"Network gateway    ({ip_range}.): ", _valid_octet, "Must be 0-255")
 
                 # Validate octets
                 try:
                     octets = [primary_octet, secondary_octet, vip_octet, gateway_octet]
-                    if not all(octet.isdigit() and 0 <= int(octet) <= 255 for octet in octets):
-                        print(f"{Colors.RED}Error: Invalid octet! Must be 0-255{Colors.END}")
-                        continue
 
                     primary_ip = f"{ip_range}.{primary_octet}"
                     secondary_ip = f"{ip_range}.{secondary_octet}"
@@ -511,10 +524,10 @@ class SetupConfig:
                 # Manual setup - full IP addresses
                 print(f"\n{Colors.CYAN}Manual Setup:{Colors.END}")
                 print("Enter full IP addresses:")
-                primary_ip = input("Primary Pi-hole IP: ").strip()
-                secondary_ip = input("Secondary Pi-hole IP: ").strip()
-                vip = input("Virtual IP (VIP) address: ").strip()
-                gateway = input("Network gateway IP: ").strip()
+                primary_ip = self._ask_required("Primary Pi-hole IP: ", self.validate_ip, "Invalid IP address")
+                secondary_ip = self._ask_required("Secondary Pi-hole IP: ", self.validate_ip, "Invalid IP address")
+                vip = self._ask_required("Virtual IP (VIP) address: ", self.validate_ip, "Invalid IP address")
+                gateway = self._ask_required("Network gateway IP: ", self.validate_ip, "Invalid IP address")
 
             # Validate all IPs
             if not all(map(self.validate_ip, [primary_ip, secondary_ip, vip, gateway])):
@@ -1897,13 +1910,13 @@ WantedBy=timers.target
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== Which servers should be uninstalled? ==={Colors.END}")
         print(f"{Colors.CYAN}Enter the IP addresses of your Pi-hole servers.{Colors.END}\n")
 
-        self.config['primary_ip']   = input(f"{Colors.BOLD}Primary Pi-hole IP:{Colors.END} ").strip()
-        self.config['secondary_ip'] = input(f"{Colors.BOLD}Secondary Pi-hole IP:{Colors.END} ").strip()
+        self.config['primary_ip']   = self._ask_required(f"{Colors.BOLD}Primary Pi-hole IP:{Colors.END} ", self.validate_ip, "Invalid IP address")
+        self.config['secondary_ip'] = self._ask_required(f"{Colors.BOLD}Secondary Pi-hole IP:{Colors.END} ", self.validate_ip, "Invalid IP address")
 
         has_monitor = input(f"\n{Colors.BOLD}Is the monitor on a separate server? (Y/n):{Colors.END} ").strip().lower() != "n"
         self.config['separate_monitor'] = has_monitor
         if has_monitor:
-            self.config['monitor_ip']       = input(f"{Colors.BOLD}Monitor server IP:{Colors.END} ").strip()
+            self.config['monitor_ip']       = self._ask_required(f"{Colors.BOLD}Monitor server IP:{Colors.END} ", self.validate_ip, "Invalid IP address")
             self.config['monitor_ssh_user'] = input(f"Monitor SSH user [{Colors.CYAN}root{Colors.END}]: ").strip() or "root"
             self.config['monitor_ssh_port'] = input(f"Monitor SSH port [{Colors.CYAN}22{Colors.END}]: ").strip() or "22"
         else:
