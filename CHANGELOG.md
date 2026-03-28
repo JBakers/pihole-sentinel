@@ -5,6 +5,33 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.1-beta.7] - 2026-03-28
+
+### Fixed
+- **🐛 monitor.py: `import time` ontbrak — monitoring loop crashte elke cyclus**
+  - `time.time()` op regel 1377 (DHCP debounce) gooide `NameError: name 'time' is not defined`
+  - De `except Exception` at the bottom vong de fout op en logde `Monitor error: name 'time' is not defined` in Recent Events
+  - Crash vóór de state-update-regels → geen impact op notificaties; alleen de DHCP debounce werkte nooit
+  - Fix: `import time` toegevoegd aan de imports
+- **🐛 monitor.py: geen notificatie als node offline gaat (zonder VRRP-wissel)**
+  - `send_notification` werd alleen aangeroepen bij een VRRP MASTER-switch (keepalived delay ≥5×5=25s)
+  - Als Pi-hole FTL crasht maar de host nog bereikbaar is, wisselt keepalived vóór de switch nog niet → geen notificatie
+  - Fix: direct `send_notification("fault", ...)` toegevoegd op alle vier detectiepunten:
+    - Primary ging OFFLINE
+    - Secondary ging OFFLINE
+    - Pi-hole service op Primary is DOWN (host nog online)
+    - Pi-hole service op Secondary is DOWN (host nog online)
+  - Notificaties gebruiken het bestaande `fault` event type; schakelbaar via dashboard Settings
+- **🐛 index.html: footer toonde `© 2025` (statisch oud jaar)**
+  - Aangepast naar `© 2025-2026`
+- **🐛 index.html: Master State History knoppen vielen buiten het veld op mobiel**
+  - `.chart-header` had geen `flex-wrap: wrap` — bij smal scherm schoven de 5 tijdknoppen (15m/30m/24u/7d/30d) buiten de card
+  - Fix: `flex-wrap: wrap; gap: 12px` op `.chart-header`; `flex-wrap: wrap; gap: 8px` op `.time-selector`
+
+**Version:** 0.12.1-beta.6 → 0.12.1-beta.7
+
+---
+
 ## [0.12.1-beta.6] - 2026-03-28
 
 ### Fixed
