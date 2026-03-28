@@ -13,11 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bij falen: `systemctl status keepalived`, `journalctl -n 40` en volledige `keepalived.conf` getoond
   - `systemctl stop keepalived || true` vóór restart voor schone state
   - Fallback diagnose-commando's getoond in foutmelding als handmatige vervolgstap
+  - `apt-get install keepalived` gebruikt nu ook `DEBIAN_FRONTEND=noninteractive`
+- **🐛 setup.py check_package_installed: dnsutils altijd als ontbrekend gemeld op Debian 12+/13**
+  - `dpkg -l` vervangenl door `dpkg-query -W -f=${Status}` voor betrouwbare statuscheck
+  - Command-fallback toegevoegd: als `dig` beschikbaar is, wordt dnsutils als geïnstalleerd beschouwd
+  - `dnsutils` → `bind9-dnsutils` fallback toegevoegd in `resolve_package_name` (Debian 12+ rename)
 
 ## [0.12.0-beta.10] - 2026-03-28
-
-### Fixed
-- **🐛 dhcp_control.sh: CRITICAL - node freeze door FTL-restart flapping loop**
   - `enable_dhcp`/`disable_dhcp` controleren nu eerst de huidige DHCP-staat vóór ze FTL herstarten
   - Zonder deze fix: MASTER-transitie → `systemctl restart pihole-FTL` → healthcheck faalt → secondary neemt over → secondary FTL-restart → primary recovert en preempt terug → FTL-restart opnieuw → **oneindige loop** die de Pi volledig overbelastte en deed vastlopen
   - FTL wordt nu alleen herstart als de DHCP-staat daadwerkelijk verandert
