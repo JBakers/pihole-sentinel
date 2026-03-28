@@ -351,6 +351,59 @@ class PisenCommands:
         print(f"{Colors.GREEN}{Colors.BOLD}✓ Failover test complete!{Colors.END}")
         print(f"{Colors.DIM}Tip: Check notification settings to receive alerts{Colors.END}")
 
+    # ==================== Sync ====================
+
+    def sync(self):
+        """Manage Pi-hole configuration synchronization."""
+        print(f"\n{Colors.BOLD}{'═' * 60}{Colors.END}")
+        print(f"{Colors.CYAN}{Colors.BOLD}  Pi-hole Config Sync{Colors.END}")
+        print(f"{Colors.BOLD}{'═' * 60}{Colors.END}\n")
+
+        # Check if sync is deployed
+        timer_active = self._check_service('pihole-sync.timer')
+        script_exists = Path('/usr/local/bin/sync-pihole-config.sh').exists()
+        conf_exists = Path('/etc/pihole-sentinel/sync.conf').exists()
+
+        if timer_active:
+            print(f"  {Colors.GREEN}●{Colors.END} pihole-sync.timer  → {Colors.GREEN}active{Colors.END}")
+            # Show next trigger
+            self._run_command("systemctl list-timers pihole-sync.timer --no-pager | tail -2 | head -1")
+        elif script_exists:
+            print(f"  {Colors.YELLOW}●{Colors.END} pihole-sync.timer  → {Colors.YELLOW}not active{Colors.END}")
+            print(f"  {Colors.GREEN}●{Colors.END} sync script         → installed")
+        else:
+            print(f"  {Colors.RED}●{Colors.END} Sync is {Colors.RED}not deployed{Colors.END}")
+            print(f"\n  Deploy with: {Colors.CYAN}python3 setup.py{Colors.END} (includes sync deployment)")
+            print(f"  Or run:      {Colors.CYAN}pisen sync --run{Colors.END} after manual install")
+            return
+
+        # Show sync config
+        if conf_exists:
+            print(f"\n  {Colors.BOLD}Sync Configuration:{Colors.END}")
+            try:
+                with open('/etc/pihole-sentinel/sync.conf', 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            key, val = line.split('=', 1)
+                            icon = '✓' if val.strip().lower() == 'true' else '✗'
+                            color = Colors.GREEN if val.strip().lower() == 'true' else Colors.DIM
+                            print(f"    {color}{icon}{Colors.END} {key.strip()} = {val.strip()}")
+            except Exception:
+                pass
+
+        # Show last sync result
+        print(f"\n  {Colors.BOLD}Last sync run:{Colors.END}")
+        self._run_command("journalctl -u pihole-sync.service --no-pager -n 5 -o short-iso 2>/dev/null || echo '  No sync logs found'")
+
+    def sync_run(self):
+        """Trigger an immediate sync."""
+        print(f"{Colors.CYAN}Triggering sync now...{Colors.END}")
+        if self._run_command("sync-pihole-config.sh --auto"):
+            print(f"{Colors.GREEN}{Colors.BOLD}✓ Sync completed{Colors.END}")
+        else:
+            print(f"{Colors.RED}✗ Sync failed{Colors.END}")
+
     # ==================== Helper Methods ====================
 
     def _run_command(self, command: str) -> bool:
@@ -427,7 +480,7 @@ def main():
     parser.add_argument(
         'command',
         nargs='?',
-        choices=['status', 'logs', 'vip', 'dashboard', 'health', 'test'],
+        choices=['status', 'logs', 'vip', 'dashboard', 'health', 'test', 'sync'],
         help='Command to execute'
     )
     parser.add_argument(
@@ -461,6 +514,16 @@ def main():
         help='Show failover testing guide'
     )
     parser.add_argument(
+        '-S', '--sync',
+        action='store_true',
+        help='Show sync status and configuration'
+    )
+    parser.add_argument(
+        '--run',
+        action='store_true',
+        help='With sync: trigger immediate sync run'
+    )
+    parser.add_argument(
         '--version',
         action='store_true',
         help='Show version information'
@@ -492,6 +555,8 @@ def main():
         command = 'health'
     elif args.test or (not command and '-t' in sys.argv):
         command = 'test'
+    elif args.sync or (not command and '-S' in sys.argv):
+        command = 'sync'
 
     if not command:
         parser.print_help()
@@ -515,6 +580,11 @@ def main():
             commands.health()
         elif command == 'test':
             commands.test()
+        elif command == 'sync':
+            if args.run:
+                commands.sync_run()
+            else:
+                commands.sync()
 
     except KeyboardInterrupt:
         print(f"\n{Colors.YELLOW}⚠ Interrupted by user{Colors.END}")
