@@ -220,24 +220,51 @@ class SetupConfig:
             return f'"{escaped}"'
         return value_str
     
-    def remote_exec(self, host, user, port, command, password=None):
+    def remote_exec(self, host, user, port, command, password=None, retries=3, retry_delay=10):
         """Execute command on remote host via SSH.
 
         Uses environment variable for password to avoid exposure in process lists.
+        Retries automatically on SSH connection failures (exit code 255) which can
+        occur briefly after keepalived stops or when the remote host is recovering.
         """
-        # Use SSH key if available
+        import time as _time
+
+        ssh_opts = [
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=30",
+            "-o", "ServerAliveInterval=15",
+            "-o", "ServerAliveCountMax=4",
+        ]
+
         if self.config.get('ssh_key_path') and not password:
-            cmd = ["ssh", "-i", self.config['ssh_key_path'], "-p", port, "-o", "StrictHostKeyChecking=no"]
-            return subprocess.run(cmd + [f"{user}@{host}", command], check=True)
+            cmd = ["ssh", "-i", self.config['ssh_key_path'], "-p", port] + ssh_opts
+            env = None
         elif password:
-            # Use environment variable instead of CLI argument for security
-            cmd = ["sshpass", "-e", "ssh", "-p", port, "-o", "StrictHostKeyChecking=no"]
+            cmd = ["sshpass", "-e", "ssh", "-p", port] + ssh_opts
             env = os.environ.copy()
             env['SSHPASS'] = password
-            return subprocess.run(cmd + [f"{user}@{host}", command], check=True, env=env)
         else:
-            cmd = ["ssh", "-p", port, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes"]
-            return subprocess.run(cmd + [f"{user}@{host}", command], check=True)
+            cmd = ["ssh", "-p", port] + ssh_opts + ["-o", "BatchMode=yes"]
+            env = None
+
+        last_exc = None
+        for attempt in range(1, retries + 1):
+            try:
+                kwargs = {"check": True}
+                if env:
+                    kwargs["env"] = env
+                return subprocess.run(cmd + [f"{user}@{host}", command], **kwargs)
+            except subprocess.CalledProcessError as e:
+                last_exc = e
+                # Exit code 255 = SSH connection-level failure (not remote command failure).
+                # This can happen after keepalived restart, brief sshd reload, or OOM recovery.
+                if e.returncode == 255 and attempt < retries:
+                    if VERBOSE:
+                        print(f"\n│  SSH connection to {host} dropped (attempt {attempt}/{retries}), retrying in {retry_delay}s...")
+                    _time.sleep(retry_delay)
+                    continue
+                raise
+        raise last_exc  # unreachable, but satisfies type checkers
     
     def remote_copy(self, local_file, host, user, port, remote_path, password=None):
         """Copy file to remote host via SCP.
@@ -1954,6 +1981,9 @@ echo "Stopping services..."
 systemctl stop pihole-monitor 2>/dev/null || true
 systemctl disable pihole-monitor 2>/dev/null || true
 systemctl stop keepalived 2>/dev/null || true
+systemctl disable keepalived 2>/dev/null || true
+# Brief pause so sshd / network stack settles after keepalived stops
+sleep 2
 
 echo "Removing systemd service..."
 rm -f /etc/systemd/system/pihole-monitor.service
