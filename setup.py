@@ -725,7 +725,7 @@ class SetupConfig:
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== Monitor Configuration ==={Colors.END}")
         
         while True:
-            monitor_type = input(f"\n{Colors.BOLD}Where to install the monitor?{Colors.END}\n1. Separate server {Colors.GREEN}(recommended){Colors.END}\n2. On primary Pi-hole\nChoice (1/2): ")
+            monitor_type = input(f"\n{Colors.BOLD}Where to install the monitor?{Colors.END}\n1. Separate server {Colors.GREEN}(recommended){Colors.END}\n2. On primary Pi-hole\nChoice [{Colors.CYAN}1{Colors.END}]: ").strip() or "1"
             if monitor_type in ['1', '2']:
                 self.config['separate_monitor'] = monitor_type == '1'
                 break
