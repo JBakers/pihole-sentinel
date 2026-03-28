@@ -5,6 +5,12 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.3-beta.3] - 2026-03-28
+
+### Fixed
+- **Cross-node SSH setup** — setup.py now generates SSH keys on each Pi-hole and distributes public keys between them (primary ↔ secondary), enabling the sync script to SSH from pihole1 → pihole2
+- Host key acceptance pre-configured to prevent first-sync hang on StrictHostKeyChecking prompt
+
 ## [0.12.3-beta.2] - 2026-03-28
 
 ### Fixed
