@@ -129,6 +129,7 @@ http://<monitor-ip>:8080
 
 That's it! Your Pi-hole infrastructure now has automatic failover.
 
+
 ### What Gets Installed
 
 **On Pi-hole servers:**
