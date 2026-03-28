@@ -8,7 +8,7 @@
 
 *Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
 
-[![Version](https://img.shields.io/badge/version-v0.12.0--beta.7-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-v0.12.0--beta.16-blue.svg)](VERSION)
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
@@ -23,7 +23,7 @@
 > [!WARNING]
 > **🚧 ACTIVE DEVELOPMENT - BETA STATUS**
 >
-> Pi-hole Sentinel is currently in **active beta development** (v0.12.0-beta.9).
+> Pi-hole Sentinel is currently in **active beta development** (v0.12.0-beta.16).
 >
 > While the codebase has passed quality audits (89/100 - Excellent) and is well-tested, it is **still in beta** and may receive breaking changes before the v1.0.0 stable release.
 >
@@ -247,14 +247,17 @@ sudo systemctl restart keepalived
 
 ### Uninstalling
 
-**Interactive uninstaller:**
+**Run the setup wizard and choose option 6:**
 ```bash
-sudo python3 setup.py --uninstall
+sudo python3 setup.py
+# Choose: 6. Uninstall Pi-hole Sentinel from all servers
 ```
 
-**Options:**
-- `--keep-configs` - Keep configuration files
-- `--dry-run` - Show what would be removed
+The uninstaller will:
+- Ask for SSH access details (no Pi-hole passwords needed)
+- Stop and disable `pihole-monitor` and `keepalived` on all servers
+- Remove all Sentinel-managed files (`/opt/pihole-monitor`, keepalived configs, scripts)
+- Leave Pi-hole itself completely untouched
 
 ---
 
