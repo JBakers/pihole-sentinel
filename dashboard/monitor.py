@@ -1999,29 +1999,35 @@ async def execute_command(command_name: str, api_key: str = Depends(verify_api_k
     dashboard modal can render them correctly.
     """
     import subprocess
+    import os as _os
 
     COMMAND_META = {
-        "monitor_status":    {"icon": "📊", "label": "Monitor Status",         "cmd": ["systemctl", "status", "pihole-monitor", "--no-pager", "-l"]},
-        "monitor_logs":      {"icon": "📄", "label": "Monitor Logs (last 200)",  "cmd": ["journalctl", "-u", "pihole-monitor", "-n", "200", "--no-pager"]},
-        "keepalived_status": {"icon": "🔄", "label": "Keepalived Status",      "cmd": ["systemctl", "status", "keepalived", "--no-pager", "-l"]},
-        "keepalived_logs":   {"icon": "📜", "label": "Keepalived Logs (last 200)", "cmd": ["tail", "-n", "200", "/var/log/keepalived-notify.log"]},
-        "vip_check":         {"icon": "🌐", "label": "VIP Check",               "cmd": None},  # special
-        "db_recent_events":  {"icon": "📝", "label": "Recent Events (last 500)",  "cmd": None},  # special
+        "monitor_status":    {"icon": "📊", "label": "Monitor Status"},
+        "monitor_logs":      {"icon": "📄", "label": "Monitor Logs (last 200)"},
+        "keepalived_status": {"icon": "🔄", "label": "Keepalived Status"},
+        "keepalived_logs":   {"icon": "📜", "label": "Keepalived Logs (last 200)"},
+        "vip_check":         {"icon": "🌐", "label": "VIP Check"},
+        "db_recent_events":  {"icon": "📝", "label": "Recent Events (last 500)"},
     }
 
     if command_name not in COMMAND_META:
         raise HTTPException(status_code=400, detail=f"Invalid command: {command_name}")
 
     meta = COMMAND_META[command_name]
+    # Force ANSI colour output so the browser can render it
+    colored_env = {**_os.environ, "SYSTEMD_COLORS": "1"}
 
-    def _ok(output: str, exit_code: int = 0) -> JSONResponse:
+    def _resp(output: str, exit_code: int = 0, status: str = None) -> JSONResponse:
         return JSONResponse({
             "icon": meta["icon"],
             "description": meta["label"],
             "exit_code": exit_code,
-            "status": "success" if exit_code == 0 else "error",
+            "status": status or ("success" if exit_code == 0 else "error"),
             "output": output or "(No output)",
         })
+
+    def _run(cmd, env=None, timeout=15):
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env)
 
     try:
         if command_name == "db_recent_events":
@@ -2032,21 +2038,68 @@ async def execute_command(command_name: str, api_key: str = Depends(verify_api_k
                     rows = await cursor.fetchall()
             lines = [f"{r[0]} [{r[1]}] {r[2]}" for r in rows]
             lines.reverse()  # display oldest → newest
-            return _ok("\n".join(lines) if lines else "(No events found)")
+            return _resp("\n".join(lines) if lines else "(No events found)")
 
         if command_name == "vip_check":
             parts = []
             for cmd in (["ip", "addr", "show"], ["ip", "neigh", "show"]):
-                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                proc = _run(cmd)
                 parts.append(f"=== {' '.join(cmd)} ===\n{proc.stdout or '(no output)'}".rstrip())
-            return _ok("\n\n".join(parts))
+            return _resp("\n\n".join(parts))
 
-        cmd = meta["cmd"]
-        process = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-        output = process.stdout
-        if process.stderr:
-            output += "\n--- STDERR ---\n" + process.stderr
-        return _ok(output, process.returncode)
+        if command_name == "monitor_status":
+            proc = _run(["systemctl", "status", "pihole-monitor", "--no-pager", "-l"], env=colored_env)
+            output = proc.stdout + (("\n--- STDERR ---\n" + proc.stderr) if proc.stderr else "")
+            # Non-zero exit codes (1=failed, 3=inactive) are valid status information
+            return _resp(output, proc.returncode, "success")
+
+        if command_name == "monitor_logs":
+            proc = _run(["journalctl", "-u", "pihole-monitor", "-n", "200", "--no-pager"])
+            if proc.returncode != 0 and (
+                "insufficient permissions" in proc.stderr or "No journal files" in proc.stderr
+            ):
+                msg = (
+                    "⚠️  Permission denied — the monitor service user cannot read the system journal.\n\n"
+                    "Fix by running on the monitor server (as root):\n\n"
+                    "    usermod -a -G systemd-journal pihole-monitor\n"
+                    "    systemctl restart pihole-monitor\n\n"
+                    "After restarting the service this command will work."
+                )
+                return _resp(msg, proc.returncode, "error")
+            output = proc.stdout
+            # Suppress journalctl's notice hint — not an error
+            if proc.stderr and "Hint:" not in proc.stderr:
+                output += "\n--- STDERR ---\n" + proc.stderr
+            return _resp(output, proc.returncode)
+
+        if command_name == "keepalived_status":
+            proc = _run(["systemctl", "status", "keepalived", "--no-pager", "-l"], env=colored_env)
+            combined = (proc.stdout + proc.stderr).lower()
+            if proc.returncode == 4 or "could not be found" in combined or "not-found" in combined:
+                msg = (
+                    "⚠️  keepalived is not installed on this server.\n\n"
+                    "keepalived runs on the Pi-hole nodes, not the monitor server.\n\n"
+                    "To check keepalived on your Pi-holes:\n\n"
+                    "    ssh root@<primary-ip>   systemctl status keepalived\n"
+                    "    ssh root@<secondary-ip> systemctl status keepalived"
+                )
+                return _resp(msg, 0, "success")
+            output = proc.stdout + (("\n--- STDERR ---\n" + proc.stderr) if proc.stderr else "")
+            return _resp(output, proc.returncode, "success")
+
+        if command_name == "keepalived_logs":
+            log_path = "/var/log/keepalived-notify.log"
+            if not _os.path.exists(log_path):
+                msg = (
+                    f"⚠️  Log file not found: {log_path}\n\n"
+                    "keepalived logs are on the Pi-hole nodes, not the monitor server.\n\n"
+                    "To read the log on your Pi-holes:\n\n"
+                    "    ssh root@<primary-ip>   tail -200 /var/log/keepalived-notify.log\n"
+                    "    ssh root@<secondary-ip> tail -200 /var/log/keepalived-notify.log"
+                )
+                return _resp(msg, 0, "success")
+            proc = _run(["tail", "-n", "200", log_path])
+            return _resp(proc.stdout or "(Log file is empty)", proc.returncode)
 
     except subprocess.TimeoutExpired:
         return JSONResponse({

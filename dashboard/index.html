@@ -1730,6 +1730,49 @@
         });
 
         // ==================== System Commands ====================
+
+        // Escape HTML entities so ANSI-converted output is XSS-safe
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        // Convert ANSI escape sequences (emitted by systemctl --color) to HTML spans.
+        // HTML is escaped first so any <script> in command output is harmless.
+        function ansiToHtml(text) {
+            const COLOR = {
+                '30':'#374151','31':'#ef4444','32':'#22c55e','33':'#f59e0b',
+                '34':'#3b82f6','35':'#a855f7','36':'#06b6d4','37':'#d1d5db',
+                '90':'#6b7280','91':'#f87171','92':'#4ade80','93':'#fbbf24',
+                '94':'#60a5fa','95':'#c084fc','96':'#22d3ee','97':'#f9fafb',
+            };
+            let depth = 0;
+            let result = escapeHtml(text).replace(/\x1b\[([0-9;]*)m/g, (_, codes) => {
+                if (!codes || codes === '0') {
+                    if (depth > 0) { depth--; return '</span>'; }
+                    return '';
+                }
+                let style = '';
+                for (const p of codes.split(';')) {
+                    if (p === '1')       style += 'font-weight:bold;';
+                    else if (p === '2')  style += 'opacity:0.65;';
+                    else if (p === '3')  style += 'font-style:italic;';
+                    else if (p === '4')  style += 'text-decoration:underline;';
+                    else if (COLOR[p])   style += `color:${COLOR[p]};`;
+                }
+                if (style) { depth++; return `<span style="${style}">`; }
+                return '';
+            });
+            // Strip any remaining unrecognised escape sequences
+            result = result.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+            // Close any still-open spans
+            result += '</span>'.repeat(depth);
+            return result;
+        }
+
         async function executeCommand(commandName) {
             const modal = document.getElementById('command-modal');
             const title = document.getElementById('command-modal-title');
@@ -1761,16 +1804,15 @@
                 title.textContent = data.icon + ' ' + data.description;
                 description.textContent = `Command: ${commandName} | Exit code: ${data.exit_code}`;
 
-                if (data.status === 'success') {
-                    output.textContent = data.output || '(No output)';
-                } else {
-                    output.textContent = `Error (exit code ${data.exit_code}):\n\n${data.error || data.output || 'Unknown error'}`;
-                }
+                const rawText = data.status === 'success'
+                    ? (data.output || '(No output)')
+                    : `Error (exit code ${data.exit_code}):\n\n${data.error || data.output || 'Unknown error'}`;
+                output.innerHTML = ansiToHtml(rawText);
             } catch (error) {
                 console.error('Command execution error:', error);
                 title.textContent = '❌ Command Failed';
                 description.textContent = '';
-                output.textContent = `Error: ${error.message}`;
+                output.innerHTML = ansiToHtml(`Error: ${error.message}`);
             }
         }
 
