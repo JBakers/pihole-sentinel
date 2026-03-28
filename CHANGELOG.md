@@ -1,3 +1,7 @@
+## [0.12.5-beta.3] - 2026-03-28
+
+### Changed
+- **Release workflow:** removed prerelease detection step; prerelease flag is now always false (release.yml).
 ## [0.12.5-beta.2] - 2026-03-28
 
 ### Changed

@@ -46,15 +46,6 @@ jobs:
           # Fixed-name tarball (for stable download URL)
           git archive --format=tar.gz --prefix=pihole-sentinel/ \
             -o pihole-sentinel.tar.gz HEAD
-      - name: Determine pre-release
-        if: steps.tag_check.outputs.exists == 'false'
-        id: prerelease
-        run: |
-          if echo "${{ steps.version.outputs.version }}" | grep -q "beta"; then
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
-          fi
       - name: Create GitHub Release
         if: steps.tag_check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
