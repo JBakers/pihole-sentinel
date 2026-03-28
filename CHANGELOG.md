@@ -1,3 +1,7 @@
+## [0.12.5-beta.2] - 2026-03-28
+
+### Changed
+- **Release workflow:** prerelease flag always set to false in GitHub Release step (release.yml).
 # Changelog
 
 All notable changes to Pi-hole Sentinel will be documented in this file.
