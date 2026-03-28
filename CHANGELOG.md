@@ -5,6 +5,43 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.2-beta.6] - 2026-03-28
+
+### Fixed
+- **🐛 index.html: OSC 8 hyperlinks not stripped from systemctl output**
+  - systemd emits `\x1b]8;;URL\x1b\\text\x1b]8;;\x1b\\` VT hyperlink sequences
+  - These were rendered as raw garbage (`]8;;file://...` visible as text)
+  - `ansiToHtml()` now converts `https://` URLs to `<a href>` tags;
+    `man:` and other non-http URLs are stripped to plain text
+  - All remaining OSC sequences are stripped before HTML-escaping
+
+- **🐛 index.html: 256-colour ANSI codes not decoded (`38:5:185`)**
+  - systemd uses colon sub-parameters per ECMA-48 (`38:5:n`) not semicolons (`38;5;n`)
+  - `ansiToHtml()` now normalises `:` → `;` before parsing SGR codes
+  - Added full xterm-256 palette renderer (6×6×6 cube + greyscale ramp)
+  - `loaded` (green 185), `active` (green), `inactive` (grey) now render with correct colours
+
+- **🐛 index.html / monitor.py: indicators grey out when server is offline**
+  - Pi-hole Service, VIP, DNS, DHCP shown as green/red even when server unreachable
+  - Added `.status-dot.unknown` (grey) CSS class
+  - When `nodeData.online === false`: all sub-indicators switch to grey
+    with `(?)` suffix; VIP shows "VIP Unknown (Offline)"
+
+- **🐛 monitor.py: notifications failed when both Pi-holes offline (DNS unreachable)**
+  - `get_http_session()` used system DNS = Pi-hole VIP — times out when both nodes down
+  - Now creates `aiohttp.TCPConnector` with `aiohttp.AsyncResolver` pointing to
+    `1.1.1.1` / `8.8.8.8` so Telegram/Discord/etc. still reachable when Pi-holes are down
+  - Falls back to `DefaultResolver` if `aiodns` is not installed
+  - Added `aiodns>=3.2.0` to `requirements.txt` and installed in venv
+
+- **🐛 index.html: copy button used `.textContent` losing newlines from `<a>` tags**
+  - Changed `copyCommandOutput()` to use `.innerText` which respects newlines
+    and strips HTML tags correctly
+
+**Version:** 0.12.2-beta.5 → 0.12.2-beta.6
+
+---
+
 ## [0.12.2-beta.5] - 2026-03-28
 
 ### Fixed

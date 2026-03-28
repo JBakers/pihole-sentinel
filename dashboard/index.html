@@ -211,6 +211,11 @@
             box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
         }
 
+        .status-dot.unknown {
+            background: #9ca3af;
+            box-shadow: 0 0 4px rgba(156, 163, 175, 0.3);
+        }
+
         .status-dot.warning {
             background: #f59e0b;
             box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
@@ -1391,6 +1396,10 @@
                 card.classList.add('backup');
             }
 
+            // When server is offline we cannot know the real state of
+            // Pi-hole service, VIP, DNS or DHCP — show all as grey/unknown.
+            const serverOffline = !nodeData.online;
+
             // Check for DHCP misconfiguration
             const dhcpShouldBeOn = nodeData.state === 'MASTER';
             const dhcpIsOn = nodeData.dhcp;
@@ -1398,26 +1407,26 @@
 
             // Generate DHCP status indicator
             let dhcpIndicator = '';
-            if (dhcpCorrect) {
-                // Correct configuration - show checkmark
+            if (serverOffline) {
+                dhcpIndicator = '<div class="status-dot unknown"></div>';
+            } else if (dhcpCorrect) {
                 dhcpIndicator = dhcpIsOn
                     ? '<span style="color: #10b981; font-size: 16px;">✓</span>'
                     : '<span style="color: #64748b; font-size: 16px;">✓</span>';
             } else {
-                // Misconfiguration - show warning
                 dhcpIndicator = '<div class="status-dot warning"></div>';
             }
 
-            // VIP status logic: Green when correct, Red when conflict
-            // Correct: (MASTER && has_vip) OR (BACKUP && !has_vip)
-            // Conflict: (MASTER && !has_vip) OR (BACKUP && has_vip)
+            // VIP status: when server is offline, state is unknown.
+            // Only compute correct/conflict when actually reachable.
             const vipCorrect = (nodeData.state === 'MASTER' && nodeData.has_vip) ||
                 (nodeData.state === 'BACKUP' && !nodeData.has_vip);
-            const vipStatus = vipCorrect ? 'online' : 'offline';
+            const vipStatus = serverOffline ? 'unknown' : (vipCorrect ? 'online' : 'offline');
 
-            // VIP label based on state
             let vipLabel = '';
-            if (nodeData.state === 'MASTER' && nodeData.has_vip) {
+            if (serverOffline) {
+                vipLabel = 'VIP Unknown (Offline)';
+            } else if (nodeData.state === 'MASTER' && nodeData.has_vip) {
                 vipLabel = 'VIP Active (Master)';
             } else if (nodeData.state === 'BACKUP' && !nodeData.has_vip) {
                 vipLabel = 'VIP Inactive (Backup)';
@@ -1432,21 +1441,21 @@
                     <div class="status-dot ${nodeData.online ? 'online' : 'offline'}"></div>
                     <span>Server Online</span>
                 </div>
-                <div class="status-item" title="Pi-hole FTL service is running">
-                    <div class="status-dot ${nodeData.pihole ? 'online' : 'offline'}"></div>
-                    <span>Pi-hole Service</span>
+                <div class="status-item" title="${serverOffline ? 'Unknown — server offline' : 'Pi-hole FTL service is running'}">
+                    <div class="status-dot ${serverOffline ? 'unknown' : (nodeData.pihole ? 'online' : 'offline')}"></div>
+                    <span>Pi-hole Service${serverOffline ? ' (?)' : ''}</span>
                 </div>
-                <div class="status-item" title="${vipCorrect ? 'VIP status is correct' : 'VIP CONFLICT detected!'}">
+                <div class="status-item" title="${serverOffline ? 'Unknown — server offline' : (vipCorrect ? 'VIP status is correct' : 'VIP CONFLICT detected!')}">
                     <div class="status-dot ${vipStatus}"></div>
                     <span>${vipLabel}</span>
                 </div>
-                <div class="status-item" title="DNS resolution is working">
-                    <div class="status-dot ${nodeData.dns ? 'online' : 'offline'}"></div>
-                    <span>DNS Resolver</span>
+                <div class="status-item" title="${serverOffline ? 'Unknown — server offline' : 'DNS resolution is working'}">
+                    <div class="status-dot ${serverOffline ? 'unknown' : (nodeData.dns ? 'online' : 'offline')}"></div>
+                    <span>DNS Resolver${serverOffline ? ' (?)' : ''}</span>
                 </div>
-                <div class="status-item" title="${dhcpCorrect ? (dhcpIsOn ? 'DHCP server is active (correct for MASTER)' : 'DHCP server is disabled (correct for BACKUP)') : 'DHCP configuration mismatch! Should be ' + (dhcpShouldBeOn ? 'enabled' : 'disabled')}">
+                <div class="status-item" title="${serverOffline ? 'Unknown — server offline' : (dhcpCorrect ? (dhcpIsOn ? 'DHCP server is active (correct for MASTER)' : 'DHCP server is disabled (correct for BACKUP)') : 'DHCP configuration mismatch! Should be ' + (dhcpShouldBeOn ? 'enabled' : 'disabled'))}">
                     ${dhcpIndicator}
-                    <span>DHCP Server ${dhcpCorrect ? '' : '⚠️'}</span>
+                    <span>DHCP Server${serverOffline ? ' (?)' : (dhcpCorrect ? '' : ' ⚠️')}</span>
                 </div>
             `;
         }
@@ -1740,37 +1749,100 @@
                 .replace(/"/g, '&quot;');
         }
 
-        // Convert ANSI escape sequences (emitted by systemctl --color) to HTML spans.
-        // HTML is escaped first so any <script> in command output is harmless.
+        // Convert ANSI/VT escape sequences (emitted by systemctl --color) to HTML.
+        // Handles:
+        //   • SGR  \x1b[...m           — colours, bold, dim, italic
+        //   • 256-colour  38:5:n / 38;5;n  and 48:5:n / 48;5;n
+        //   • OSC 8 hyperlinks  \x1b]8;;URL\x1b\\ text \x1b]8;;\x1b\\  → <a href>
+        //   • All other OSC sequences stripped
+        // HTML-escaping happens first so command output is XSS-safe.
         function ansiToHtml(text) {
-            const COLOR = {
+            const C16 = {
                 '30':'#374151','31':'#ef4444','32':'#22c55e','33':'#f59e0b',
                 '34':'#3b82f6','35':'#a855f7','36':'#06b6d4','37':'#d1d5db',
                 '90':'#6b7280','91':'#f87171','92':'#4ade80','93':'#fbbf24',
                 '94':'#60a5fa','95':'#c084fc','96':'#22d3ee','97':'#f9fafb',
             };
+
+            // Build a 256-colour palette (xterm-256)
+            function xterm256(n) {
+                n = parseInt(n, 10);
+                if (n < 0 || n > 255) return '#ffffff';
+                if (n < 16) {
+                    const basic = ['#000000','#800000','#008000','#808000','#000080','#800080','#008080','#c0c0c0',
+                                   '#808080','#ff0000','#00ff00','#ffff00','#0000ff','#ff00ff','#00ffff','#ffffff'];
+                    return basic[n];
+                }
+                if (n < 232) {
+                    n -= 16;
+                    const b = n % 6, g = Math.floor(n / 6) % 6, r = Math.floor(n / 36);
+                    const v = v => v ? v * 40 + 55 : 0;
+                    return `rgb(${v(r)},${v(g)},${v(b)})`;
+                }
+                const grey = 8 + (n - 232) * 10;
+                return `rgb(${grey},${grey},${grey})`;
+            }
+
+            // Step 1: strip OSC 8 hyperlinks but keep the link text visible,
+            // wrapping it in <a> if the URL is http(s) or man:.
+            // OSC terminator is either ST (ESC \) or BEL (0x07).
+            const ST = '(?:\x1b\\\\|\x07)';
+            // Match: ESC ] 8 ; params ; URL ST  link-text  ESC ] 8 ;; ST
+            let s = text.replace(
+                new RegExp('\x1b\\]8;[^;]*;([^\x07\x1b]*)'+ ST +'((?:(?!\x1b\\]8;;)[\s\S])*?)\x1b\\]8;;' + ST, 'g'),
+                (_, url, linkText) => {
+                    if (/^https?:\/\//.test(url)) {
+                        return `\x02HREF_OPEN:${url}\x02${linkText}\x02HREF_CLOSE\x02`;
+                    }
+                    return linkText; // man: etc — just show plain text
+                }
+            );
+            // Strip any remaining OSC sequences (other colour tricks systemd uses)
+            s = s.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '');
+
+            // Step 2: HTML-escape the plain text content (XSS safety)
+            s = escapeHtml(s);
+
+            // Restore href placeholders now that content is escaped
+            s = s.replace(/\x02HREF_OPEN:([^\x02]*)\x02([\s\S]*?)\x02HREF_CLOSE\x02/g,
+                (_, url, txt) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="color:#60a5fa">${txt}</a>`);
+
+            // Step 3: SGR — parse \x1b[ ... m
+            // Normalise colon sub-parameter separators to semicolons first
+            // (systemd uses 38:5:n per ECMA-48; most parsers expect 38;5;n)
+            s = s.replace(/\x1b\[([0-9:;]*)m/g, (_, raw) => raw.replace(/:/g, ';'));  // normalise
+            // Now actually render
             let depth = 0;
-            let result = escapeHtml(text).replace(/\x1b\[([0-9;]*)m/g, (_, codes) => {
+            s = s.replace(/\x1b\[([0-9;]*)m/g, (_, codes) => {
                 if (!codes || codes === '0') {
                     if (depth > 0) { depth--; return '</span>'; }
                     return '';
                 }
+                const parts = codes.split(';');
                 let style = '';
-                for (const p of codes.split(';')) {
+                let i = 0;
+                while (i < parts.length) {
+                    const p = parts[i];
+                    if ((p === '38' || p === '48') && parts[i+1] === '5' && parts[i+2] !== undefined) {
+                        const colour = xterm256(parts[i+2]);
+                        style += p === '38' ? `color:${colour};` : `background:${colour};`;
+                        i += 3; continue;
+                    }
                     if (p === '1')       style += 'font-weight:bold;';
                     else if (p === '2')  style += 'opacity:0.65;';
                     else if (p === '3')  style += 'font-style:italic;';
                     else if (p === '4')  style += 'text-decoration:underline;';
-                    else if (COLOR[p])   style += `color:${COLOR[p]};`;
+                    else if (C16[p])     style += `color:${C16[p]};`;
+                    i++;
                 }
                 if (style) { depth++; return `<span style="${style}">`; }
                 return '';
             });
-            // Strip any remaining unrecognised escape sequences
-            result = result.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+            // Strip any leftover unrecognised CSI sequences
+            s = s.replace(/\x1b\[[0-9;:]*[a-zA-Z]/g, '');
             // Close any still-open spans
-            result += '</span>'.repeat(depth);
-            return result;
+            s += '</span>'.repeat(depth);
+            return s;
         }
 
         async function executeCommand(commandName) {
@@ -1823,7 +1895,8 @@
         }
 
         async function copyCommandOutput() {
-            const output = document.getElementById('command-output').textContent;
+            // innerText gives plain text (respects newlines, strips HTML tags)
+            const output = document.getElementById('command-output').innerText;
             const btn = document.querySelector('.copy-btn');
             const originalText = btn.textContent;
 
