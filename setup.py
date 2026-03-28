@@ -812,7 +812,7 @@ class SetupConfig:
 
 global_defs {{
     router_id PIHOLE1
-    vrrp_version 3
+    vrrp_version 2
     vrrp_garp_master_delay 1
     enable_script_security
     script_user root
@@ -1104,19 +1104,19 @@ NODE_STATE=MASTER
 
             print("├─ [░░░░░░░░░░░░░░░░░░░░] 0%   Creating virtual environment...", end='\r')
             self.remote_exec(host, user, port, "python3 -m venv /opt/pihole-monitor/venv", password)
-            print("├─ [████░░░░░░░░░░░░░░░░] 20%  Virtual environment created   ")
+            print("├─ [████░░░░░░░░░░░░░░░░] 20%  Virtual environment created      ")
 
             print("├─ [████░░░░░░░░░░░░░░░░] 20%  Installing Python packages (this may take 1-2 minutes)...", end='\r')
             if VERBOSE:
                 self.remote_exec(host, user, port,
                     "cd /tmp/pihole-sentinel-deploy && /opt/pihole-monitor/venv/bin/pip install -r requirements.txt",
                     password)
-                print("├─ [████████████████████] 100% Python packages installed{' ' * 20}")
+                print("├─ [████████████████████] 100% Python packages installed          ")
             else:
                 self.remote_exec(host, user, port,
                     "cd /tmp/pihole-sentinel-deploy && /opt/pihole-monitor/venv/bin/pip install -q -r requirements.txt >/dev/null 2>&1",
                     password)
-                print("├─ [████████████████████] 100% Python packages installed{' ' * 20}")
+                print("├─ [████████████████████] 100% Python packages installed          ")
             
             print("├─ Copying application files...")
             commands = [
