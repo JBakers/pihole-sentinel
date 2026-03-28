@@ -845,6 +845,9 @@ class SetupConfig:
             print(f"\n{Colors.RED}Failed to distribute SSH keys to all servers.{Colors.END}")
             sys.exit(1)
 
+        # Store key path NOW so remote_exec can use it for cross-node setup
+        self.config['ssh_key_path'] = key_path
+
         # Setup cross-node SSH: primary ↔ secondary (needed for config sync)
         print(f"\n{Colors.CYAN}Setting up cross-node SSH between Pi-holes...{Colors.END}")
         cross_ok = self._setup_cross_node_ssh(
@@ -864,8 +867,6 @@ class SetupConfig:
         print(f"\n{Colors.GREEN}{Colors.BOLD}✓ SSH keys successfully distributed to all servers!{Colors.END}")
         print(f"{Colors.GREEN}  Passwordless access is now configured.{Colors.END}")
         
-        # Store key path for later use
-        self.config['ssh_key_path'] = key_path
         # Clear passwords - not needed anymore (defense in depth)
         self.config['primary_ssh_pass'] = None
         self.config['secondary_ssh_pass'] = None
