@@ -2169,7 +2169,7 @@ async def test_notification(
         else:
             raise HTTPException(status_code=400, detail=f"Unknown service: {service}")
         
-        return {"status": "success", "message": f"Test notification sent via {service}"}
+        return {"success": True, "message": f"Test notification sent via {service}", "service": service}
     
     except HTTPException:
         raise
