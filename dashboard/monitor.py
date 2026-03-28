@@ -404,6 +404,13 @@ notification_state = {
     "last_vars": {},  # {event_type: dict} - template vars from last real notification for reminders
 }
 
+# Fault notification debounce ─────────────────────────────────────────────────
+# Brief Pi-hole FTL restarts (e.g. DHCP config changes, ~12 s) should not spam
+# notifications.  A fault alert fires only when the fault persists longer than
+# FAULT_NOTIFICATION_DELAY seconds.  Recovery before the delay cancels silently.
+FAULT_NOTIFICATION_DELAY = 60  # seconds
+_fault_tasks: dict = {}  # key → asyncio.Task
+
 def is_snoozed(settings: dict) -> bool:
     """Check if notifications are currently snoozed."""
     snooze = settings.get('snooze', {})
@@ -677,6 +684,32 @@ async def check_and_send_reminders():
                 }
             await send_notification(event_type, template_vars, is_reminder=True)
             logger.info(f"Sent reminder notification for {event_type}")
+
+
+async def _schedule_fault_notification(key: str, template_vars: dict) -> None:
+    """Send a fault notification after FAULT_NOTIFICATION_DELAY seconds.
+
+    Cancelled automatically (via _fault_tasks[key].cancel()) when the fault
+    clears before the delay expires — suppressing spam from brief FTL restarts.
+    """
+    await asyncio.sleep(FAULT_NOTIFICATION_DELAY)
+    await send_notification("fault", template_vars)
+    _fault_tasks.pop(key, None)
+
+
+def _arm_fault(key: str, template_vars: dict) -> None:
+    """Start the debounce timer for a fault key (idempotent)."""
+    if key not in _fault_tasks:
+        _fault_tasks[key] = asyncio.create_task(
+            _schedule_fault_notification(key, template_vars)
+        )
+
+
+def _cancel_fault(key: str) -> None:
+    """Cancel a pending fault notification (brief outage — suppressed)."""
+    task = _fault_tasks.pop(key, None)
+    if task:
+        task.cancel()
 
 # CORS middleware - restricted to localhost for security
 # If you need remote access, add specific origins here
@@ -1318,7 +1351,7 @@ async def monitor_loop():
                 if previous_primary_online and not primary_data["online"]:
                     await log_event("warning", "Primary went OFFLINE")
                     logger.warning("Primary went OFFLINE")
-                    await send_notification("fault", {
+                    _arm_fault("primary_offline", {
                         "node": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
                         "node_name": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
                         "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
@@ -1330,14 +1363,15 @@ async def monitor_loop():
                         "date": datetime.now().strftime("%Y-%m-%d"),
                     })
                 elif not previous_primary_online and primary_data["online"]:
+                    _cancel_fault("primary_offline")
                     await log_event("success", "Primary is back ONLINE")
                     logger.info("Primary is back ONLINE")
-            
+
             if previous_secondary_online is not None:
                 if previous_secondary_online and not secondary_data["online"]:
                     await log_event("warning", "Secondary went OFFLINE")
                     logger.warning("Secondary went OFFLINE")
-                    await send_notification("fault", {
+                    _arm_fault("secondary_offline", {
                         "node": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
                         "node_name": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
                         "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
@@ -1349,15 +1383,16 @@ async def monitor_loop():
                         "date": datetime.now().strftime("%Y-%m-%d"),
                     })
                 elif not previous_secondary_online and secondary_data["online"]:
+                    _cancel_fault("secondary_offline")
                     await log_event("success", "Secondary is back ONLINE")
                     logger.info("Secondary is back ONLINE")
-            
+
             # Detect Pi-hole service changes
             if previous_primary_pihole is not None:
                 if previous_primary_pihole and not primary_data["pihole"] and primary_data["online"]:
                     await log_event("warning", "Pi-hole service on Primary is DOWN")
                     logger.warning("Primary Pi-hole service is DOWN")
-                    await send_notification("fault", {
+                    _arm_fault("primary_pihole_down", {
                         "node": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
                         "node_name": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
                         "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
@@ -1369,14 +1404,15 @@ async def monitor_loop():
                         "date": datetime.now().strftime("%Y-%m-%d"),
                     })
                 elif not previous_primary_pihole and primary_data["pihole"]:
+                    _cancel_fault("primary_pihole_down")
                     await log_event("success", "Pi-hole service on Primary is back UP")
                     logger.info("Primary Pi-hole service is back UP")
-            
+
             if previous_secondary_pihole is not None:
                 if previous_secondary_pihole and not secondary_data["pihole"] and secondary_data["online"]:
                     await log_event("warning", "Pi-hole service on Secondary is DOWN")
                     logger.warning("Secondary Pi-hole service is DOWN")
-                    await send_notification("fault", {
+                    _arm_fault("secondary_pihole_down", {
                         "node": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
                         "node_name": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
                         "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
@@ -1388,6 +1424,7 @@ async def monitor_loop():
                         "date": datetime.now().strftime("%Y-%m-%d"),
                     })
                 elif not previous_secondary_pihole and secondary_data["pihole"]:
+                    _cancel_fault("secondary_pihole_down")
                     await log_event("success", "Pi-hole service on Secondary is back UP")
                     logger.info("Secondary Pi-hole service is back UP")
             
@@ -1897,66 +1934,74 @@ class CommandRequest(BaseModel):
 @app.post("/api/commands/{command_name}", tags=["System"])
 async def execute_command(command_name: str, api_key: str = Depends(verify_api_key)):
     """
-    Execute a predefined system command.
-    
-    Supported commands:
-    - monitor_status: Check monitor service status
-    - monitor_logs: Get recent monitor logs
-    - keepalived_status: Check keepalived status
-    - keepalived_logs: Get recent keepalived logs
-    - vip_check: Check VIP connectivity
-    - db_recent_events: Get recent DB events
+    Execute a predefined system command and return structured output.
+
+    Returns icon, description, exit_code, status, and output so the
+    dashboard modal can render them correctly.
     """
     import subprocess
-    
-    commands = {
-        "monitor_status": ["systemctl", "status", "pihole-monitor", "--no-pager"],
-        "monitor_logs": ["journalctl", "-u", "pihole-monitor", "-n", "50", "--no-pager"],
-        "keepalived_status": ["systemctl", "status", "keepalived", "--no-pager"],
-        "keepalived_logs": ["tail", "-n", "50", "/var/log/keepalived-notify.log"],
-        "vip_check": ["ip", "addr", "show"],
-        "db_recent_events": None  # Special case
+
+    COMMAND_META = {
+        "monitor_status":    {"icon": "📊", "label": "Monitor Status",         "cmd": ["systemctl", "status", "pihole-monitor", "--no-pager", "-l"]},
+        "monitor_logs":      {"icon": "📄", "label": "Monitor Logs (last 200)",  "cmd": ["journalctl", "-u", "pihole-monitor", "-n", "200", "--no-pager"]},
+        "keepalived_status": {"icon": "🔄", "label": "Keepalived Status",      "cmd": ["systemctl", "status", "keepalived", "--no-pager", "-l"]},
+        "keepalived_logs":   {"icon": "📜", "label": "Keepalived Logs (last 200)", "cmd": ["tail", "-n", "200", "/var/log/keepalived-notify.log"]},
+        "vip_check":         {"icon": "🌐", "label": "VIP Check",               "cmd": None},  # special
+        "db_recent_events":  {"icon": "📝", "label": "Recent Events (last 500)",  "cmd": None},  # special
     }
-    
-    if command_name not in commands:
+
+    if command_name not in COMMAND_META:
         raise HTTPException(status_code=400, detail=f"Invalid command: {command_name}")
-        
+
+    meta = COMMAND_META[command_name]
+
+    def _ok(output: str, exit_code: int = 0) -> JSONResponse:
+        return JSONResponse({
+            "icon": meta["icon"],
+            "description": meta["label"],
+            "exit_code": exit_code,
+            "status": "success" if exit_code == 0 else "error",
+            "output": output or "(No output)",
+        })
+
     try:
         if command_name == "db_recent_events":
-            # Reuse get_events logic but format as text
             async with aiosqlite.connect(CONFIG["db_path"]) as db:
-                async with db.execute("SELECT timestamp, event_type, message FROM events ORDER BY timestamp DESC LIMIT 20") as cursor:
+                async with db.execute(
+                    "SELECT timestamp, event_type, message FROM events ORDER BY timestamp DESC LIMIT 500"
+                ) as cursor:
                     rows = await cursor.fetchall()
-                    output = "\n".join([f"{r[0]} [{r[1]}] {r[2]}" for r in rows])
-                    return JSONResponse({"output": output})
-                    
-        cmd = commands[command_name]
-        
-        # Security check: ensure command is not empty
-        if not cmd:
-            raise HTTPException(status_code=500, detail="Command configuration error")
-            
-        process = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        
+            lines = [f"{r[0]} [{r[1]}] {r[2]}" for r in rows]
+            lines.reverse()  # display oldest → newest
+            return _ok("\n".join(lines) if lines else "(No events found)")
+
+        if command_name == "vip_check":
+            parts = []
+            for cmd in (["ip", "addr", "show"], ["ip", "neigh", "show"]):
+                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                parts.append(f"=== {' '.join(cmd)} ===\n{proc.stdout or '(no output)'}".rstrip())
+            return _ok("\n\n".join(parts))
+
+        cmd = meta["cmd"]
+        process = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         output = process.stdout
         if process.stderr:
             output += "\n--- STDERR ---\n" + process.stderr
-            
-        if not output.strip():
-            output = "(No output)"
-            
-        return JSONResponse({"output": output})
-        
+        return _ok(output, process.returncode)
+
     except subprocess.TimeoutExpired:
-        return JSONResponse({"output": "Command timed out after 5 seconds"})
+        return JSONResponse({
+            "icon": meta["icon"], "description": meta["label"],
+            "exit_code": -1, "status": "error",
+            "output": "Command timed out after 15 seconds",
+        })
     except Exception as e:
         logger.error(f"Command execution error: {e}", exc_info=True)
-        return JSONResponse({"output": f"Error executing command: {str(e)}"})
+        return JSONResponse({
+            "icon": meta["icon"], "description": meta["label"],
+            "exit_code": -1, "status": "error",
+            "output": f"Error: {str(e)}",
+        })
 
 @app.post("/api/notifications/test", response_model=NotificationTestResponse, tags=["Notifications"])
 async def test_notification(

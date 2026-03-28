@@ -8,7 +8,7 @@
 
 *Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
 
-[![Version](https://img.shields.io/badge/version-v0.12.2--beta.2-blue.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-v0.12.2--beta.3-blue.svg)](VERSION)
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
@@ -23,7 +23,7 @@
 > [!WARNING]
 > **🚧 ACTIVE DEVELOPMENT - BETA STATUS**
 >
-> Pi-hole Sentinel is currently in **active beta development** (v0.12.2-beta.2).
+> Pi-hole Sentinel is currently in **active beta development** (v0.12.2-beta.3).
 >
 > While the codebase has passed quality audits (89/100 - Excellent) and is well-tested, it is **still in beta** and may receive breaking changes before the v1.0.0 stable release.
 >

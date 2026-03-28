@@ -5,6 +5,32 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.2-beta.3] - 2026-03-28
+
+### Fixed
+- **🐛 monitor.py: fault notification sent every ~20 min for brief FTL restarts**
+  - Secondary Pi-hole FTL briefly goes down (~12 s) every 20 minutes (DHCP config apply by keepalived)
+  - A fault notification was fired immediately on every True→False state change
+  - Fix: replaced direct `send_notification("fault")` calls with a debounced `_arm_fault()` helper
+    that fires an `asyncio.Task` delayed by `FAULT_NOTIFICATION_DELAY = 60 s`
+  - Recovery (`_cancel_fault()`) cancels the task silently; only faults that persist ≥ 60 s are alerted
+
+- **🐛 monitor.py / index.html: System Commands modal showed "undefined undefined" as title**
+  - `/api/commands/{name}` returned `{"output": "..."}` but the JS expected
+    `data.icon`, `data.description`, `data.exit_code`, `data.status`
+  - Fix: endpoint now returns full structured response matching all JS fields
+  - Log limits increased: monitor/keepalived logs 50 →  200 lines; timeout 5 → 15 s
+  - `vip_check` now shows both `ip addr show` + `ip neigh show`
+  - `db_recent_events` limit 20 → 500 lines, displayed oldest → newest
+
+- **🐛 index.html: Recent Events / command output truncated and not tall enough**
+  - `.command-output-text` `max-height` raised from 500 px to 65 vh
+  - Modal body already uses `flex: 1; overflow-y: auto` so the full viewport height is used
+
+**Version:** 0.12.2-beta.2 → 0.12.2-beta.3
+
+---
+
 ## [0.12.2-beta.2] - 2026-03-28
 
 ### Fixed
