@@ -5,6 +5,12 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.4-beta.2] - 2026-03-28
+
+### New
+- **Clean release tarballs** — `.gitattributes` export-ignore excludes dev/test files (docker/, tests/, CLAUDE.md, etc.) from `git archive` output
+- **Automated GitHub Releases** — new workflow creates a release with clean tarball on every `vX.Y.Z-beta.1` or stable `vX.Y.Z` tag
+
 ## [0.12.4-beta.1] - 2026-03-28
 
 ### Security
