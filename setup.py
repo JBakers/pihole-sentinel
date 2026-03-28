@@ -764,9 +764,17 @@ class SetupConfig:
         servers.append(('secondary', self.config['secondary_ip'], self.config['secondary_ssh_user'], self.config['secondary_ssh_port']))
         
         passwords = {}
-        print()
-        for name, ip, user, port in servers:
-            passwords[name] = getpass(f"{Colors.BOLD}SSH password for {user}@{ip}:{Colors.END} ")
+        same_pw = input(f"\n{Colors.BOLD}Use the same SSH password for all servers? (Y/n):{Colors.END} ").strip().lower()
+        if same_pw != 'n':
+            shared_pw = getpass(f"{Colors.BOLD}SSH password for all servers:{Colors.END} ")
+            for name, ip, user, port in servers:
+                passwords[name] = shared_pw
+            # Clear reference immediately
+            shared_pw = None
+        else:
+            print()
+            for name, ip, user, port in servers:
+                passwords[name] = getpass(f"{Colors.BOLD}SSH password for {user}@{ip}:{Colors.END} ")
         
         # Setup SSH keys
         key_path = self.setup_ssh_keys()
@@ -1398,6 +1406,7 @@ SECONDARY_IP={self.config['secondary_ip']}
                 ("keepalived/scripts/check_dhcp_service.sh", "/tmp/pihole-sentinel-deploy/check_dhcp_service.sh"),
                 ("keepalived/scripts/dhcp_control.sh", "/tmp/pihole-sentinel-deploy/dhcp_control.sh"),
                 ("keepalived/scripts/keepalived_notify.sh", "/tmp/pihole-sentinel-deploy/keepalived_notify.sh"),
+                ("bin/pisen", "/tmp/pihole-sentinel-deploy/pisen"),
             ]
 
             total_files = len(files_to_copy)
@@ -1443,6 +1452,11 @@ SECONDARY_IP={self.config['secondary_ip']}
                 "mv /tmp/$script /usr/local/bin/$script && " +
                 "chown root:root /usr/local/bin/$script && " +
                 "chmod 755 /usr/local/bin/$script; done",
+                # Install pisen CLI tool
+                "cp /tmp/pihole-sentinel-deploy/pisen /usr/local/bin/pisen && "
+                "sed -i 's/\\r$//' /usr/local/bin/pisen && "
+                "chown root:root /usr/local/bin/pisen && "
+                "chmod 755 /usr/local/bin/pisen",
                 "systemctl enable keepalived",
             ]
 
