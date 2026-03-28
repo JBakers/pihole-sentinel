@@ -5,6 +5,41 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.2] Session Summary - 2026-03-28
+
+> Consolidates all `0.12.2-beta.1` through `0.12.2-beta.8` changes from one session.
+> Full details are in the individual beta entries below.
+
+### New
+- **⌨️ System Commands panel** — run `systemctl status`, last 200 log lines, VIP check,
+  and last 500 DB events directly from the browser dashboard
+- **ANSI colour rendering** in command output modal — `active (running)` green,
+  `inactive (dead)` grey, `enabled` bold-green; OSC 8 hyperlinks rendered as `<a>` tags
+- **Offline indicators** — Pi-hole Service / VIP / DNS / DHCP all turn grey with `(?)`
+  when a server is unreachable (was incorrectly green/red based on stale data)
+
+### Fixed
+- **Fault debounce (60 s)** — brief FTL restarts (e.g. keepalived DHCP apply) no longer
+  trigger spurious fault notifications
+- **Paired recovery notifications** — every fault notification is guaranteed to be followed
+  by a recovery notification once the issue resolves
+- **Notifications when both Pi-holes offline** — HTTP session now uses Cloudflare (1.1.1.1) /
+  Google (8.8.8.8) DNS via `aiodns`, bypassing the Pi-hole VIP so Telegram / Discord / etc.
+  remain reachable when both nodes are down
+- **keepalived / journalctl commands on monitor server** — graceful fallback messages with
+  SSH commands to run on Pi-hole nodes; permission-denied journalctl shows the exact fix
+- **Failover History** — recovery events shown alongside failover events (green tint + ✅)
+- **SSH retry on exit 255** — `setup.py` retries up to 3× after keepalived stop causes brief
+  SSH unavailability; added `ConnectTimeout` / `ServerAliveInterval` to all SSH calls
+- **System Commands modal title** — was "undefined undefined"; endpoint now returns full
+  `icon / description / exit_code / status / output` structured response
+- **Test notification response** — `NotificationTestResponse` field mismatch fixed
+- **Translations** — all Dutch table headers, log messages, and UI strings translated to English
+- **System Commands card styling** — section was missing card background/border; now uses
+  same `events-card` + collapsible structure as Failover History and Recent Events
+
+---
+
 ## [0.12.2-beta.8] - 2026-03-28
 
 ### Fixed
