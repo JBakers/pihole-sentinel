@@ -5,7 +5,116 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.12.4-beta.7] - 2026-03-28
+
+### Fixed
+- **Config sync no longer overwrites web API password** — sync now uses section-based TOML merging instead of copying the entire pihole.toml. Only `[dhcp]` and `[dns]` sections are synced (matching nebula-sync behavior). Web password, webserver settings, and other node-specific config are never touched.
+
+### Improved
+- **Sync options now match nebula-sync** — `SYNC_CONFIG` replaced with granular `SYNC_CONFIG_DHCP` and `SYNC_CONFIG_DNS` toggles. Old `SYNC_CONFIG=true` still works (enables both). Local DHCP active state and DNS listening mode are always preserved.
+
+## [0.12.4-beta.6] - 2026-03-28
+
+### Fixed
+- **Chart.js SRI hash was truncated** — integrity hash was cut short, causing both primary and fallback CDN to fail. Charts now load correctly.
+
+## [0.12.4-beta.5] - 2026-03-28
+
+### Fixed
+- **CSP blocked Chart.js fallback CDN** — added `cdnjs.cloudflare.com` to Content-Security-Policy script-src, fixing blank dashboard charts
+
+## [0.12.4-beta.4] - 2026-03-28
+
+### Fixed
+- **Download URLs in install docs** — previous commands failed because `/releases/latest` ignores pre-releases and `wget` can't use shell wildcards in URLs. Now uses GitHub API `/releases` endpoint which works for both stable and beta releases.
+
+## [0.12.4-beta.3] - 2026-03-28
+
+### Fixed
+- **Uninstall: removed invalid `pihole -a setdns` command** — this Pi-hole v5 command doesn't exist in v6, causing the full pihole help text to print during uninstall. DHCP state is preserved in pihole.toml after sentinel removal; no pihole command needed.
+
+## [0.12.4-beta.2] - 2026-03-28
+
+### New
+- **Clean release tarballs** — `.gitattributes` export-ignore excludes dev/test files (docker/, tests/, CLAUDE.md, etc.) from `git archive` output
+- **Automated GitHub Releases** — new workflow creates a release with clean tarball on every `vX.Y.Z-beta.1` or stable `vX.Y.Z` tag
+
+## [0.12.4-beta.1] - 2026-03-28
+
+### Security
+- **Rate limiting on all write endpoints** — POST endpoints for settings, commands, and snooze now rate-limited (20 req/min per IP)
+- **Safe template formatting** — switched from `format(**vars)` to `format_map(defaultdict)` to prevent KeyError injection from malformed templates
+- **Explicit state tracking** — replaced fragile `hasattr(monitor_loop, ...)` pattern with explicit state dict
+
+### Improved
+- **Database cleanup batching** — large DELETEs are now batched (5000 rows) with async yields between batches to prevent database locks during cleanup
+
+## [0.12.3-beta.10] - 2026-03-28
+
+### Security
+- **SSRF protection** — webhook URLs (Discord, Ntfy, custom) are validated at save time and send time; blocks private/loopback/reserved IPs and non-HTTP schemes
+- **Security headers** — all responses now include X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, and Content-Security-Policy
+- **Auth on /api/version** — version endpoint now requires API key to prevent version enumeration
+- **TOCTOU fix in dhcp_control.sh** — added flock-based file locking to prevent race conditions between concurrent enable/disable calls
+- **Timezone injection hardening** — setup.py now uses `--` separator in timedatectl command to prevent option injection
+
+## [0.12.3-beta.9] - 2026-03-28
+
+### Fixed
+- **Uninstall no longer re-asks IPs** — when choosing uninstall from the deployment menu (option 4), IPs already collected in earlier steps are reused instead of prompting again
+
+## [0.12.3-beta.8] - 2026-03-28
+
+### Improved
+- **Monitor location default** — "Separate server" is now the default option (Enter to select)
+
+## [0.12.3-beta.7] - 2026-03-28
+
+### Improved
+- **Required field validation** — all IP address inputs in setup and uninstall now reject empty values and validate format inline, preventing accidental blank entries
+
+## [0.12.3-beta.6] - 2026-03-28
+
+### Fixed
+- **Cross-node SSH key read failure** — `subprocess.run` SSH call to read the public key from Pi-holes used `BatchMode=yes` without the installer's identity file (`-i key_path`), causing "failed to read key" error
+
+## [0.12.3-beta.5] - 2026-03-28
+
+### Improved
+- **Uninstall UX simplified** — removed confusing "IP input method" / "last octet" flow; now asks plain IP addresses directly with clear prompts
+
+## [0.12.3-beta.4] - 2026-03-28
+
+### Fixed
+- **Cross-node SSH auth failure** — `ssh_key_path` was not set before `_setup_cross_node_ssh` ran, causing `remote_exec` to fall back to `BatchMode=yes` without a key. Key path is now stored immediately after distribution.
+
+## [0.12.3-beta.3] - 2026-03-28
+
+### Fixed
+- **Cross-node SSH setup** — setup.py now generates SSH keys on each Pi-hole and distributes public keys between them (primary ↔ secondary), enabling the sync script to SSH from pihole1 → pihole2
+- Host key acceptance pre-configured to prevent first-sync hang on StrictHostKeyChecking prompt
+
+## [0.12.3-beta.2] - 2026-03-28
+
+### Fixed
+- **pisen CLI not deployed** — `bin/pisen` is now copied to `/usr/local/bin/pisen` during keepalived deployment on both Pi-hole nodes
+
+### Improved
+- **Shared SSH password option** — setup now asks "Use the same SSH password for all servers?" (default: yes) to avoid entering the same password 2-3 times
+
+## [0.12.3-beta.1] - 2026-03-28
+
+### New
+- **Config sync deployment** — setup.py now deploys sync service as step [4/4] in full SSH deployment
+- **Configurable sync options** — per-feature toggles: gravity, custom DNS, CNAME, DHCP leases, pihole.toml config (all enabled by default)
+- **Sync interval** — configurable during setup (default: every 10 minutes), replaces fixed 6-hour timer
+- **`pisen sync`** — new CLI command to view sync status, config, and trigger manual sync (`pisen sync --run`)
+- **Automatic IP injection** — PRIMARY_IP/SECONDARY_IP auto-configured in keepalived .env and sync.conf by setup.py
+
+### Improved
+- **Setup menu simplified** — deployment options reduced from 6 to 4 (full deploy, generate only, advanced, uninstall)
+- **Sync script hardening** — IPs validated at startup, safe config parsing (no `source`), clear error on missing config
+- **nebula-sync feature parity** — built-in sync now covers all nebula-sync capabilities including DHCP active state exclusion
 
 ### Security
 - **CRITICAL:** API key no longer exposed via unauthenticated `/api/client-config` endpoint; key is now injected server-side via HTML meta tags

@@ -1,5 +1,9 @@
 # Pi-hole Sentinel - Full Test Environment
 #
+# SECURITY: All passwords/tokens in this file are TEST-ONLY placeholders.
+# They are used exclusively for local mock containers and carry no security risk.
+# NEVER use these values in production.
+#
 # Architecture:
 #   pihole-primary   (10.99.0.10) - Mock Pi-hole v6 API (primary, DHCP on)
 #   pihole-secondary (10.99.0.11) - Mock Pi-hole v6 API (secondary, DHCP off)
