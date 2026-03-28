@@ -388,7 +388,7 @@ Vul dit in tijdens testen:
 ```
 === Pi-hole Sentinel Test Results ===
 Datum: __________
-Versie: 0.12.0-beta.7
+Versie: 0.12.0-beta.9
 
 CRITICAL SECURITY:
 [ ] Test 1.1: API Authentication          ✅ / ❌

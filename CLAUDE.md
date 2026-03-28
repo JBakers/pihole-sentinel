@@ -1,8 +1,8 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
-**Last Updated:** 2026-02-06
+**Last Updated:** 2026-02-13
 
-**Version:** 0.12.0-beta.8
+**Version:** 0.12.0-beta.9
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
@@ -893,7 +893,7 @@ pihole-sentinel/
 ├── CHANGELOG.md                    # Version history
 ├── README.md                       # Project overview (concise, 410 lines)
 ├── LICENSE                         # GPLv3 License
-├── VERSION                         # Current version (0.12.0-beta.7)
+├── VERSION                         # Current version (0.12.0-beta.9)
 ├── .gitignore                      # Git ignore rules
 ├── .markdownlint.json             # Markdown linting config
 ├── logo.svg                        # Project logo
@@ -980,7 +980,6 @@ source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
-pip install -r dashboard/requirements.txt
 
 # Verify installation
 python -c "import fastapi, uvicorn, aiohttp; print('✓ All imports OK')"

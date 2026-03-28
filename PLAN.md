@@ -1,8 +1,8 @@
 # PLAN.md — Pi-hole Sentinel Development Plan
 
-**Last Updated:** 2026-02-06
+**Last Updated:** 2026-02-13
 **Branch:** `feature/container-architecture`
-**Base Version:** 0.12.0-beta.8
+**Base Version:** 0.12.0-beta.9
 **Target Version:** 0.13.0-beta.1
 
 > **📌 Dit is het centrale plannings- en TODO-document.**
@@ -115,11 +115,11 @@ Stap 8: Verificatie   → VRRP election, VIP bereikbaar, sync ✅
 
 | # | Taak | Status | Details |
 |---|------|--------|---------|
-| 0.1 | Disk artifacts opruimen | 🔲 | `__pycache__/` (4x), `.pytest_cache/`, `htmlcov/`, `.coverage` |
-| 0.2 | Redundante bestanden verwijderen | 🔲 | `dashboard/requirements.txt` (duplicaat), `dashboard/.env` (leeg) |
-| 0.3 | keepalived-sidecar evalueren | 🔲 | `docker/keepalived-sidecar/` → vervangen door `sentinel-node`, verwijderen |
-| 0.4 | Fix bug B6 | 🔲 | `CONFIG.get('primary_name')` → `CONFIG["primary"]["name"]` in monitor.py |
-| 0.5 | Fix bug B9 | 🔲 | Runtime API key injection in Docker (niet hardcoded `YOUR_API_KEY_HERE`) |
+| 0.1 | Disk artifacts opruimen | ✅ | `__pycache__/` (4x), `.pytest_cache/`, `htmlcov/`, `.coverage` |
+| 0.2 | Redundante bestanden verwijderen | ✅ | `dashboard/requirements.txt` (duplicaat), `dashboard/.env` (leeg) |
+| 0.3 | keepalived-sidecar evalueren | ✅ | `docker/keepalived-sidecar/` → vervangen door `sentinel-node`, verwijderen |
+| 0.4 | Fix bug B6 | ✅ | `CONFIG.get('primary_name')` → `CONFIG["primary"]["name"]` in monitor.py |
+| 0.5 | Fix bug B9 | ✅ | Runtime API key injection in Docker (niet hardcoded `YOUR_API_KEY_HERE`) |
 
 ### Fase 1: Installer Backend Skelet
 
@@ -200,7 +200,7 @@ Stap 8: Verificatie   → VRRP election, VIP bereikbaar, sync ✅
 | B3 | `/api/commands/{name}` endpoint ONTBREEKT | `dashboard/monitor.py` | Alle command buttons geven 404 | 🔲 |
 | B4 | SnoozeResponse model mismatch → 500 | `dashboard/monitor.py` L182-186 | Snooze endpoint altijd 500 error | 🔲 |
 | B5 | DHCP warning spam elke cycle | `dashboard/monitor.py` ~L1349 | Events overspoeld met dupes | 🔲 |
-| B6 | CONFIG key mismatch in failover notificatie | `dashboard/monitor.py` ~L1305 | Notification variabelen zijn `None` | 🔲 **Fase 0** |
+| B6 | CONFIG key mismatch in failover notificatie | `dashboard/monitor.py` ~L1305 | Notification variabelen zijn `None` | ✅ |
 
 ### 🟡 Medium Prioriteit
 
@@ -208,7 +208,7 @@ Stap 8: Verificatie   → VRRP election, VIP bereikbaar, sync ✅
 |----|-----|---------|--------|--------|
 | B7 | Duplicate "Monitor started" event | `dashboard/monitor.py` L201+1206 | Twee events bij herstart | 🔲 |
 | B8 | `dhcp_leases` altijd 0 als geen MASTER | `dashboard/monitor.py` ~L1266 | 0 leases getoond | 🔲 |
-| B9 | API key hardcoded als `YOUR_API_KEY_HERE` | `dashboard/index.html` + `settings.html` | Dashboard 403 in Docker | 🔲 **Fase 0** |
+| B9 | API key hardcoded als `YOUR_API_KEY_HERE` | `dashboard/index.html` + `settings.html` | Dashboard 403 in Docker | ✅ |
 | B10 | LOCAL_SETUP.md compleet verouderd | `LOCAL_SETUP.md` | Misleidende docs | 🔲 |
 
 > **Prioriteit voor dit plan:** B6 en B9 worden in Fase 0 gefixed (raken de installer/config pipeline).
@@ -220,7 +220,7 @@ Stap 8: Verificatie   → VRRP election, VIP bereikbaar, sync ✅
 
 | ID | Verbetering | Prioriteit | Status |
 |----|-------------|------------|--------|
-| F1 | API key runtime injection voor Docker | Medium | 🔲 (opgelost via B9 fix) |
+| F1 | API key runtime injection voor Docker | Medium | ✅ |
 | F2 | Debounce DHCP misconfiguration warnings | Medium | 🔲 |
 | F3 | Fallback dhcp_leases bij geen MASTER | Low | 🔲 |
 | F4 | DNS mock in mock_pihole.py (UDP:53) | Low | 🔲 |

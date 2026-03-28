@@ -2,7 +2,7 @@
 
 ## Huidige Status
 - **Branch:** develop
-- **Versie:** 0.12.0-beta.7
+- **Versie:** 0.12.0-beta.9
 - **Laatste audit:** 2026-02-06 (Docker test environment + full GUI audit)
 
 ---
@@ -156,7 +156,7 @@ make docker-logs      # Live logs
 - [x] Docker dev files (Dockerfile.dev, docker-compose.test.yml) aan git toegevoegd
 - [x] tmp/ directory opgeruimd
 - [x] docs/README.md geconsolideerd en geoptimaliseerd
-- [x] Alle docs versienummers bijgewerkt naar 0.12.0-beta.7
+- [x] Alle docs versienummers bijgewerkt naar 0.12.0-beta.9
 - [x] Docker test environment uitgebreid met 12 fake clients
 - [x] Mock Pi-hole ARP auto-discovery voor DHCP leases
 - [x] `.dockerignore` toegevoegd

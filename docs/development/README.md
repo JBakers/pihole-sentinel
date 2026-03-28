@@ -19,7 +19,6 @@ source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
-pip install -r dashboard/requirements.txt
 
 # When done developing, deactivate
 deactivate
@@ -155,7 +154,6 @@ pihole-sentinel/
 ├── venv/                    # Virtual environment (gitignored)
 ├── dashboard/
 │   ├── monitor.py          # FastAPI monitoring service
-│   ├── requirements.txt    # Dashboard dependencies
 │   └── *.html              # Web interface
 ├── keepalived/
 │   ├── scripts/            # Health check scripts
@@ -168,7 +166,7 @@ pihole-sentinel/
 
 ## Version Information
 
-- **Current Version:** 0.12.0-beta.7
+- **Current Version:** 0.12.0-beta.9
 - **Python:** 3.8+ (tested with 3.13)
 - **OS:** Debian 11+/Ubuntu 20.04+
 

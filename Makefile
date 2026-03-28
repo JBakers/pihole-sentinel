@@ -53,20 +53,20 @@ install-dev:
 
 # Testing
 test:
-	pytest --cov=dashboard --cov=setup --cov-report=term-missing --cov-report=html
+	python3 -m pytest --cov=dashboard --cov=setup --cov-report=term-missing --cov-report=html
 
 test-unit:
-	pytest -m unit -v
+	python3 -m pytest -m unit -v
 
 test-integration:
-	pytest -m integration -v
+	python3 -m pytest -m integration -v
 
 test-cov:
-	pytest --cov=dashboard --cov=setup --cov-report=html
+	python3 -m pytest --cov=dashboard --cov=setup --cov-report=html
 	@echo "Coverage report generated in htmlcov/index.html"
 
 test-fast:
-	pytest -v
+	python3 -m pytest -v
 
 # Code Quality
 lint:
