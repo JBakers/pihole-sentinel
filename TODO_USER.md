@@ -2,7 +2,7 @@
 
 ## Huidige Status
 - **Branch:** develop
-- **Versie:** 0.12.1-beta.6
+- **Versie:** 0.12.1-beta.8
 - **Laatste update:** 2026-03-28 (setup.py volledig werkend end-to-end)
 - **Setup status:** ✅ Volledige deployment werkt foutloos (getest 28-03-2026)
 

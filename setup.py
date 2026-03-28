@@ -1201,12 +1201,12 @@ NODE_STATE=MASTER
                 self.remote_exec(host, user, port,
                     "cd /tmp/pihole-sentinel-deploy && /opt/pihole-monitor/venv/bin/pip install -r requirements.txt",
                     password)
-                print("├─ [████████████████████] 100% Python packages installed          ")
+                print("├─ [████████████████████] 100% Python packages installed                              ")
             else:
                 self.remote_exec(host, user, port,
                     "cd /tmp/pihole-sentinel-deploy && /opt/pihole-monitor/venv/bin/pip install -q -r requirements.txt >/dev/null 2>&1",
                     password)
-                print("├─ [████████████████████] 100% Python packages installed          ")
+                print("├─ [████████████████████] 100% Python packages installed                              ")
             
             print("├─ Copying application files...")
             commands = [
