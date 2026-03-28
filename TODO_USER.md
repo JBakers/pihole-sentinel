@@ -6,7 +6,7 @@
 - **Last updated:** 2026-03-28
 - **Setup status:** ✅ Full deployment works without errors (tested 2026-03-28)
 
-> All items resolved up to and including v0.12.2-beta.8 are documented in [CHANGELOG.md](CHANGELOG.md).
+> All items resolved up to and including v0.12.4-beta.7 are documented in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

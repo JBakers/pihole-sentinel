@@ -457,9 +457,9 @@ def print_version():
         if version_file.exists():
             version = version_file.read_text().strip()
         else:
-            version = '0.12.0-beta.7'
+            version = 'unknown'
     except Exception:
-        version = '0.12.0-beta.7'
+        version = 'unknown'
 
     print(f"{Colors.CYAN}{Colors.BOLD}pisen{Colors.END} - Pi-hole Sentinel CLI Tool")
     print(f"Version: {Colors.GREEN}{version}{Colors.END}")

@@ -5,6 +5,11 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.4-beta.8] - 2026-03-28
+
+### Fixed
+- **Eliminated all hardcoded version strings** — monitor.py, pisen CLI, settings.html, and API docs now read version dynamically from VERSION file. No more stale version references after updates.
+
 ## [0.12.4-beta.7] - 2026-03-28
 
 ### Fixed

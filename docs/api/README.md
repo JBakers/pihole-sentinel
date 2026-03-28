@@ -1,6 +1,6 @@
 # Pi-hole Sentinel API Documentation
 
-**Version:** 0.12.0-beta.9  
+**Version:** 0.12.4-beta.7  
 **Last Updated:** 2025-12-07  
 **Base URL:** `http://<monitor-ip>:8080`
 
@@ -126,7 +126,7 @@ GET /api/version
 **Response:**
 ```json
 {
-  "version": "0.12.0-beta.9"
+  "version": "0.12.4-beta.7"
 }
 ```
 
@@ -143,7 +143,7 @@ GET /api/client-config
 ```json
 {
   "api_key": "your-api-key",
-  "version": "0.12.0-beta.9"
+  "version": "0.12.4-beta.7"
 }
 ```
 
@@ -160,7 +160,7 @@ X-API-Key: your-api-key
 **Response:**
 ```json
 {
-  "current_version": "0.12.0-beta.9",
+  "current_version": "0.12.4-beta.7",
   "latest_version": "0.13.0-beta.1",
   "update_available": true,
   "release_url": "https://github.com/JBakers/pihole-sentinel/releases/tag/0.13.0-beta.1",
@@ -1164,5 +1164,5 @@ For questions or issues:
 ---
 
 **Last Updated:** 2026-02-06
-**Version:** 0.12.0-beta.9
+**Version:** 0.12.4-beta.7
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
