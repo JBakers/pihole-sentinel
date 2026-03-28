@@ -65,3 +65,4 @@ nightly-test-results/
 # System
 .DS_Store
 Thumbs.db
+dashboard/.env.test

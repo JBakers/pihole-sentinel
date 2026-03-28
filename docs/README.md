@@ -39,10 +39,8 @@
 ### 👨‍💻 Development
 
 - **[Development Guide](development/README.md)** - Setup dev environment
-- **[Testing Guide](development/testing.md)** - User testing procedures
-- **[Testing Workflow](development/TESTING_WORKFLOW.md)** - Automated testing architecture
-- **[Test Coverage Plan](development/TEST_COVERAGE_PLAN.md)** - Coverage roadmap
-- **[Contributing](../CLAUDE.md#contributing-changes)** - How to contribute
+- **[Testing Guide](development/testing.md)** - Unified testing guide (manual + automated + coverage plan)
+- **[Contributing](../README.md#contributing)** - How to contribute
 
 ---
 
@@ -58,9 +56,7 @@ docs/
 │   └── sync.md
 ├── development/
 │   ├── README.md
-│   ├── testing.md
-│   ├── TESTING_WORKFLOW.md
-│   └── TEST_COVERAGE_PLAN.md
+│   └── testing.md
 ├── usage/
 │   └── cli-tool.md
 └── api/

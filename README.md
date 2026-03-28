@@ -420,7 +420,7 @@ Contributions welcome! Please:
 4. Add tests if applicable
 5. Submit a pull request
 
-**See:** [CLAUDE.md - Contributing Changes](CLAUDE.md#contributing-changes) for detailed guidelines.
+**See:** [Contributing Guide](README.md#contributing) for contribution workflow.
 
 ---
 
