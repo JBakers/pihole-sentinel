@@ -6,6 +6,7 @@ No SSH required, simple API calls
 
 import os
 import sys
+import time
 import asyncio
 import aiohttp
 import aiosqlite
@@ -1240,6 +1241,17 @@ async def monitor_loop():
                 if previous_primary_online and not primary_data["online"]:
                     await log_event("warning", "Primary went OFFLINE")
                     logger.warning("Primary went OFFLINE")
+                    await send_notification("fault", {
+                        "node": CONFIG.get('primary', {}).get('name', 'Primary'),
+                        "node_name": CONFIG.get('primary', {}).get('name', 'Primary'),
+                        "primary": CONFIG.get('primary', {}).get('name', 'Primary'),
+                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary'),
+                        "reason": "Primary Pi-hole is OFFLINE",
+                        "vip": CONFIG['vip'],
+                        "vip_address": CONFIG['vip'],
+                        "time": datetime.now().strftime("%H:%M:%S"),
+                        "date": datetime.now().strftime("%Y-%m-%d"),
+                    })
                 elif not previous_primary_online and primary_data["online"]:
                     await log_event("success", "Primary is back ONLINE")
                     logger.info("Primary is back ONLINE")
@@ -1248,6 +1260,17 @@ async def monitor_loop():
                 if previous_secondary_online and not secondary_data["online"]:
                     await log_event("warning", "Secondary went OFFLINE")
                     logger.warning("Secondary went OFFLINE")
+                    await send_notification("fault", {
+                        "node": CONFIG.get('secondary', {}).get('name', 'Secondary'),
+                        "node_name": CONFIG.get('secondary', {}).get('name', 'Secondary'),
+                        "primary": CONFIG.get('primary', {}).get('name', 'Primary'),
+                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary'),
+                        "reason": "Secondary Pi-hole is OFFLINE",
+                        "vip": CONFIG['vip'],
+                        "vip_address": CONFIG['vip'],
+                        "time": datetime.now().strftime("%H:%M:%S"),
+                        "date": datetime.now().strftime("%Y-%m-%d"),
+                    })
                 elif not previous_secondary_online and secondary_data["online"]:
                     await log_event("success", "Secondary is back ONLINE")
                     logger.info("Secondary is back ONLINE")
@@ -1257,6 +1280,17 @@ async def monitor_loop():
                 if previous_primary_pihole and not primary_data["pihole"] and primary_data["online"]:
                     await log_event("warning", "Pi-hole service on Primary is DOWN")
                     logger.warning("Primary Pi-hole service is DOWN")
+                    await send_notification("fault", {
+                        "node": CONFIG.get('primary', {}).get('name', 'Primary'),
+                        "node_name": CONFIG.get('primary', {}).get('name', 'Primary'),
+                        "primary": CONFIG.get('primary', {}).get('name', 'Primary'),
+                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary'),
+                        "reason": "Pi-hole service on Primary is DOWN",
+                        "vip": CONFIG['vip'],
+                        "vip_address": CONFIG['vip'],
+                        "time": datetime.now().strftime("%H:%M:%S"),
+                        "date": datetime.now().strftime("%Y-%m-%d"),
+                    })
                 elif not previous_primary_pihole and primary_data["pihole"]:
                     await log_event("success", "Pi-hole service on Primary is back UP")
                     logger.info("Primary Pi-hole service is back UP")
@@ -1265,6 +1299,17 @@ async def monitor_loop():
                 if previous_secondary_pihole and not secondary_data["pihole"] and secondary_data["online"]:
                     await log_event("warning", "Pi-hole service on Secondary is DOWN")
                     logger.warning("Secondary Pi-hole service is DOWN")
+                    await send_notification("fault", {
+                        "node": CONFIG.get('secondary', {}).get('name', 'Secondary'),
+                        "node_name": CONFIG.get('secondary', {}).get('name', 'Secondary'),
+                        "primary": CONFIG.get('primary', {}).get('name', 'Primary'),
+                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary'),
+                        "reason": "Pi-hole service on Secondary is DOWN",
+                        "vip": CONFIG['vip'],
+                        "vip_address": CONFIG['vip'],
+                        "time": datetime.now().strftime("%H:%M:%S"),
+                        "date": datetime.now().strftime("%Y-%m-%d"),
+                    })
                 elif not previous_secondary_pihole and secondary_data["pihole"]:
                     await log_event("success", "Pi-hole service on Secondary is back UP")
                     logger.info("Secondary Pi-hole service is back UP")
