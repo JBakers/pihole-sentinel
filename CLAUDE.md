@@ -1,8 +1,8 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
-**Last Updated:** 2026-02-13
+**Last Updated:** 2026-03-28
 
-**Version:** 0.12.0-beta.9
+**Version:** 0.12.0-beta.16
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
@@ -14,10 +14,14 @@ This document provides comprehensive guidance for AI assistants working with the
 > Dit bestand (CLAUDE.md) is het **referentiedocument** — PLAN.md is het **werkdocument**.
 
 **Recent Updates:**
+- setup.py fully functional end-to-end deployment (March 2026)
+- Pre-flight credential checks (SSH + Pi-hole API) before any server is touched
+- Automatic rollback on deployment failure with backup-timestamp tracking
+- Uninstall option (menu option 6) removes all Sentinel files from all servers
+- 30 tests for setup.py in tests/test_setup.py (unit + Docker integration)
+- Keepalived fixes: VRRP v2, interface auto-detect, auth_pass length, preempt_delay
 - Container architecture: sentinel-node sidecar with keepalived + sync agent (Feb 2026)
 - Installer wizard planned (web UI in Docker) — see [PLAN.md](PLAN.md)
-- Repository cleanup and documentation consolidation (Feb 2026)
-- OpenAPI/Swagger documentation and error handling added
 - Comprehensive testing framework with Docker dev environment
 - Test automation scripts in `.github/scripts/`
 

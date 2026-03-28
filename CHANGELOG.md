@@ -12,10 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `preempt_delay` is alleen geldig op BACKUP-nodes; op een MASTER-node geeft keepalived 2.3.x een warning én exit code 1 bij `--config-test`, waardoor deployment bleef falen na de VRRP v2-fix
   - Fix: `preempt_delay 60` verwijderd uit het primary (MASTER) config-template in `generate_configs()` en uit `keepalived/pihole1/keepalived.conf`
   - De overtollige `.replace("\n    preempt_delay 60\n", ...)` in de secondary-template-generatie verwijderd
-  - `--config-test` geeft nu clean exit code 0 op beide nodes
+  - `--config-test` geeft nu clean exit code 0 op beide nodes; **setup.py deployment verloopt nu foutloos end-to-end**
 
-**Version:** 0.12.0-beta.15 → 0.12.0-beta.16
+---
 
+## [0.12.0-beta.15] - 2026-03-28
 
 ### Added
 - **🧪 tests/test_setup.py: 30 tests voor setup.py pre-flight, rollback en uninstall**
@@ -34,8 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `make docker-setup-test-only` — draait tests (Docker moet al draaien)
   - `make docker-setup-unit` — draait alleen unit tests (geen Docker)
 
-**Version:** 0.12.0-beta.14 → 0.12.0-beta.15
+---
 
+## [0.12.0-beta.14] - 2026-03-28
 
 ### Added
 - **✨ setup.py: Pre-flight credential check vóór deployment**
@@ -51,11 +53,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Vraagt alleen SSH-gegevens (geen Pi-hole passwords of netwerk-config nodig)
   - Stopt en disablet `pihole-monitor.service` + verwijdert `/opt/pihole-monitor`
   - Stopt en disablet `keepalived` + verwijdert alle door Sentinel aangemaakte bestanden (`keepalived.conf`, `.env`, scripts in `/usr/local/bin/`, logfile)
-  - Pi-hole zelf wordt nooit aangeraakt
-  - Vraagt bevestiging via `yes`-invoer
+  - Pi-hole zelf wordt nooit aangeraakt; vraagt `yes`-bevestiging
 
-**Version:** 0.12.0-beta.13 → 0.12.0-beta.14
+---
 
+## [0.12.0-beta.13] - 2026-03-28
 
 ### Fixed
 - **🐛 keepalived config: `vrrp_version 3` → `vrrp_version 2` (keepalived startte niet)**
@@ -67,8 +69,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `{' ' * 20}` stond letterlijk als tekst in de output (ontbrekende f-string evaluatie)
   - Losse `.` na "Virtual environment created" verwijderd
 
-**Version:** 0.12.0-beta.12 → 0.12.0-beta.13
+---
 
+## [0.12.0-beta.12] - 2026-03-28
 
 ### Fixed
 - **🐛 setup.py deploy_keepalived_remote: VRRP interface-naam van installer-machine gebruikt i.p.v. Pi-hole interface**
@@ -80,8 +83,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - keepalived gaf `Truncating auth_pass to 8 characters` warning en beide nodes gebruikten onbedoeld een ander gedeelte
   - Fix: `generate_secure_password(length=8)` voor keepalived password
 
-**Version:** 0.12.0-beta.11 → 0.12.0-beta.12
+---
 
+## [0.12.0-beta.11] - 2026-03-28
 
 ### Fixed
 - **🐛 setup.py deploy_keepalived_remote: keepalived start-fouten waren niet zichtbaar**
@@ -91,12 +95,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fallback diagnose-commando's getoond in foutmelding als handmatige vervolgstap
   - `apt-get install keepalived` gebruikt nu ook `DEBIAN_FRONTEND=noninteractive`
 - **🐛 setup.py check_package_installed: dnsutils altijd als ontbrekend gemeld op Debian 12+/13**
-  - `dpkg -l` vervangenl door `dpkg-query -W -f=${Status}` voor betrouwbare statuscheck
+  - `dpkg -l` vervangen door `dpkg-query -W -f=${Status}` voor betrouwbare statuscheck
   - Command-fallback toegevoegd: als `dig` beschikbaar is, wordt dnsutils als geïnstalleerd beschouwd
   - `dnsutils` → `bind9-dnsutils` fallback toegevoegd in `resolve_package_name` (Debian 12+ rename)
 
+---
+
 ## [0.12.0-beta.10] - 2026-03-28
-  - `enable_dhcp`/`disable_dhcp` controleren nu eerst de huidige DHCP-staat vóór ze FTL herstarten
+
+### Fixed
   - Zonder deze fix: MASTER-transitie → `systemctl restart pihole-FTL` → healthcheck faalt → secondary neemt over → secondary FTL-restart → primary recovert en preempt terug → FTL-restart opnieuw → **oneindige loop** die de Pi volledig overbelastte en deed vastlopen
   - FTL wordt nu alleen herstart als de DHCP-staat daadwerkelijk verandert
 - **🐛 keepalived primary config: preempt_delay 60 toegevoegd**

@@ -2,8 +2,24 @@
 
 ## Huidige Status
 - **Branch:** develop
-- **Versie:** 0.12.0-beta.9
-- **Laatste audit:** 2026-02-06 (Docker test environment + full GUI audit)
+- **Versie:** 0.12.0-beta.16
+- **Laatste update:** 2026-03-28 (setup.py volledig werkend end-to-end)
+- **Setup status:** ✅ Volledige deployment werkt foutloos (getest 28-03-2026)
+
+### Wat er vandaag (28-03-2026) is opgelost
+
+| # | Probleem | Fix |
+|---|----------|-----|
+| 1 | `dnsutils` altijd "missing" op Debian 13 | `dpkg-query` + `bind9-dnsutils` fallback |
+| 2 | DHCP/FTL herstart-loop (`dhcp_control.sh`) | Check huidige staat vóór FTL-restart |
+| 3 | keepalived startte niet: wrong interface | Auto-detect via `ip route get 8.8.8.8` na deploy |
+| 4 | keepalived auth_pass truncated (32→8 tekens) | `generate_secure_password(length=8)` |
+| 5 | keepalived fout-diagnose niet zichtbaar | `--config-test` + full journal in output |
+| 6 | VRRP v3 + auth = exit code 1 | `vrrp_version 2` in alle templates |
+| 7 | `preempt_delay` op MASTER = exit code 1 | Verwijderd uit MASTER template |
+| 8 | Geen pre-flight check | `preflight_checks()`: SSH + Pi-hole API vóór deploy |
+| 9 | Geen rollback bij fout | `rollback_deployment()` + backup-timestamp tracking |
+| 10 | Geen uninstall optie | Menu optie 6: volledige uninstall via SSH |
 
 ---
 
