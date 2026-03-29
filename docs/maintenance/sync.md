@@ -76,6 +76,9 @@ ssh root@192.168.1.10 "echo 'SSH connection successful'"
 
 ### Stap 2: Installeer Sync Script
 
+The recommended approach is to use `setup.py`, which deploys the sync script,
+configuration, and systemd timer automatically. For manual installation:
+
 **Op BEIDE servers (primary en secondary):**
 
 ```bash
@@ -86,13 +89,16 @@ scp sync-pihole-config.sh root@192.168.1.11:/usr/local/bin/
 # Maak executable
 ssh root@192.168.1.10 "chmod +x /usr/local/bin/sync-pihole-config.sh"
 ssh root@192.168.1.11 "chmod +x /usr/local/bin/sync-pihole-config.sh"
+```
 
-# Configureer IP adressen (pas aan naar jouw IPs)
-ssh root@192.168.1.10 "echo 'PRIMARY_IP=192.168.1.10' >> /etc/environment"
-ssh root@192.168.1.10 "echo 'SECONDARY_IP=192.168.1.11' >> /etc/environment"
+The sync script loads IPs from `/etc/keepalived/.env` (deployed by setup.py)
+or `/etc/pihole-sentinel/sync.conf`. For manual setup, create the config:
 
-ssh root@192.168.1.11 "echo 'PRIMARY_IP=192.168.1.10' >> /etc/environment"
-ssh root@192.168.1.11 "echo 'SECONDARY_IP=192.168.1.11' >> /etc/environment"
+```bash
+ssh root@192.168.1.10 "mkdir -p /etc/pihole-sentinel && cat > /etc/pihole-sentinel/sync.conf << 'EOF'
+PRIMARY_IP=192.168.1.10
+SECONDARY_IP=192.168.1.11
+EOF"
 ```
 
 ### Stap 3: Installeer Automatische Sync (Optioneel)
@@ -122,9 +128,12 @@ ssh root@192.168.1.10 "systemctl status pihole-sync.timer"
 **Initiële synchronisatie van PRIMARY naar SECONDARY:**
 
 ```bash
-# Op primary
+# Op primary (node type is auto-detected from /etc/keepalived/.env)
 ssh root@192.168.1.10
-/usr/local/bin/sync-pihole-config.sh --auto
+/usr/local/bin/sync-pihole-config.sh
+
+# Or specify node type explicitly
+/usr/local/bin/sync-pihole-config.sh primary
 ```
 
 ## Gebruik

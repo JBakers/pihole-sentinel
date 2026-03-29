@@ -450,7 +450,7 @@ class PisenCommands:
 def print_version():
     """Print version information"""
     try:
-        version_file = Path('/home/user/Workspace/pihole-sentinel/VERSION')
+        version_file = Path(__file__).resolve().parent.parent / 'VERSION'
         if not version_file.exists():
             version_file = Path('/opt/pihole-monitor/VERSION')
 

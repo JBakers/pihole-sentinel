@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-03-29
 
-**Version:** 0.12.9
+**Version:** 0.13.0
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
@@ -127,6 +127,10 @@ that the API is not yet stable. No `-beta.x` suffix is used.
 - **PATCH bump:** Bug fixes, small improvements → `0.12.7` → `0.12.8`
 - **MINOR bump:** New features, significant changes → `0.12.8` → `0.13.0`
 - **1.0.0:** Reserved for production-ready release
+
+**PATCH ceiling rule:** After `x.y.9`, bump MINOR to `x.(y+1).0`. Never use
+double-digit patch numbers (e.g. `0.12.10`) — they cause sorting and readability
+confusion. This means each minor version has a maximum of 10 patch releases (`.0` through `.9`).
 
 **Examples:**
 ```

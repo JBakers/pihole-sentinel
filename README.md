@@ -262,7 +262,7 @@ systemctl enable pihole-sync.timer && systemctl start pihole-sync.timer
 
 **Run sync manually:**
 ```bash
-pisen sync --run
+systemctl start pihole-sync.service
 ```
 
 See **[Configuration Sync](docs/maintenance/sync.md)** for full details.

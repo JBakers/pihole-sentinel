@@ -69,7 +69,7 @@ Nginx/Caddy example for production HTTPS.
 **Location:** `bin/pisen`
 
 **Issues:**
-- P1: Hardcoded path to VERSION: `/home/user/Workspace/pihole-sentinel/VERSION` (line 402)
+- ~~P1: Hardcoded path to VERSION~~ (fixed in 0.13.0)
 - P2: Requires `systemctl` → does not work in Docker, only on production
 - P3: No API client mode (could talk to monitor API over HTTP)
 - P4: Copyright hardcoded `2025` → should be dynamic or `2025-2026`
