@@ -1,3 +1,12 @@
+## [0.12.6-beta.5] - 2026-03-29
+
+### Fixed
+- **🔧 Python syntax error in sync preserve heredoc** — `f.write(live_pw + '\n')` had
+  a literal newline instead of the `\n` escape sequence, causing `SyntaxError: unterminated
+  string literal` when the sync timer ran. The pwhash and upstreams python blocks were
+  affected. Also fixed `$STAGED` being hardcoded in the python `open()` call instead of
+  passed via `sys.argv[2]`. Sync now completes successfully end-to-end.
+
 ## [0.12.6-beta.4] - 2026-03-29
 
 ### Fixed
