@@ -1,3 +1,13 @@
+## [0.12.9] - 2026-03-29
+
+### Fixed
+- **DHCP failover: port 67 now reliably binds/unbinds** — `dhcp_control.sh` now
+  checks both TOML config and actual port state. If FTL inotify misses the config
+  change (e.g. after cold boot), the script falls back to `systemctl restart pihole-FTL`.
+  Wait loop increased from 5s to 15s + 10s fallback.
+- **Settings icon SVG corrected** — gear icon was incomplete (missing right-side
+  teeth), now uses the full Feather Icons settings path.
+
 ## [0.12.8] - 2026-03-29
 
 ### Fixed
