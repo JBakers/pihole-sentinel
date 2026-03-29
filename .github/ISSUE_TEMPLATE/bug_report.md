@@ -6,68 +6,94 @@ labels: bug
 assignees: ''
 ---
 
-## Bug Description
-A clear and concise description of what the bug is.
+## What went wrong?
+<!-- Describe what happened. Be specific — "it doesn't work" is not enough. -->
 
 ## Environment
-- **Pi-hole Sentinel Version:** [e.g., 0.10.0-beta.15]
-- **Pi-hole Version:** [e.g., 6.0]
-- **Operating System:** [e.g., Debian 12, Ubuntu 22.04]
-- **Python Version:** [e.g., 3.11]
-- **Deployment Type:** [Manual / Automated via setup.py]
 
-## Component Affected
-- [ ] Monitor Dashboard
-- [ ] Keepalived / VRRP
-- [ ] DHCP Failover
+| Item | Value |
+|------|-------|
+| Pi-hole Sentinel Version | <!-- run: cat /opt/VERSION or pisen version --> |
+| Pi-hole Version | <!-- run: pihole version --> |
+| Operating System | <!-- e.g. Debian 12, Ubuntu 24.04 --> |
+| Python Version | <!-- run: python3 --version --> |
+| Install method | <!-- setup.py (automated) / manual --> |
+| SSH user used during setup | <!-- root / non-root (e.g. david) --> |
+| DHCP failover enabled | <!-- yes / no --> |
+| Notification channel | <!-- Telegram / Discord / Pushover / Ntfy / webhook / none --> |
+
+## Component
+
+- [ ] Setup script (`setup.py`)
+- [ ] Monitor / Dashboard
+- [ ] Keepalived / VRRP / VIP failover
+- [ ] DHCP failover
 - [ ] Notifications
-- [ ] Configuration Sync
-- [ ] Setup Script
-- [ ] Other (please specify)
+- [ ] Configuration sync
+- [ ] `pisen` CLI
+- [ ] Other: ___
 
-## Steps to Reproduce
-1. Go to '...'
-2. Click on '...'
-3. Execute command '...'
-4. See error
+## Steps to reproduce
 
-## Expected Behavior
-A clear and concise description of what you expected to happen.
+1.
+2.
+3.
 
-## Actual Behavior
-A clear and concise description of what actually happened.
+## Expected behaviour
+<!-- What should have happened? -->
 
-## Logs
-Please provide relevant log excerpts:
+## Actual behaviour
+<!-- What actually happened? Include the exact error message if there is one. -->
 
+## Diagnostic output
+
+Run the relevant commands and paste the output below.
+
+**Setup failures** — copy the full terminal output of setup.py, then run:
 ```bash
-# Monitor logs
-sudo journalctl -u pihole-monitor -n 50
+# Check SSH connectivity
+ssh -i /root/.ssh/id_pihole_sentinel <user>@<host> "echo ok"
+```
 
-# Keepalived logs
-sudo tail -n 50 /var/log/keepalived-notify.log
+**Monitor / dashboard issues:**
+```bash
+sudo systemctl status pihole-monitor
+sudo journalctl -u pihole-monitor -n 100 --no-pager
+```
+
+**Keepalived / VIP / failover issues:**
+```bash
+sudo systemctl status keepalived
+sudo tail -n 100 /var/log/keepalived-notify.log
+ip neigh show          # ARP table — shows who holds the VIP
+ip addr show           # Verify VIP is (or isn't) assigned locally
+```
+
+**pisen CLI** (if installed):
+```bash
+pisen status
+pisen version
 ```
 
 <details>
-<summary>Log Output</summary>
+<summary>Output</summary>
 
 ```
-Paste logs here
+Paste output here
 ```
 
 </details>
 
-## Screenshots
-If applicable, add screenshots to help explain your problem.
+## Network layout
 
-## Network Configuration
-- **Primary IP:** [e.g., 10.10.100.10]
-- **Secondary IP:** [e.g., 10.10.100.20]
-- **VIP:** [e.g., 10.10.100.2]
-- **Network Interface:** [e.g., eth0, ens18]
+| | Primary | Secondary | Monitor |
+|---|---|---|---|
+| IP address | | | |
+| Hostname | | | |
+| Network interface | | | |
+| VIP | | — | — |
 
-## Additional Context
-Add any other context about the problem here.
+<!-- Mark which node currently holds the VIP, if known. -->
 
-## Possible Solution
-If you have suggestions on how to fix the bug, please describe them here.
+## Additional context
+<!-- Anything else that might help: recent changes, timing, frequency of occurrence, etc. -->
