@@ -1,3 +1,19 @@
+## [0.12.6-beta.4] - 2026-03-29
+
+### Fixed
+- **🔧 FTL restart loop eliminated** — `dhcp_control.sh` no longer runs
+  `systemctl restart pihole-FTL` when toggling DHCP. Pi-hole FTL v6 auto-detects
+  TOML config changes via inotify and binds/unbinds port 67 without restart.
+  This eliminates the cascade: DHCP toggle → FTL restart → health check fails →
+  keepalived flaps → other node takes over → repeat.
+  Added port-binding verification loop (waits up to 5s for port 67 to bind/unbind).
+
+### Security
+- **🔒 Sync now preserves `webserver.domain` and `webserver.tls.cert`** — previously
+  the sync would overwrite the secondary's hostname (`pihole2.home` → `pihole1.home`)
+  and TLS certificate path, causing SSL/TLS domain mismatch warnings and potentially
+  breaking HTTPS access to the secondary node.
+
 ## [0.12.6-beta.3] - 2026-03-29
 
 ### Security
