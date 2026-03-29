@@ -1,3 +1,13 @@
+## [0.14.1] - 2026-03-30
+
+### Fixed
+- **Critical: DHCP active state not preserved during sync** — sed patterns used
+  `^active = ` anchor which failed on Pi-hole v6 TOML files where keys are
+  indented with 2 spaces. Fixed all 10 sed patterns in sync-pihole-config.sh to
+  use `^[[:space:]]*` prefix for `active`, `listeningMode`, and `upstreams` keys.
+  This caused the secondary Pi-hole's DHCP to be set to active after every sync,
+  creating a dual-DHCP conflict.
+
 ## [0.14.0] - 2026-03-30
 
 ### New
