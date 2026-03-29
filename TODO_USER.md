@@ -2,11 +2,11 @@
 
 ## Current Status
 - **Branch:** develop
-- **Version:** 0.12.4-beta.7
-- **Last updated:** 2026-03-28
+- **Version:** 0.12.7
+- **Last updated:** 2026-03-29
 - **Setup status:** ✅ Full deployment works without errors (tested 2026-03-28)
 
-> All items resolved up to and including v0.12.2-beta.8 are documented in [CHANGELOG.md](CHANGELOG.md).
+> All items resolved up to and including v0.12.5-beta.7 are documented in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -69,7 +69,7 @@ Nginx/Caddy example for production HTTPS.
 **Location:** `bin/pisen`
 
 **Issues:**
-- P1: Hardcoded path to VERSION: `/home/user/Workspace/pihole-sentinel/VERSION` (line 402)
+- ~~P1: Hardcoded path to VERSION~~ (fixed in 0.13.0)
 - P2: Requires `systemctl` → does not work in Docker, only on production
 - P3: No API client mode (could talk to monitor API over HTTP)
 - P4: Copyright hardcoded `2025` → should be dynamic or `2025-2026`

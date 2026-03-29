@@ -48,6 +48,8 @@ if [ -f "$SYNC_CONF" ]; then
             SYNC_CONFIG_DNS)       SYNC_CONFIG_DNS="$value" ;;
             SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE) SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE="$value" ;;
             SYNC_RESTART_FTL)      SYNC_RESTART_FTL="$value" ;;
+            SYNC_MAX_BACKUPS)      SYNC_MAX_BACKUPS="$value" ;;
+            SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS) SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS="$value" ;;
         esac
     done < <(grep -v '^\s*#' "$SYNC_CONF" | grep '=')
 fi
@@ -61,6 +63,8 @@ SYNC_CONFIG_DHCP="${SYNC_CONFIG_DHCP:-true}"
 SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE="${SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE:-true}"
 SYNC_CONFIG_DNS="${SYNC_CONFIG_DNS:-true}"
 SYNC_RESTART_FTL="${SYNC_RESTART_FTL:-true}"
+SYNC_MAX_BACKUPS="${SYNC_MAX_BACKUPS:-3}"
+SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS="${SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS:-true}"
 
 # Determine node type
 NODE_TYPE=""
@@ -124,9 +128,9 @@ create_backup() {
         "$PIHOLE_DIR/pihole.toml" \
         2>/dev/null || true
     
-    # Keep only last 5 backups
+    # Keep only last N backups (configurable via SYNC_MAX_BACKUPS, default 3)
     cd "$BACKUP_DIR"
-    ls -t pihole-backup-*.tar.gz | tail -n +6 | xargs -r rm
+    ls -t pihole-backup-*.tar.gz | tail -n +$((SYNC_MAX_BACKUPS + 1)) | xargs -r rm
     
     log_info "Backup created successfully"
 }
@@ -255,17 +259,24 @@ sync_from_primary() {
         sed -n '/^\[dns\]/,/^\[/{ /^\[dns\]/p; /^\[/!p; }' "/tmp/pihole.toml.remote" > /tmp/dns_remote.toml
 
         if [ -s /tmp/dns_remote.toml ]; then
-            # Preserve local DNS listening settings (node-specific)
+            # Preserve local DNS settings that are node-specific
             local_dns_listening=$(sed -n '/^\[dns\]/,/^\[/{ /^listeningMode = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
+            if [ "$SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS" = "true" ]; then
+                local_dns_upstreams=$(sed -n '/^\[dns\]/,/^\[/{ /^upstreams = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
+            fi
 
             # Replace local [dns] section with remote
             sed -i '/^\[dns\]/,/^\[/{ /^\[dns\]/d; /^\[/!d; }' "${PIHOLE_DIR}/pihole.toml"
             printf '\n' >> "${PIHOLE_DIR}/pihole.toml"
             cat /tmp/dns_remote.toml >> "${PIHOLE_DIR}/pihole.toml"
 
-            # Restore local listening mode
+            # Restore node-specific DNS settings
             if [ -n "$local_dns_listening" ]; then
                 sed -i "/^\[dns\]/,/^\[/ s/^listeningMode = .*/$local_dns_listening/" "${PIHOLE_DIR}/pihole.toml"
+            fi
+            if [ "$SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS" = "true" ] && [ -n "$local_dns_upstreams" ]; then
+                sed -i "/^\[dns\]/,/^\[/ s/^upstreams = .*/$local_dns_upstreams/" "${PIHOLE_DIR}/pihole.toml"
+                log_info "Preserved local DNS upstreams: $local_dns_upstreams"
             fi
             log_info "DNS configuration synced"
         fi
@@ -320,11 +331,12 @@ sync_to_secondary() {
         exit 1
     fi
     
-    # Ask secondary to create backup
-    log_info "Creating backup on secondary..."
+    # Ask secondary to create backup (with rotation to prevent disk full)
+    log_info "Creating backup on secondary (keeping last ${SYNC_MAX_BACKUPS})..."
     ssh "root@${SECONDARY_IP}" "mkdir -p $BACKUP_DIR && \
         tar czf $BACKUP_DIR/pihole-backup-\$(date +%Y%m%d-%H%M%S).tar.gz \
-        $PIHOLE_DIR/gravity.db $PIHOLE_DIR/custom.list $PIHOLE_DIR/pihole.toml 2>/dev/null || true"
+        $PIHOLE_DIR/gravity.db $PIHOLE_DIR/custom.list $PIHOLE_DIR/pihole.toml 2>/dev/null || true && \
+        cd $BACKUP_DIR && ls -t pihole-backup-*.tar.gz 2>/dev/null | tail -n +$((SYNC_MAX_BACKUPS + 1)) | xargs -r rm"
     
     # Stop Pi-hole on secondary (only if restart enabled)
     if [ "$SYNC_RESTART_FTL" = "true" ]; then
@@ -375,26 +387,150 @@ sync_to_secondary() {
         log_info "Skipping DHCP leases (SYNC_DHCP_LEASES=false)"
     fi
     
-    # Push Pi-hole configuration
-    if [ "$SYNC_CONFIG" = "true" ]; then
-        log_info "Pushing configuration..."
-        
-        # Get secondary's current DHCP active state
-        if [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ]; then
-            secondary_dhcp_active=$(ssh "root@${SECONDARY_IP}" "grep -A 5 '^\[dhcp\]' ${PIHOLE_DIR}/pihole.toml | grep '^active = ' | head -n1" 2>/dev/null || echo "")
-        fi
-        
+    # Push Pi-hole configuration (section-based to preserve node-specific settings)
+    if [ "$SYNC_CONFIG_DHCP" = "true" ] || [ "$SYNC_CONFIG_DNS" = "true" ]; then
+        log_info "Pushing Pi-hole configuration (section-based)..."
+
+        # Copy primary toml to secondary as staging file
         rsync -avz --progress "${PIHOLE_DIR}/pihole.toml" "root@${SECONDARY_IP}:/tmp/pihole.toml.new"
-        
-        # Restore secondary's DHCP active state
-        if [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ] && [ -n "$secondary_dhcp_active" ]; then
-            ssh "root@${SECONDARY_IP}" "sed -i \"/^\[dhcp\]/,/^\[/ s/^active = .*/$secondary_dhcp_active/\" /tmp/pihole.toml.new"
-            log_info "Preserved secondary DHCP active state"
-        fi
-        
+        # Ensure staging file is writable by root (rsync may preserve source owner)
+        ssh "root@${SECONDARY_IP}" "chown root:root /tmp/pihole.toml.new && chmod 600 /tmp/pihole.toml.new"
+
+        # ━━━ Preserve ALL node-specific values on the secondary ━━━
+        # SECURITY: all operations run in a single remote heredoc session.
+        # Values never cross SSH as command args (no local $-expansion,
+        # no ps/log exposure). Quoted heredoc prevents local variable expansion;
+        # PIHOLE_DIR is passed via env to the remote shell.
+        #
+        # Preserved values:
+        #   1. pwhash        — web API password (indented under [webserver.api])
+        #   2. dhcp.active   — DHCP on/off state (top-level [dhcp])
+        #   3. upstreams     — DNS upstream servers (top-level [dns])
+        #   4. listeningMode — DNS listening scope (top-level [dns])
+        #   5. domain        — webserver hostname (indented under [webserver])
+        #   6. cert          — TLS certificate path (indented under [webserver.tls])
+        #
+        # We use python3 for the pwhash swap because the hash ($BALLOON-SHA256$...)
+        # contains $, |, &, = which corrupt sed replacement strings.
+        # For top-level [dhcp]/[dns] keys, sed is safe (simple values, no specials).
+
+        ssh "root@${SECONDARY_IP}" PIHOLE_DIR="${PIHOLE_DIR}"             SYNC_DHCP="${SYNC_CONFIG_DHCP}"             SYNC_DHCP_EXCL="${SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE}"             SYNC_DNS="${SYNC_CONFIG_DNS}"             SYNC_DNS_EXCL_UP="${SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS}"             bash << 'REMOTE_PRESERVE'
+set -e
+LOGFILE="/var/log/pihole-sync.log"
+ts() { date '+%Y-%m-%d %H:%M:%S'; }
+LIVE="$PIHOLE_DIR/pihole.toml"
+STAGED="/tmp/pihole.toml.new"
+
+# 1. Preserve pwhash (indented key, hash contains $, |, & — use python3 for safe swap)
+pwhash_line=$(grep -m1 '^\s*pwhash = ' "$LIVE" || true)
+if [ -n "$pwhash_line" ]; then
+    python3 -c "
+import sys
+live_pw = sys.argv[1]
+with open(sys.argv[2], 'r') as f:
+    lines = f.readlines()
+with open(sys.argv[2], 'w') as f:
+    for line in lines:
+        if line.lstrip().startswith('pwhash = '):
+            f.write(live_pw + '\n')
+        else:
+            f.write(line)
+" "$pwhash_line" "$STAGED"
+    echo "$(ts) - Preserved secondary pwhash" >> "$LOGFILE"
+fi
+
+# 2. Preserve DHCP active state
+if [ "$SYNC_DHCP" = "true" ] && [ "$SYNC_DHCP_EXCL" = "true" ]; then
+    dhcp_active=$(sed -n '/^\[dhcp\]/,/^\[/{ /^active = /p; }' "$LIVE" | head -n1)
+    if [ -n "$dhcp_active" ]; then
+        sed -i "/^\[dhcp\]/,/^\[/ s/^active = .*/$dhcp_active/" "$STAGED"
+        echo "$(ts) - Preserved secondary DHCP active: $dhcp_active" >> "$LOGFILE"
+    fi
+fi
+
+# 3. Preserve DNS upstreams (e.g. local unbound 127.0.0.1#5335)
+if [ "$SYNC_DNS" = "true" ] && [ "$SYNC_DNS_EXCL_UP" = "true" ]; then
+    dns_up=$(sed -n '/^\[dns\]/,/^\[/{ /^upstreams = /p; }' "$LIVE" | head -n1)
+    if [ -n "$dns_up" ]; then
+        # upstreams value is a TOML array like ["x","y"] — use python3 for safe replace
+        python3 -c "
+import sys
+live_up = sys.argv[1]
+with open(sys.argv[2], 'r') as f:
+    lines = f.readlines()
+in_dns = False
+with open(sys.argv[2], 'w') as f:
+    for line in lines:
+        stripped = line.strip()
+        if stripped == '[dns]':
+            in_dns = True
+        elif stripped.startswith('[') and stripped != '[dns]':
+            in_dns = False
+        if in_dns and stripped.startswith('upstreams = '):
+            f.write(live_up + '\n')
+        else:
+            f.write(line)
+" "$dns_up" "$STAGED"
+        echo "$(ts) - Preserved secondary DNS upstreams" >> "$LOGFILE"
+    fi
+fi
+
+# 4. Preserve DNS listeningMode
+if [ "$SYNC_DNS" = "true" ]; then
+    dns_lm=$(sed -n '/^\[dns\]/,/^\[/{ /^listeningMode = /p; }' "$LIVE" | head -n1)
+    if [ -n "$dns_lm" ]; then
+        sed -i "/^\[dns\]/,/^\[/ s/^listeningMode = .*/$dns_lm/" "$STAGED"
+        echo "$(ts) - Preserved secondary DNS listeningMode" >> "$LOGFILE"
+    fi
+fi
+
+# 5. Preserve webserver domain (indented key, e.g. 'pihole2.home')
+# The domain value may contain dots but no shell-special chars — python3 for consistency
+# with the indented [webserver] section structure.
+domain_line=$(grep -m1 '^\s*domain = ' "$LIVE" || true)
+if [ -n "$domain_line" ]; then
+    python3 -c "
+import sys
+live_val = sys.argv[1]
+with open(sys.argv[2], 'r') as f:
+    lines = f.readlines()
+with open(sys.argv[2], 'w') as f:
+    for line in lines:
+        if line.lstrip().startswith('domain = '):
+            f.write(live_val + '\n')
+        else:
+            f.write(line)
+" "$domain_line" "$STAGED"
+    echo "$(ts) - Preserved secondary webserver domain" >> "$LOGFILE"
+fi
+
+# 6. Preserve TLS certificate path (indented key under [webserver.tls])
+# Each node has its own certificate — syncing the primary's cert path would break TLS.
+cert_line=$(grep -m1 '^\s*cert = ' "$LIVE" || true)
+if [ -n "$cert_line" ]; then
+    python3 -c "
+import sys
+live_val = sys.argv[1]
+with open(sys.argv[2], 'r') as f:
+    lines = f.readlines()
+with open(sys.argv[2], 'w') as f:
+    for line in lines:
+        if line.lstrip().startswith('cert = '):
+            f.write(live_val + '\n')
+        else:
+            f.write(line)
+" "$cert_line" "$STAGED"
+    echo "$(ts) - Preserved secondary TLS cert path" >> "$LOGFILE"
+fi
+
+echo "$(ts) - All node-specific values preserved" >> "$LOGFILE"
+REMOTE_PRESERVE
+        log_info "Preserved secondary node-specific settings"
+
         ssh "root@${SECONDARY_IP}" "mv /tmp/pihole.toml.new ${PIHOLE_DIR}/pihole.toml"
+        log_info "Pi-hole configuration pushed"
     else
-        log_info "Skipping Pi-hole config (SYNC_CONFIG=false)"
+        log_info "Skipping Pi-hole config (SYNC_CONFIG_DHCP and SYNC_CONFIG_DNS both false)"
     fi
     
     # Fix permissions on secondary

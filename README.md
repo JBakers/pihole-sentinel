@@ -8,7 +8,7 @@
 
 *Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
 
-[![Version](https://img.shields.io/github/v/tag/JBakers/pihole-sentinel?label=version&sort=semver&color=blue)](https://github.com/JBakers/pihole-sentinel/releases)
+[![Version](https://img.shields.io/github/v/release/JBakers/pihole-sentinel?include_prereleases&label=version&color=blue)](https://github.com/JBakers/pihole-sentinel/releases)
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
@@ -104,24 +104,15 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 
 ### Installation
 
-**1. Download Pi-hole Sentinel:**
-
+**1. Download Pi-hole Sentinel and run the setup:**
 ```bash
-# Download latest release (works for both stable and beta releases)
-curl -sL https://api.github.com/repos/JBakers/pihole-sentinel/releases \
-  | grep -m1 tarball_url | cut -d'"' -f4 | xargs curl -sL -o pihole-sentinel.tar.gz
+curl -sLO https://github.com/JBakers/pihole-sentinel/releases/latest/download/pihole-sentinel.tar.gz
 tar xzf pihole-sentinel.tar.gz
-mv JBakers-pihole-sentinel-* pihole-sentinel
 cd pihole-sentinel/
-```
-
-**2. Run the setup script:**
-
-```bash
 sudo python3 setup.py
 ```
 
-**3. Follow the interactive wizard:**
+**2. Follow the interactive wizard:**
 
 The script will guide you through:
 - Network configuration (IPs, VIP, interface name)
@@ -130,13 +121,14 @@ The script will guide you through:
 - Automated deployment to all servers
 - Service startup and verification
 
-**4. Access the dashboard:**
+**3. Access the dashboard:**
 
 ```
 http://<monitor-ip>:8080
 ```
 
 That's it! Your Pi-hole infrastructure now has automatic failover.
+
 
 ### What Gets Installed
 
@@ -243,6 +235,37 @@ systemctl stop pihole-FTL
 ```bash
 systemctl start pihole-FTL
 ```
+
+### Configuration Sync
+
+If you enabled the built-in config sync during setup, it runs automatically via a systemd timer on the primary Pi-hole.
+
+**Check sync timer status:**
+```bash
+systemctl status pihole-sync.timer
+```
+
+**Stop sync (temporarily):**
+```bash
+systemctl stop pihole-sync.timer
+```
+
+**Stop sync (permanently, survives reboot):**
+```bash
+systemctl stop pihole-sync.timer && systemctl disable pihole-sync.timer
+```
+
+**Re-enable sync:**
+```bash
+systemctl enable pihole-sync.timer && systemctl start pihole-sync.timer
+```
+
+**Run sync manually:**
+```bash
+systemctl start pihole-sync.service
+```
+
+See **[Configuration Sync](docs/maintenance/sync.md)** for full details.
 
 ### Upgrading
 

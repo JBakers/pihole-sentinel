@@ -450,16 +450,16 @@ class PisenCommands:
 def print_version():
     """Print version information"""
     try:
-        version_file = Path('/home/user/Workspace/pihole-sentinel/VERSION')
+        version_file = Path(__file__).resolve().parent.parent / 'VERSION'
         if not version_file.exists():
             version_file = Path('/opt/pihole-monitor/VERSION')
 
         if version_file.exists():
             version = version_file.read_text().strip()
         else:
-            version = '0.12.0-beta.7'
+            version = 'unknown'
     except Exception:
-        version = '0.12.0-beta.7'
+        version = 'unknown'
 
     print(f"{Colors.CYAN}{Colors.BOLD}pisen{Colors.END} - Pi-hole Sentinel CLI Tool")
     print(f"Version: {Colors.GREEN}{version}{Colors.END}")

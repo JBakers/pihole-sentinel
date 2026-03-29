@@ -1,8 +1,8 @@
 # PLAN.md — Pi-hole Sentinel Development Plan
 
-**Last Updated:** 2026-03-28
+**Last Updated:** 2026-03-29
 **Branch:** `develop`
-**Current Version:** 0.12.4-beta.7
+**Current Version:** 0.12.7
 
 > **📌 This is the central planning and TODO document.**
 > CLAUDE.md references this file. All open tasks, bugs, and the
@@ -23,13 +23,15 @@
 
 ## Current Status
 
-### Branch: `develop` — v0.12.4-beta.7
+### Branch: `develop` — v0.12.5-beta.7
 
 | Item | Status |
 |------|--------|
 | Core monitoring service (monitor.py) | ✅ Stable |
 | Dashboard + Settings UI | ✅ Up to date |
 | setup.py deployment (bare-metal) | ✅ Fully working (tested 2026-03-28) |
+| setup.py non-root SSH user support | ✅ Working (beta.4–beta.5) |
+| Config sync backup rotation | ✅ Fixed (beta.6) |
 | Notifications (Telegram/Discord/Pushover/Ntfy) | ✅ Working |
 | System Commands panel | ✅ Working |
 | Fault debounce + recovery notifications | ✅ Working |
@@ -84,6 +86,15 @@
 ---
 
 ## Completed Items
+
+### v0.12.5-beta.4 – beta.7 (2026-03-29)
+
+- [x] SSH deployment with non-root user — all privileged remote commands now use `sudo`
+- [x] `_s(user)` helper with `sudo -n` — fails fast instead of hanging without NOPASSWD
+- [x] MITM warning printed when SSH keys are generated (StrictHostKeyChecking=no)
+- [x] apt-get update error visibility — stderr no longer suppressed
+- [x] Config sync backup rotation fixed on secondary node (disk full bug)
+- [x] `SYNC_MAX_BACKUPS` variable added (default: 3, configurable in sync.conf)
 
 ### v0.12.2 (2026-03-28)
 

@@ -102,12 +102,38 @@ if missing_vars:
     sys.exit(1)
 
 # ============================================================================
+# Version reading (must be before FastAPI app initialization)
+# ============================================================================
+
+def read_version_string() -> str:
+    """Read the version from disk, with fallbacks."""
+    try:
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), "VERSION"),      # Same dir as monitor.py
+            os.path.join(os.path.dirname(__file__), "..", "VERSION"), # Parent dir (dev)
+            "/opt/pihole-monitor/VERSION",                            # Production location
+            "/opt/VERSION",                                           # Legacy location
+        ]
+
+        for version_file in possible_paths:
+            if os.path.exists(version_file):
+                with open(version_file, 'r') as f:
+                    version = f.read().strip()
+                    if version:
+                        return version
+    except Exception as e:
+        logger.error(f"Failed to read VERSION file: {e}")
+
+    return "unknown"
+
+
+# ============================================================================
 # Pydantic Models for OpenAPI/Swagger Documentation
 # ============================================================================
 
 class VersionResponse(BaseModel):
     """Version information response"""
-    version: str = Field(..., description="Current Pi-hole Sentinel version (e.g., 0.12.0-beta.7)")
+    version: str = Field(..., description="Current Pi-hole Sentinel version")
 
 
 class ClientConfigResponse(BaseModel):
@@ -229,7 +255,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Pi-hole Keepalived Monitor API",
     description="REST API for Pi-hole Sentinel high availability monitoring and management",
-    version="0.12.0-beta.7",
+    version=read_version_string(),
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -866,28 +892,6 @@ async def serve_settings():
     )
     html_content = html_content.replace('</head>', f'{meta_tags}\n</head>', 1)
     return HTMLResponse(content=html_content)
-
-
-def read_version_string() -> str:
-    """Read the version from disk, with fallbacks."""
-    try:
-        possible_paths = [
-            os.path.join(os.path.dirname(__file__), "VERSION"),      # Same dir as monitor.py
-            os.path.join(os.path.dirname(__file__), "..", "VERSION"), # Parent dir (dev)
-            "/opt/pihole-monitor/VERSION",                            # Production location
-            "/opt/VERSION",                                           # Legacy location
-        ]
-
-        for version_file in possible_paths:
-            if os.path.exists(version_file):
-                with open(version_file, 'r') as f:
-                    version = f.read().strip()
-                    if version:
-                        return version
-    except Exception as e:
-        logger.error(f"Failed to read VERSION file: {e}")
-
-    return "0.11.0"
 
 
 @app.get("/api/client-config", response_model=ClientConfigResponse, tags=["System"],
