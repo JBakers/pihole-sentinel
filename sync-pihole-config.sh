@@ -49,6 +49,7 @@ if [ -f "$SYNC_CONF" ]; then
             SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE) SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE="$value" ;;
             SYNC_RESTART_FTL)      SYNC_RESTART_FTL="$value" ;;
             SYNC_MAX_BACKUPS)      SYNC_MAX_BACKUPS="$value" ;;
+            SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS) SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS="$value" ;;
         esac
     done < <(grep -v '^\s*#' "$SYNC_CONF" | grep '=')
 fi
@@ -63,6 +64,7 @@ SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE="${SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE:-true}"
 SYNC_CONFIG_DNS="${SYNC_CONFIG_DNS:-true}"
 SYNC_RESTART_FTL="${SYNC_RESTART_FTL:-true}"
 SYNC_MAX_BACKUPS="${SYNC_MAX_BACKUPS:-3}"
+SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS="${SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS:-true}"
 
 # Determine node type
 NODE_TYPE=""
@@ -257,17 +259,24 @@ sync_from_primary() {
         sed -n '/^\[dns\]/,/^\[/{ /^\[dns\]/p; /^\[/!p; }' "/tmp/pihole.toml.remote" > /tmp/dns_remote.toml
 
         if [ -s /tmp/dns_remote.toml ]; then
-            # Preserve local DNS listening settings (node-specific)
+            # Preserve local DNS settings that are node-specific
             local_dns_listening=$(sed -n '/^\[dns\]/,/^\[/{ /^listeningMode = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
+            if [ "$SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS" = "true" ]; then
+                local_dns_upstreams=$(sed -n '/^\[dns\]/,/^\[/{ /^upstreams = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
+            fi
 
             # Replace local [dns] section with remote
             sed -i '/^\[dns\]/,/^\[/{ /^\[dns\]/d; /^\[/!d; }' "${PIHOLE_DIR}/pihole.toml"
             printf '\n' >> "${PIHOLE_DIR}/pihole.toml"
             cat /tmp/dns_remote.toml >> "${PIHOLE_DIR}/pihole.toml"
 
-            # Restore local listening mode
+            # Restore node-specific DNS settings
             if [ -n "$local_dns_listening" ]; then
                 sed -i "/^\[dns\]/,/^\[/ s/^listeningMode = .*/$local_dns_listening/" "${PIHOLE_DIR}/pihole.toml"
+            fi
+            if [ "$SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS" = "true" ] && [ -n "$local_dns_upstreams" ]; then
+                sed -i "/^\[dns\]/,/^\[/ s/^upstreams = .*/$local_dns_upstreams/" "${PIHOLE_DIR}/pihole.toml"
+                log_info "Preserved local DNS upstreams: $local_dns_upstreams"
             fi
             log_info "DNS configuration synced"
         fi
@@ -378,26 +387,43 @@ sync_to_secondary() {
         log_info "Skipping DHCP leases (SYNC_DHCP_LEASES=false)"
     fi
     
-    # Push Pi-hole configuration
-    if [ "$SYNC_CONFIG" = "true" ]; then
-        log_info "Pushing configuration..."
-        
-        # Get secondary's current DHCP active state
-        if [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ]; then
-            secondary_dhcp_active=$(ssh "root@${SECONDARY_IP}" "grep -A 5 '^\[dhcp\]' ${PIHOLE_DIR}/pihole.toml | grep '^active = ' | head -n1" 2>/dev/null || echo "")
-        fi
-        
+    # Push Pi-hole configuration (section-based to preserve node-specific settings)
+    if [ "$SYNC_CONFIG_DHCP" = "true" ] || [ "$SYNC_CONFIG_DNS" = "true" ]; then
+        log_info "Pushing Pi-hole configuration (section-based)..."
+
+        # Copy primary toml to secondary as staging file
         rsync -avz --progress "${PIHOLE_DIR}/pihole.toml" "root@${SECONDARY_IP}:/tmp/pihole.toml.new"
-        
-        # Restore secondary's DHCP active state
-        if [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ] && [ -n "$secondary_dhcp_active" ]; then
-            ssh "root@${SECONDARY_IP}" "sed -i \"/^\[dhcp\]/,/^\[/ s/^active = .*/$secondary_dhcp_active/\" /tmp/pihole.toml.new"
-            log_info "Preserved secondary DHCP active state"
+
+        # Restore secondary DHCP active state (node-specific)
+        if [ "$SYNC_CONFIG_DHCP" = "true" ] && [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ]; then
+            secondary_dhcp_active=$(ssh "root@${SECONDARY_IP}" "sed -n '/^\[dhcp\]/,/^\[/{ /^active = /p; }' ${PIHOLE_DIR}/pihole.toml | head -n1" 2>/dev/null || echo "")
+            if [ -n "$secondary_dhcp_active" ]; then
+                ssh "root@${SECONDARY_IP}" "sed -i "/^\[dhcp\]/,/^\[/ s/^active = .*/$secondary_dhcp_active/" /tmp/pihole.toml.new"
+                log_info "Preserved secondary DHCP active state"
+            fi
         fi
-        
+
+        # Restore secondary DNS upstreams (node-specific, e.g. local unbound)
+        if [ "$SYNC_CONFIG_DNS" = "true" ] && [ "$SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS" = "true" ]; then
+            secondary_dns_upstreams=$(ssh "root@${SECONDARY_IP}" "sed -n '/^\[dns\]/,/^\[/{ /^upstreams = /p; }' ${PIHOLE_DIR}/pihole.toml | head -n1" 2>/dev/null || echo "")
+            if [ -n "$secondary_dns_upstreams" ]; then
+                ssh "root@${SECONDARY_IP}" "sed -i "/^\[dns\]/,/^\[/ s/^upstreams = .*/$secondary_dns_upstreams/" /tmp/pihole.toml.new"
+                log_info "Preserved secondary DNS upstreams: $secondary_dns_upstreams"
+            fi
+        fi
+
+        # Restore secondary DNS listeningMode (node-specific)
+        if [ "$SYNC_CONFIG_DNS" = "true" ]; then
+            secondary_dns_listening=$(ssh "root@${SECONDARY_IP}" "sed -n '/^\[dns\]/,/^\[/{ /^listeningMode = /p; }' ${PIHOLE_DIR}/pihole.toml | head -n1" 2>/dev/null || echo "")
+            if [ -n "$secondary_dns_listening" ]; then
+                ssh "root@${SECONDARY_IP}" "sed -i "/^\[dns\]/,/^\[/ s/^listeningMode = .*/$secondary_dns_listening/" /tmp/pihole.toml.new"
+            fi
+        fi
+
         ssh "root@${SECONDARY_IP}" "mv /tmp/pihole.toml.new ${PIHOLE_DIR}/pihole.toml"
+        log_info "Pi-hole configuration pushed"
     else
-        log_info "Skipping Pi-hole config (SYNC_CONFIG=false)"
+        log_info "Skipping Pi-hole config (SYNC_CONFIG_DHCP and SYNC_CONFIG_DNS both false)"
     fi
     
     # Fix permissions on secondary

@@ -595,18 +595,28 @@ class SetupConfig:
                 break
             print(f"{Colors.RED}Please enter 'y' or 'n'{Colors.END}")
 
-        # Config sync interval (deployed to primary, syncs to secondary)
+        # Config sync — optional, can be skipped when using nebula-sync or similar
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== Configuration Sync ==={Colors.END}")
-        print(f"{Colors.CYAN}Pi-hole Sentinel automatically syncs settings from primary → secondary.{Colors.END}")
-        print(f"{Colors.CYAN}This replaces tools like nebula-sync. Syncs: gravity, DNS, DHCP, config.{Colors.END}")
+        print(f"{Colors.CYAN}Pi-hole Sentinel can sync settings from primary → secondary automatically.{Colors.END}")
+        print(f"{Colors.CYAN}Skip this if you already use nebula-sync, gravity-sync, or similar.{Colors.END}")
         while True:
-            interval = input(f"\n{Colors.BOLD}Sync interval in minutes [{Colors.CYAN}10{Colors.END}]:{Colors.END} ").strip() or "10"
-            if interval.isdigit() and 1 <= int(interval) <= 1440:
-                self.config['sync_interval'] = int(interval)
-                print(f"{Colors.GREEN}✓ Config sync every {interval} minutes{Colors.END}")
+            use_sync = input(f"\n{Colors.BOLD}Enable built-in config sync? (Y/n):{Colors.END} ").strip().lower()
+            if use_sync in ['y', 'n', '']:
+                self.config['enable_sync'] = use_sync != 'n'
                 break
-            print(f"{Colors.RED}Enter a number between 1 and 1440 (24 hours){Colors.END}")
-            
+            print(f"{Colors.RED}Please enter 'y' or 'n'{Colors.END}")
+
+        if self.config['enable_sync']:
+            while True:
+                interval = input(f"\n{Colors.BOLD}Sync interval in minutes [{Colors.CYAN}10{Colors.END}]:{Colors.END} ").strip() or "10"
+                if interval.isdigit() and 1 <= int(interval) <= 1440:
+                    self.config['sync_interval'] = int(interval)
+                    print(f"{Colors.GREEN}✓ Config sync every {interval} minutes{Colors.END}")
+                    break
+                print(f"{Colors.RED}Enter a number between 1 and 1440 (24 hours){Colors.END}")
+        else:
+            print(f"{Colors.YELLOW}✓ Built-in sync disabled — using your own sync solution{Colors.END}")
+        
     def setup_ssh_keys(self):
         """Generate SSH key and distribute to all servers."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== SSH Key Setup ==={Colors.END}")
@@ -1637,6 +1647,7 @@ SECONDARY_IP={self.config['secondary_ip']}
                 f"SYNC_CONFIG_DHCP={sync_options.get('config_dhcp', 'true')}",
                 f"SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE={sync_options.get('dhcp_exclude_active', 'true')}",
                 f"SYNC_CONFIG_DNS={sync_options.get('config_dns', 'true')}",
+                f"SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS={sync_options.get('dns_exclude_upstreams', 'true')}",
                 f"SYNC_RESTART_FTL={sync_options.get('restart_ftl', 'true')}",
                 f"SYNC_MAX_BACKUPS={sync_options.get('max_backups', '3')}",
             ]
@@ -2051,52 +2062,36 @@ WantedBy=timers.target
         monitor_ip = self.config.get('monitor_ip', 'monitor-ip')
         primary_ip = self.config['primary_ip']
         secondary_ip = self.config['secondary_ip']
-        vip = self.config['vip']
-        
+        sync_disabled = not self.config.get('enable_sync', True)
+        dhcp_enabled  = self.config.get('dhcp_enabled', False)
+
         print(f"""
 {Colors.GREEN}{Colors.BOLD}
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║                                                                               ║
 ║                     ✓ DEPLOYMENT COMPLETED SUCCESSFULLY!                      ║
-║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 {Colors.END}
+{Colors.CYAN}{Colors.BOLD}Dashboard:{Colors.END}  http://{monitor_ip}:8080
 
-{Colors.CYAN}{Colors.BOLD}📊 Access Your Monitor Dashboard:{Colors.END}
-   {Colors.BOLD}→ http://{monitor_ip}:8080{Colors.END}
+{Colors.CYAN}{Colors.BOLD}Check status:{Colors.END}
+   systemctl status pihole-monitor keepalived pihole-FTL
+   journalctl -u pihole-monitor -f
 
-{Colors.CYAN}{Colors.BOLD}🔍 Quick Status Check Commands:{Colors.END}
-
-   {Colors.YELLOW}On Monitor Server ({monitor_ip}):{Colors.END}
-   {Colors.CYAN}systemctl status pihole-monitor{Colors.END}
-   {Colors.CYAN}journalctl -u pihole-monitor -f{Colors.END}
-   {Colors.CYAN}sqlite3 /opt/pihole-monitor/monitor.db "SELECT * FROM status_history ORDER BY timestamp DESC LIMIT 5;"{Colors.END}
-
-   {Colors.YELLOW}On Primary Pi-hole ({primary_ip}):{Colors.END}
-   {Colors.CYAN}systemctl status keepalived{Colors.END}
-   {Colors.CYAN}systemctl status pihole-FTL{Colors.END}
-   {Colors.CYAN}ip addr show | grep {vip}{Colors.END}
-
-   {Colors.YELLOW}On Secondary Pi-hole ({secondary_ip}):{Colors.END}
-   {Colors.CYAN}systemctl status keepalived{Colors.END}
-   {Colors.CYAN}systemctl status pihole-FTL{Colors.END}
-
-{Colors.CYAN}{Colors.BOLD}🧪 Test Failover:{Colors.END}
-   {Colors.BOLD}1.{Colors.END} Note which server has the VIP ({vip})
-   {Colors.BOLD}2.{Colors.END} On that server: {Colors.CYAN}systemctl stop pihole-FTL{Colors.END}
-   {Colors.BOLD}3.{Colors.END} Watch the VIP move to the other server
-   {Colors.BOLD}4.{Colors.END} Check the dashboard for status changes
-   {Colors.BOLD}5.{Colors.END} Restore service: {Colors.CYAN}systemctl start pihole-FTL{Colors.END}
-
-{Colors.CYAN}{Colors.BOLD}📁 Log Files:{Colors.END}
-   {Colors.CYAN}Monitor:{Colors.END} journalctl -u pihole-monitor
-   {Colors.CYAN}Keepalived:{Colors.END} journalctl -u keepalived
-   {Colors.CYAN}Keepalived events:{Colors.END} /var/log/keepalived-notify.log
-
-{Colors.GREEN}{Colors.BOLD}🎉 Your Pi-hole High Availability setup is ready!{Colors.END}
-
-{Colors.YELLOW}Need help? Check the documentation or open an issue on GitHub.{Colors.END}
+{Colors.CYAN}{Colors.BOLD}Logs:{Colors.END}
+   journalctl -u pihole-monitor
+   journalctl -u keepalived
+   /var/log/keepalived-notify.log
 """)
+
+        if sync_disabled and dhcp_enabled:
+            print(f"""{Colors.YELLOW}{Colors.BOLD}⚠  CONFIG SYNC REMINDER{Colors.END}
+{Colors.YELLOW}   Built-in sync is disabled, but DHCP is active on your Pi-holes.
+   After a failover, DHCP leases and blocklists can diverge between nodes.
+   Make sure you keep both Pi-holes in sync using nebula-sync, gravity-sync,
+   or a similar tool.{Colors.END}
+""")
+
+        print(f"{Colors.YELLOW}Need help? https://github.com/JBakers/pihole-sentinel{Colors.END}\n")
 
 
 class Uninstaller:
@@ -2859,13 +2854,16 @@ def main():
                 if not ok:
                     raise RuntimeError(f"Secondary keepalived deployment failed on {setup.config['secondary_ip']}")
 
-                # Deploy sync service to primary
-                print(f"\n{Colors.BOLD}[4/4] Deploying config sync to {setup.config['primary_ip']}...{Colors.END}")
-                sync_interval = setup.config.get('sync_interval', 10)
-                ok = setup.deploy_sync_remote(sync_interval=sync_interval)
-                if not ok:
-                    # Sync failure is non-fatal — warn but continue
-                    print(f"{Colors.YELLOW}⚠ Sync deployment failed — you can deploy it later with pisen sync{Colors.END}")
+                # Deploy sync service to primary (optional)
+                if setup.config.get('enable_sync', True):
+                    print(f"\n{Colors.BOLD}[4/4] Deploying config sync to {setup.config['primary_ip']}...{Colors.END}")
+                    sync_interval = setup.config.get('sync_interval', 10)
+                    ok = setup.deploy_sync_remote(sync_interval=sync_interval)
+                    if not ok:
+                        # Sync failure is non-fatal — warn but continue
+                        print(f"{Colors.YELLOW}⚠ Sync deployment failed — you can deploy it later with pisen sync{Colors.END}")
+                else:
+                    print(f"\n{Colors.BOLD}[4/4] Skipping config sync (disabled by user).{Colors.END}")
 
             except Exception as deploy_err:
                 deploy_failed = True

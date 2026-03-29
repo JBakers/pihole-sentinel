@@ -1,3 +1,32 @@
+## [0.12.5-beta.10] - 2026-03-29
+
+### Fixed
+- **Config sync no longer overwrites secondary's upstream DNS** — when syncing the `[dns]` section
+  of `pihole.toml`, the secondary's `upstreams` value (e.g. `["127.0.0.1#5335"]` for unbound)
+  is now preserved. Previously, the primary's upstream DNS was pushed to the secondary, causing
+  DNS failures on the secondary after a failover when using a local resolver like unbound.
+- **`sync_to_secondary()` now section-based** — previously used a whole-file rsync that only
+  preserved `dhcp.active`. Now uses the same section-based approach as `sync_from_primary()`,
+  preserving `upstreams`, `listeningMode`, and `dhcp.active` on the secondary.
+- **`SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS`** variable added (default: `true`) — configurable via
+  `/etc/pihole-sentinel/sync.conf` and written by `setup.py`.
+
+## [0.12.5-beta.9] - 2026-03-29
+
+### Improved
+- **Deployment success screen simplified** — removed verbose status commands and failover test
+  instructions (moved to README). Screen now shows dashboard URL, essential log commands, and
+  a prominent warning when built-in sync is disabled but DHCP is active, reminding the user
+  to use nebula-sync, gravity-sync, or similar to keep nodes in sync.
+
+## [0.12.5-beta.8] - 2026-03-29
+
+### Improved
+- **Config sync is now optional in setup** — the setup wizard now asks "Enable built-in config
+  sync? (Y/n)" before the interval question. Answering `n` skips the sync deployment step
+  entirely, for users who already use nebula-sync, gravity-sync, or a similar solution.
+  Defaults to `Y` (enabled) for backward compatibility.
+
 ## [0.12.5-beta.7] - 2026-03-29
 
 ### Security
