@@ -1,3 +1,10 @@
+## [0.12.8] - 2026-03-29
+
+### Fixed
+- **Dashboard: "Server Online" text no longer static** — label now dynamically switches
+  to "Server Offline" when the node is unreachable. Previously the green/red dot changed
+  but the text always said "Server Online".
+
 ## [0.12.7] - 2026-03-29
 
 ### Improved

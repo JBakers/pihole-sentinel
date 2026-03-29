@@ -1460,7 +1460,7 @@
             status.innerHTML = `
                 <div class="status-item" title="Server is reachable on the network">
                     <div class="status-dot ${nodeData.online ? 'online' : 'offline'}"></div>
-                    <span>Server Online</span>
+                    <span>${nodeData.online ? 'Server Online' : 'Server Offline'}</span>
                 </div>
                 <div class="status-item" title="${serverOffline ? 'Unknown — server offline' : 'Pi-hole FTL service is running'}">
                     <div class="status-dot ${serverOffline ? 'unknown' : (nodeData.pihole ? 'online' : 'offline')}"></div>
