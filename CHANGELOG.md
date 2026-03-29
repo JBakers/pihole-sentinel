@@ -1,3 +1,28 @@
+## [0.12.8] - 2026-03-29
+
+### Fixed
+- **Dashboard: "Server Online" text no longer static** — label now dynamically switches
+  to "Server Offline" when the node is unreachable. Previously the green/red dot changed
+  but the text always said "Server Online".
+
+## [0.12.7] - 2026-03-29
+
+### Improved
+- **IP validation rejects non-routable addresses** — `validate_ip()` now rejects
+  unspecified (`0.0.0.0`), multicast (`224.0.0.0/4`), and reserved (`240.0.0.0/4`,
+  `255.255.255.255`) addresses. Prevents impossible configurations in setup wizard.
+  (Community feedback)
+- **Dropped `-beta.x` version suffix** — `0.x.x` already signals pre-release per SemVer.
+  Versioning is now plain `MAJOR.MINOR.PATCH`. Simplifies tags, releases, and workflow.
+
+## [0.12.6-beta.6] - 2026-03-29
+
+### Improved
+- **IP validation rejects non-routable addresses** — `validate_ip()` now rejects
+  unspecified (`0.0.0.0`), multicast (`224.0.0.0/4`), and reserved (`240.0.0.0/4`,
+  `255.255.255.255`) addresses. Prevents impossible configurations in setup wizard.
+  (Community feedback: unit test treated `0.0.0.0` as valid)
+
 ## [0.12.6-beta.5] - 2026-03-29
 
 ### Fixed
