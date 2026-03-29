@@ -1,3 +1,23 @@
+## [0.12.6-beta.3] - 2026-03-29
+
+### Security
+- **🔒 Complete rewrite of node-specific value preservation in `sync_to_secondary()`** —
+  beta.2's heredoc fix had three remaining flaws:
+  1. **Quoted heredoc blocked `PIHOLE_DIR`**: `<< 'REMOTE_PWHASH'` prevented variable expansion,
+     so `${PIHOLE_DIR}` was a literal string on the remote — grep found nothing.
+  2. **sed corrupted hash**: the BALLOON-SHA256 hash contains `$`, `&`, `|` which are special
+     in sed replacement strings — hash was silently mangled.
+  3. **Staging file permissions**: rsync preserved source ownership (`pihole:pihole` 644),
+     making `/tmp/pihole.toml.new` unwritable in some contexts + readable by all users.
+  
+  **Fix**: single quoted heredoc with `PIHOLE_DIR` passed via env; python3 for all values
+  containing special characters (pwhash, upstreams); `chown root:root && chmod 600` on
+  staging file immediately after rsync. Verified end-to-end on live Pi-holes.
+
+### Removed
+- **🗑️ `API.md`** — duplicate of `docs/api/README.md`
+- **🗑️ `AUDIT_REPORT_20251116.md`** — obsolete audit from November 2025, no longer relevant
+
 ## [0.12.6-beta.2] - 2026-03-29
 
 ### Security
