@@ -50,6 +50,39 @@ This document provides comprehensive guidance for AI assistants working with the
 
 ---
 
+### Critical: Security-First for Sensitive Changes (ALWAYS)
+
+**🚨 SECURITY IS NON-NEGOTIABLE — NEVER TAKE SHORTCUTS 🚨**
+
+Voor elke wijziging die raakt aan: **wachtwoorden, credentials, API keys, gebruikersdata,
+configuratiebestanden met secrets, SSH, authenticatie, autorisatie, privacy, of netwerktoegang**
+geldt:
+
+1. ✅ **Neem altijd de VEILIGSTE weg, niet de makkelijkste**
+   - Bewaar nooit een secret in plaintext, log, environment variabele, of process argument
+   - Gebruik `hmac.compare_digest()` voor vergelijkingen (timing-safe)
+   - Gebruik `chmod 600` / `0o600` voor bestanden met secrets
+   - Gebruik `sed -i` restore-patronen voor node-specifieke waarden (wachtwoord, pwhash, keys)
+
+2. ✅ **Controleer altijd of node-specifieke waarden bewaard blijven bij sync/copy/deploy**
+   - Voorbeelden: `pwhash`, `upstreams`, `listeningMode`, `dhcp.active`, API keys
+   - Stel jezelf de vraag: *"Wat gebeurt er met de secondary/remote als dit script opnieuw draait?"*
+
+3. ✅ **Valideer alle externe invoer op injectie** (shell, SQL, path traversal)
+   - Gebruik `--` separators in shell-commando's
+   - Gebruik `|` pipes niet met ongesaneerde variabelen
+
+4. ✅ **Documenteer security trade-offs expliciet**
+   - Als iets onveilig is maar bewust gekozen (bijv. `StrictHostKeyChecking=no`),
+     voeg dan een waarschuwing toe in de UI en een opmerking in de code
+
+5. ✅ **Meld security-relevante bevindingen direct aan de gebruiker**
+   - Ook als ze buiten de scope van de gevraagde wijziging vallen
+
+**Geen uitzonderingen. Cybersecurity boven gemak.**
+
+---
+
 ### Critical: Version Management (MUST FOLLOW FOR EVERY COMMIT)
 
 **🚨 THESE RULES ARE NON-NEGOTIABLE AND MUST BE FOLLOWED FOR EVERY CODE CHANGE 🚨**
