@@ -2061,52 +2061,36 @@ WantedBy=timers.target
         monitor_ip = self.config.get('monitor_ip', 'monitor-ip')
         primary_ip = self.config['primary_ip']
         secondary_ip = self.config['secondary_ip']
-        vip = self.config['vip']
-        
+        sync_disabled = not self.config.get('enable_sync', True)
+        dhcp_enabled  = self.config.get('dhcp_enabled', False)
+
         print(f"""
 {Colors.GREEN}{Colors.BOLD}
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║                                                                               ║
 ║                     ✓ DEPLOYMENT COMPLETED SUCCESSFULLY!                      ║
-║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 {Colors.END}
+{Colors.CYAN}{Colors.BOLD}Dashboard:{Colors.END}  http://{monitor_ip}:8080
 
-{Colors.CYAN}{Colors.BOLD}📊 Access Your Monitor Dashboard:{Colors.END}
-   {Colors.BOLD}→ http://{monitor_ip}:8080{Colors.END}
+{Colors.CYAN}{Colors.BOLD}Check status:{Colors.END}
+   systemctl status pihole-monitor keepalived pihole-FTL
+   journalctl -u pihole-monitor -f
 
-{Colors.CYAN}{Colors.BOLD}🔍 Quick Status Check Commands:{Colors.END}
-
-   {Colors.YELLOW}On Monitor Server ({monitor_ip}):{Colors.END}
-   {Colors.CYAN}systemctl status pihole-monitor{Colors.END}
-   {Colors.CYAN}journalctl -u pihole-monitor -f{Colors.END}
-   {Colors.CYAN}sqlite3 /opt/pihole-monitor/monitor.db "SELECT * FROM status_history ORDER BY timestamp DESC LIMIT 5;"{Colors.END}
-
-   {Colors.YELLOW}On Primary Pi-hole ({primary_ip}):{Colors.END}
-   {Colors.CYAN}systemctl status keepalived{Colors.END}
-   {Colors.CYAN}systemctl status pihole-FTL{Colors.END}
-   {Colors.CYAN}ip addr show | grep {vip}{Colors.END}
-
-   {Colors.YELLOW}On Secondary Pi-hole ({secondary_ip}):{Colors.END}
-   {Colors.CYAN}systemctl status keepalived{Colors.END}
-   {Colors.CYAN}systemctl status pihole-FTL{Colors.END}
-
-{Colors.CYAN}{Colors.BOLD}🧪 Test Failover:{Colors.END}
-   {Colors.BOLD}1.{Colors.END} Note which server has the VIP ({vip})
-   {Colors.BOLD}2.{Colors.END} On that server: {Colors.CYAN}systemctl stop pihole-FTL{Colors.END}
-   {Colors.BOLD}3.{Colors.END} Watch the VIP move to the other server
-   {Colors.BOLD}4.{Colors.END} Check the dashboard for status changes
-   {Colors.BOLD}5.{Colors.END} Restore service: {Colors.CYAN}systemctl start pihole-FTL{Colors.END}
-
-{Colors.CYAN}{Colors.BOLD}📁 Log Files:{Colors.END}
-   {Colors.CYAN}Monitor:{Colors.END} journalctl -u pihole-monitor
-   {Colors.CYAN}Keepalived:{Colors.END} journalctl -u keepalived
-   {Colors.CYAN}Keepalived events:{Colors.END} /var/log/keepalived-notify.log
-
-{Colors.GREEN}{Colors.BOLD}🎉 Your Pi-hole High Availability setup is ready!{Colors.END}
-
-{Colors.YELLOW}Need help? Check the documentation or open an issue on GitHub.{Colors.END}
+{Colors.CYAN}{Colors.BOLD}Logs:{Colors.END}
+   journalctl -u pihole-monitor
+   journalctl -u keepalived
+   /var/log/keepalived-notify.log
 """)
+
+        if sync_disabled and dhcp_enabled:
+            print(f"""{Colors.YELLOW}{Colors.BOLD}⚠  CONFIG SYNC REMINDER{Colors.END}
+{Colors.YELLOW}   Built-in sync is disabled, but DHCP is active on your Pi-holes.
+   After a failover, DHCP leases and blocklists can diverge between nodes.
+   Make sure you keep both Pi-holes in sync using nebula-sync, gravity-sync,
+   or a similar tool.{Colors.END}
+""")
+
+        print(f"{Colors.YELLOW}Need help? https://github.com/JBakers/pihole-sentinel{Colors.END}\n")
 
 
 class Uninstaller:
