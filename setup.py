@@ -1647,6 +1647,7 @@ SECONDARY_IP={self.config['secondary_ip']}
                 f"SYNC_CONFIG_DHCP={sync_options.get('config_dhcp', 'true')}",
                 f"SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE={sync_options.get('dhcp_exclude_active', 'true')}",
                 f"SYNC_CONFIG_DNS={sync_options.get('config_dns', 'true')}",
+                f"SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS={sync_options.get('dns_exclude_upstreams', 'true')}",
                 f"SYNC_RESTART_FTL={sync_options.get('restart_ftl', 'true')}",
                 f"SYNC_MAX_BACKUPS={sync_options.get('max_backups', '3')}",
             ]

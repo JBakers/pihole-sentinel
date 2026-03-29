@@ -1,3 +1,16 @@
+## [0.12.5-beta.10] - 2026-03-29
+
+### Fixed
+- **Config sync no longer overwrites secondary's upstream DNS** — when syncing the `[dns]` section
+  of `pihole.toml`, the secondary's `upstreams` value (e.g. `["127.0.0.1#5335"]` for unbound)
+  is now preserved. Previously, the primary's upstream DNS was pushed to the secondary, causing
+  DNS failures on the secondary after a failover when using a local resolver like unbound.
+- **`sync_to_secondary()` now section-based** — previously used a whole-file rsync that only
+  preserved `dhcp.active`. Now uses the same section-based approach as `sync_from_primary()`,
+  preserving `upstreams`, `listeningMode`, and `dhcp.active` on the secondary.
+- **`SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS`** variable added (default: `true`) — configurable via
+  `/etc/pihole-sentinel/sync.conf` and written by `setup.py`.
+
 ## [0.12.5-beta.9] - 2026-03-29
 
 ### Improved
