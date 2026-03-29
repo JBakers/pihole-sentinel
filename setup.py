@@ -235,11 +235,15 @@ class SetupConfig:
     
     @staticmethod
     def _s(user):
-        """Return 'sudo ' when the SSH user is not root, empty string otherwise.
+        """Return 'sudo -n ' when the SSH user is not root, empty string otherwise.
+
+        Uses -n (non-interactive) so sudo fails immediately instead of hanging
+        when the user lacks NOPASSWD privileges, rather than waiting for a
+        password prompt that can never be answered over a non-TTY SSH session.
 
         Usage: S = self._s(user)  →  f"{S}apt-get install ..."
         """
-        return "" if user == "root" else "sudo "
+        return "" if user == "root" else "sudo -n "
 
     def remote_exec(self, host, user, port, command, password=None, retries=3, retry_delay=10):
         """Execute command on remote host via SSH.
@@ -630,7 +634,11 @@ class SetupConfig:
         except subprocess.CalledProcessError as e:
             print(f"{Colors.RED}✗ Failed to generate SSH key: {e}{Colors.END}")
             return None
-        
+
+        print(f"\n{Colors.YELLOW}⚠ Security note: SSH host key verification is disabled (StrictHostKeyChecking=no).{Colors.END}")
+        print(f"{Colors.YELLOW}  This setup script does not verify remote host keys. Only run this on a{Colors.END}")
+        print(f"{Colors.YELLOW}  trusted network. A man-in-the-middle attack could intercept credentials.{Colors.END}")
+
         return ssh_key_path
     
     def distribute_ssh_key(self, host, user, port, password, key_path):
