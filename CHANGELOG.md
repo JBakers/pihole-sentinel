@@ -1,3 +1,12 @@
+## [0.12.5-beta.6] - 2026-03-29
+
+### Fixed
+- **sync-pihole-config.sh:** backup rotation was missing on secondary node — every 10-minute sync
+  created a new tar.gz (including gravity.db) without ever deleting old ones, causing disk full.
+- **sync-pihole-config.sh:** `SYNC_MAX_BACKUPS` variable added (default: 3) to control how many
+  backups are kept on both primary and secondary nodes.
+- **setup.py:** `SYNC_MAX_BACKUPS=3` now written to generated `sync.conf`.
+
 ## [0.12.5-beta.5] - 2026-03-29
 
 ### Improved

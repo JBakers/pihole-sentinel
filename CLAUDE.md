@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-03-29
 
-**Version:** 0.12.5-beta.5
+**Version:** 0.12.5-beta.6
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)

@@ -48,6 +48,7 @@ if [ -f "$SYNC_CONF" ]; then
             SYNC_CONFIG_DNS)       SYNC_CONFIG_DNS="$value" ;;
             SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE) SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE="$value" ;;
             SYNC_RESTART_FTL)      SYNC_RESTART_FTL="$value" ;;
+            SYNC_MAX_BACKUPS)      SYNC_MAX_BACKUPS="$value" ;;
         esac
     done < <(grep -v '^\s*#' "$SYNC_CONF" | grep '=')
 fi
@@ -61,6 +62,7 @@ SYNC_CONFIG_DHCP="${SYNC_CONFIG_DHCP:-true}"
 SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE="${SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE:-true}"
 SYNC_CONFIG_DNS="${SYNC_CONFIG_DNS:-true}"
 SYNC_RESTART_FTL="${SYNC_RESTART_FTL:-true}"
+SYNC_MAX_BACKUPS="${SYNC_MAX_BACKUPS:-3}"
 
 # Determine node type
 NODE_TYPE=""
@@ -124,9 +126,9 @@ create_backup() {
         "$PIHOLE_DIR/pihole.toml" \
         2>/dev/null || true
     
-    # Keep only last 5 backups
+    # Keep only last N backups (configurable via SYNC_MAX_BACKUPS, default 3)
     cd "$BACKUP_DIR"
-    ls -t pihole-backup-*.tar.gz | tail -n +6 | xargs -r rm
+    ls -t pihole-backup-*.tar.gz | tail -n +$((SYNC_MAX_BACKUPS + 1)) | xargs -r rm
     
     log_info "Backup created successfully"
 }
@@ -320,11 +322,12 @@ sync_to_secondary() {
         exit 1
     fi
     
-    # Ask secondary to create backup
-    log_info "Creating backup on secondary..."
+    # Ask secondary to create backup (with rotation to prevent disk full)
+    log_info "Creating backup on secondary (keeping last ${SYNC_MAX_BACKUPS})..."
     ssh "root@${SECONDARY_IP}" "mkdir -p $BACKUP_DIR && \
         tar czf $BACKUP_DIR/pihole-backup-\$(date +%Y%m%d-%H%M%S).tar.gz \
-        $PIHOLE_DIR/gravity.db $PIHOLE_DIR/custom.list $PIHOLE_DIR/pihole.toml 2>/dev/null || true"
+        $PIHOLE_DIR/gravity.db $PIHOLE_DIR/custom.list $PIHOLE_DIR/pihole.toml 2>/dev/null || true && \
+        cd $BACKUP_DIR && ls -t pihole-backup-*.tar.gz 2>/dev/null | tail -n +$((SYNC_MAX_BACKUPS + 1)) | xargs -r rm"
     
     # Stop Pi-hole on secondary (only if restart enabled)
     if [ "$SYNC_RESTART_FTL" = "true" ]; then
