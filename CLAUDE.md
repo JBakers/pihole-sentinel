@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-03-29
 
-**Version:** 0.12.6-beta.5
+**Version:** 0.12.7
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
@@ -102,7 +102,7 @@ geldt:
 
 **This project STRICTLY adheres to [Semantic Versioning 2.0.0](https://semver.org/).**
 
-Given a version number **MAJOR.MINOR.PATCH-PRERELEASE**, increment:
+Given a version number **MAJOR.MINOR.PATCH**, increment:
 
 1. **MAJOR** version (X.0.0) when you make incompatible API changes or breaking changes
    - Example: Changing configuration file format without backward compatibility
@@ -112,49 +112,34 @@ Given a version number **MAJOR.MINOR.PATCH-PRERELEASE**, increment:
 2. **MINOR** version (0.X.0) when you add functionality in a backward compatible manner
    - Example: Adding new features
    - Example: Adding new optional configuration options
-   - Example: Significant changes like license changes (in beta context)
+   - Example: Significant architectural changes
 
 3. **PATCH** version (0.0.X) when you make backward compatible bug fixes
    - Example: Fixing bugs without changing functionality
    - Example: Performance improvements
    - Example: Security patches that don't change behavior
 
-**Pre-Release Versioning (Beta Phase):**
+**Pre-1.0 Development:**
 
-We are currently in **beta** phase (0.x.x-beta.y). Version format: `MAJOR.MINOR.PATCH-beta.INCREMENT`
+We are currently in pre-1.0 development (`0.x.x`). The `0.` prefix already signals
+that the API is not yet stable. No `-beta.x` suffix is used.
 
-- **Minor bump (0.9.0 → 0.10.0):** Significant changes or features warranting new minor version
-  - Each new minor gets `-beta.1` suffix
-  - Example: `0.10.0-beta.1` (license change was significant enough for minor bump)
-
-- **Beta increment (beta.1 → beta.2 → … → beta.10):** Changes within same minor version
-  - Bug fixes: increment beta (e.g., `0.10.0-beta.1` → `0.10.0-beta.2`)
-  - New features: increment beta (e.g., `0.10.0-beta.2` → `0.10.0-beta.3`)
-  - **Maximum 10 betas per patch level** — after beta.10 bump PATCH and reset to beta.1
-  - Example: `0.12.0-beta.10` → `0.12.1-beta.1` (not `0.12.0-beta.11`)
-  - Keep same MINOR version unless change is truly significant
-
-- **Major version 1.0.0:** Reserved for production-ready release
-  - Will mark end of beta phase
-  - Indicates stable, production-ready software
-  - Only use when ready for public release
+- **PATCH bump:** Bug fixes, small improvements → `0.12.7` → `0.12.8`
+- **MINOR bump:** New features, significant changes → `0.12.8` → `0.13.0`
+- **1.0.0:** Reserved for production-ready release
 
 **Examples:**
 ```
-0.9.0-beta.1   → Initial beta release
-0.9.0-beta.2   → Bug fix in same series
-0.10.0-beta.1  → Significant change (e.g., license change)
-0.10.0-beta.2  → Bug fix after significant change
-0.10.0-beta.10 → Max betas reached for 0.10.0
-0.10.1-beta.1  → Next fix after max betas (patch bump, reset)
-0.11.0-beta.1  → Next significant feature
-1.0.0          → Production release (NO beta suffix)
+0.12.7   → Bug fix
+0.12.8   → Another fix or small improvement
+0.13.0   → New feature
+1.0.0    → Production release
 ```
 
 **Quick Decision Tree:**
-- 🔴 Breaking change? → Bump MAJOR (but stay in beta: use 0.X.0-beta.1)
-- 🟡 Significant change or new feature series? → Bump MINOR, reset to beta.1
-- 🟢 Bug fix or feature in current series? → Increment beta number
+- 🔴 Breaking change? → Bump MINOR (in pre-1.0: 0.X.0)
+- 🟡 New feature? → Bump MINOR (0.X.0)
+- 🟢 Bug fix or improvement? → Bump PATCH (0.0.X)
 - ⚪ Documentation only? → No version change needed
 
 #### Pre-Commit Verification Checklist

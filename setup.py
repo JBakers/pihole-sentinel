@@ -115,9 +115,11 @@ class SetupConfig:
             return value
 
     def validate_ip(self, ip):
-        """Validate IP address format."""
+        """Validate IP address format and reject non-routable addresses."""
         try:
-            ip_address(ip)
+            addr = ip_address(ip)
+            if addr.is_unspecified or addr.is_multicast or addr.is_reserved:
+                return False
             return True
         except ValueError:
             return False
