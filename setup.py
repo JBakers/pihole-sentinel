@@ -595,18 +595,28 @@ class SetupConfig:
                 break
             print(f"{Colors.RED}Please enter 'y' or 'n'{Colors.END}")
 
-        # Config sync interval (deployed to primary, syncs to secondary)
+        # Config sync — optional, can be skipped when using nebula-sync or similar
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== Configuration Sync ==={Colors.END}")
-        print(f"{Colors.CYAN}Pi-hole Sentinel automatically syncs settings from primary → secondary.{Colors.END}")
-        print(f"{Colors.CYAN}This replaces tools like nebula-sync. Syncs: gravity, DNS, DHCP, config.{Colors.END}")
+        print(f"{Colors.CYAN}Pi-hole Sentinel can sync settings from primary → secondary automatically.{Colors.END}")
+        print(f"{Colors.CYAN}Skip this if you already use nebula-sync, gravity-sync, or similar.{Colors.END}")
         while True:
-            interval = input(f"\n{Colors.BOLD}Sync interval in minutes [{Colors.CYAN}10{Colors.END}]:{Colors.END} ").strip() or "10"
-            if interval.isdigit() and 1 <= int(interval) <= 1440:
-                self.config['sync_interval'] = int(interval)
-                print(f"{Colors.GREEN}✓ Config sync every {interval} minutes{Colors.END}")
+            use_sync = input(f"\n{Colors.BOLD}Enable built-in config sync? (Y/n):{Colors.END} ").strip().lower()
+            if use_sync in ['y', 'n', '']:
+                self.config['enable_sync'] = use_sync != 'n'
                 break
-            print(f"{Colors.RED}Enter a number between 1 and 1440 (24 hours){Colors.END}")
-            
+            print(f"{Colors.RED}Please enter 'y' or 'n'{Colors.END}")
+
+        if self.config['enable_sync']:
+            while True:
+                interval = input(f"\n{Colors.BOLD}Sync interval in minutes [{Colors.CYAN}10{Colors.END}]:{Colors.END} ").strip() or "10"
+                if interval.isdigit() and 1 <= int(interval) <= 1440:
+                    self.config['sync_interval'] = int(interval)
+                    print(f"{Colors.GREEN}✓ Config sync every {interval} minutes{Colors.END}")
+                    break
+                print(f"{Colors.RED}Enter a number between 1 and 1440 (24 hours){Colors.END}")
+        else:
+            print(f"{Colors.YELLOW}✓ Built-in sync disabled — using your own sync solution{Colors.END}")
+        
     def setup_ssh_keys(self):
         """Generate SSH key and distribute to all servers."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== SSH Key Setup ==={Colors.END}")
@@ -2859,13 +2869,16 @@ def main():
                 if not ok:
                     raise RuntimeError(f"Secondary keepalived deployment failed on {setup.config['secondary_ip']}")
 
-                # Deploy sync service to primary
-                print(f"\n{Colors.BOLD}[4/4] Deploying config sync to {setup.config['primary_ip']}...{Colors.END}")
-                sync_interval = setup.config.get('sync_interval', 10)
-                ok = setup.deploy_sync_remote(sync_interval=sync_interval)
-                if not ok:
-                    # Sync failure is non-fatal — warn but continue
-                    print(f"{Colors.YELLOW}⚠ Sync deployment failed — you can deploy it later with pisen sync{Colors.END}")
+                # Deploy sync service to primary (optional)
+                if setup.config.get('enable_sync', True):
+                    print(f"\n{Colors.BOLD}[4/4] Deploying config sync to {setup.config['primary_ip']}...{Colors.END}")
+                    sync_interval = setup.config.get('sync_interval', 10)
+                    ok = setup.deploy_sync_remote(sync_interval=sync_interval)
+                    if not ok:
+                        # Sync failure is non-fatal — warn but continue
+                        print(f"{Colors.YELLOW}⚠ Sync deployment failed — you can deploy it later with pisen sync{Colors.END}")
+                else:
+                    print(f"\n{Colors.BOLD}[4/4] Skipping config sync (disabled by user).{Colors.END}")
 
             except Exception as deploy_err:
                 deploy_failed = True
