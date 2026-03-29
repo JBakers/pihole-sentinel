@@ -227,7 +227,7 @@ sync_from_primary() {
         if [ -s /tmp/dhcp_remote.toml ]; then
             # Preserve local DHCP active state
             if [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ]; then
-                local_dhcp_active=$(sed -n '/^\[dhcp\]/,/^\[/{ /^active = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
+                local_dhcp_active=$(sed -n '/^\[dhcp\]/,/^\[/{ /^[[:space:]]*active = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
             fi
 
             # Replace local [dhcp] section with remote
@@ -241,7 +241,7 @@ sync_from_primary() {
 
             # Restore local DHCP active state
             if [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ] && [ -n "$local_dhcp_active" ]; then
-                sed -i "/^\[dhcp\]/,/^\[/ s/^active = .*/$local_dhcp_active/" "${PIHOLE_DIR}/pihole.toml"
+                sed -i "/^\[dhcp\]/,/^\[/ s/^[[:space:]]*active = .*/$local_dhcp_active/" "${PIHOLE_DIR}/pihole.toml"
                 log_info "Preserved local DHCP active state: $local_dhcp_active"
             fi
             log_info "DHCP configuration synced"
@@ -260,9 +260,9 @@ sync_from_primary() {
 
         if [ -s /tmp/dns_remote.toml ]; then
             # Preserve local DNS settings that are node-specific
-            local_dns_listening=$(sed -n '/^\[dns\]/,/^\[/{ /^listeningMode = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
+            local_dns_listening=$(sed -n '/^\[dns\]/,/^\[/{ /^[[:space:]]*listeningMode = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
             if [ "$SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS" = "true" ]; then
-                local_dns_upstreams=$(sed -n '/^\[dns\]/,/^\[/{ /^upstreams = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
+                local_dns_upstreams=$(sed -n '/^\[dns\]/,/^\[/{ /^[[:space:]]*upstreams = /p; }' "${PIHOLE_DIR}/pihole.toml" | head -n1)
             fi
 
             # Replace local [dns] section with remote
@@ -272,10 +272,10 @@ sync_from_primary() {
 
             # Restore node-specific DNS settings
             if [ -n "$local_dns_listening" ]; then
-                sed -i "/^\[dns\]/,/^\[/ s/^listeningMode = .*/$local_dns_listening/" "${PIHOLE_DIR}/pihole.toml"
+                sed -i "/^\[dns\]/,/^\[/ s/^[[:space:]]*listeningMode = .*/$local_dns_listening/" "${PIHOLE_DIR}/pihole.toml"
             fi
             if [ "$SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS" = "true" ] && [ -n "$local_dns_upstreams" ]; then
-                sed -i "/^\[dns\]/,/^\[/ s/^upstreams = .*/$local_dns_upstreams/" "${PIHOLE_DIR}/pihole.toml"
+                sed -i "/^\[dns\]/,/^\[/ s/^[[:space:]]*upstreams = .*/$local_dns_upstreams/" "${PIHOLE_DIR}/pihole.toml"
                 log_info "Preserved local DNS upstreams: $local_dns_upstreams"
             fi
             log_info "DNS configuration synced"
@@ -441,16 +441,16 @@ fi
 
 # 2. Preserve DHCP active state
 if [ "$SYNC_DHCP" = "true" ] && [ "$SYNC_DHCP_EXCL" = "true" ]; then
-    dhcp_active=$(sed -n '/^\[dhcp\]/,/^\[/{ /^active = /p; }' "$LIVE" | head -n1)
+    dhcp_active=$(sed -n '/^\[dhcp\]/,/^\[/{ /^[[:space:]]*active = /p; }' "$LIVE" | head -n1)
     if [ -n "$dhcp_active" ]; then
-        sed -i "/^\[dhcp\]/,/^\[/ s/^active = .*/$dhcp_active/" "$STAGED"
+        sed -i "/^\[dhcp\]/,/^\[/ s/^[[:space:]]*active = .*/$dhcp_active/" "$STAGED"
         echo "$(ts) - Preserved secondary DHCP active: $dhcp_active" >> "$LOGFILE"
     fi
 fi
 
 # 3. Preserve DNS upstreams (e.g. local unbound 127.0.0.1#5335)
 if [ "$SYNC_DNS" = "true" ] && [ "$SYNC_DNS_EXCL_UP" = "true" ]; then
-    dns_up=$(sed -n '/^\[dns\]/,/^\[/{ /^upstreams = /p; }' "$LIVE" | head -n1)
+    dns_up=$(sed -n '/^\[dns\]/,/^\[/{ /^[[:space:]]*upstreams = /p; }' "$LIVE" | head -n1)
     if [ -n "$dns_up" ]; then
         # upstreams value is a TOML array like ["x","y"] — use python3 for safe replace
         python3 -c "
@@ -477,9 +477,9 @@ fi
 
 # 4. Preserve DNS listeningMode
 if [ "$SYNC_DNS" = "true" ]; then
-    dns_lm=$(sed -n '/^\[dns\]/,/^\[/{ /^listeningMode = /p; }' "$LIVE" | head -n1)
+    dns_lm=$(sed -n '/^\[dns\]/,/^\[/{ /^[[:space:]]*listeningMode = /p; }' "$LIVE" | head -n1)
     if [ -n "$dns_lm" ]; then
-        sed -i "/^\[dns\]/,/^\[/ s/^listeningMode = .*/$dns_lm/" "$STAGED"
+        sed -i "/^\[dns\]/,/^\[/ s/^[[:space:]]*listeningMode = .*/$dns_lm/" "$STAGED"
         echo "$(ts) - Preserved secondary DNS listeningMode" >> "$LOGFILE"
     fi
 fi
