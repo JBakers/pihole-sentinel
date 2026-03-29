@@ -9,7 +9,7 @@ dhcp_is_active() {
 
 # Helper: return 0 (true) when port 67 is bound
 port67_bound() {
-    ss -ulnp 2>/dev/null | grep -q ':67'
+    ss -ulnp 2>/dev/null | grep -qE ':67\b'
 }
 
 LOCK_FILE="/var/lock/pihole-dhcp-control.lock"

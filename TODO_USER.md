@@ -2,11 +2,11 @@
 
 ## Current Status
 - **Branch:** develop
-- **Version:** 0.12.7
-- **Last updated:** 2026-03-29
+- **Version:** 0.14.1
+- **Last updated:** 2026-03-30
 - **Setup status:** ✅ Full deployment works without errors (tested 2026-03-28)
 
-> All items resolved up to and including v0.12.5-beta.7 are documented in [CHANGELOG.md](CHANGELOG.md).
+> All items resolved up to and including v0.14.1 are documented in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

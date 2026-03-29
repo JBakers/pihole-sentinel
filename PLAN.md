@@ -23,7 +23,7 @@
 
 ## Current Status
 
-### Branch: `develop` — v0.12.5-beta.7
+### Branch: `develop` — v0.14.1
 
 | Item | Status |
 |------|--------|

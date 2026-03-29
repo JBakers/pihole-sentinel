@@ -64,6 +64,10 @@ SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE="${SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE:-true}"
 SYNC_CONFIG_DNS="${SYNC_CONFIG_DNS:-true}"
 SYNC_RESTART_FTL="${SYNC_RESTART_FTL:-true}"
 SYNC_MAX_BACKUPS="${SYNC_MAX_BACKUPS:-3}"
+# Validate numeric (default 3, clamp 1-100)
+if ! [[ "$SYNC_MAX_BACKUPS" =~ ^[0-9]+$ ]] || [ "$SYNC_MAX_BACKUPS" -lt 1 ] || [ "$SYNC_MAX_BACKUPS" -gt 100 ]; then
+    SYNC_MAX_BACKUPS=3
+fi
 SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS="${SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS:-true}"
 
 # Determine node type
@@ -398,9 +402,10 @@ sync_to_secondary() {
 
         # ━━━ Preserve ALL node-specific values on the secondary ━━━
         # SECURITY: all operations run in a single remote heredoc session.
-        # Values never cross SSH as command args (no local $-expansion,
-        # no ps/log exposure). Quoted heredoc prevents local variable expansion;
-        # PIHOLE_DIR is passed via env to the remote shell.
+        # Sensitive values (pwhash, cert, domain, upstreams) are read by python3
+        # directly from the live file — never exposed in process args, env, or logs.
+        # Quoted heredoc prevents local variable expansion; PIHOLE_DIR is passed
+        # via env to the remote shell.
         #
         # Preserved values:
         #   1. pwhash        — web API password (indented under [webserver.api])
@@ -410,9 +415,8 @@ sync_to_secondary() {
         #   5. domain        — webserver hostname (indented under [webserver])
         #   6. cert          — TLS certificate path (indented under [webserver.tls])
         #
-        # We use python3 for the pwhash swap because the hash ($BALLOON-SHA256$...)
-        # contains $, |, &, = which corrupt sed replacement strings.
-        # For top-level [dhcp]/[dns] keys, sed is safe (simple values, no specials).
+        # All python3 preserve blocks read values from the live TOML file directly,
+        # so no secrets are passed as command-line arguments or environment variables.
 
         ssh "root@${SECONDARY_IP}" PIHOLE_DIR="${PIHOLE_DIR}"             SYNC_DHCP="${SYNC_CONFIG_DHCP}"             SYNC_DHCP_EXCL="${SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE}"             SYNC_DNS="${SYNC_CONFIG_DNS}"             SYNC_DNS_EXCL_UP="${SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS}"             bash << 'REMOTE_PRESERVE'
 set -e
@@ -422,22 +426,29 @@ LIVE="$PIHOLE_DIR/pihole.toml"
 STAGED="/tmp/pihole.toml.new"
 
 # 1. Preserve pwhash (indented key, hash contains $, |, & — use python3 for safe swap)
-pwhash_line=$(grep -m1 '^\s*pwhash = ' "$LIVE" || true)
-if [ -n "$pwhash_line" ]; then
-    python3 -c "
-import sys
-live_pw = sys.argv[1]
-with open(sys.argv[2], 'r') as f:
+# SECURITY: read pwhash directly from file, never expose in process args or env
+python3 << 'PYPRESERVE_PWHASH'
+import re, sys
+LIVE, STAGED = "/etc/pihole/pihole.toml", "/tmp/pihole.toml.new"
+# Extract pwhash line from live file
+pw_line = None
+with open(LIVE) as f:
+    for line in f:
+        if line.lstrip().startswith("pwhash = "):
+            pw_line = line
+            break
+if pw_line is None:
+    sys.exit(0)
+with open(STAGED) as f:
     lines = f.readlines()
-with open(sys.argv[2], 'w') as f:
+with open(STAGED, "w") as f:
     for line in lines:
-        if line.lstrip().startswith('pwhash = '):
-            f.write(live_pw + '\n')
+        if line.lstrip().startswith("pwhash = "):
+            f.write(pw_line)
         else:
             f.write(line)
-" "$pwhash_line" "$STAGED"
-    echo "$(ts) - Preserved secondary pwhash" >> "$LOGFILE"
-fi
+PYPRESERVE_PWHASH
+echo "$(ts) - Preserved secondary pwhash" >> "$LOGFILE"
 
 # 2. Preserve DHCP active state
 if [ "$SYNC_DHCP" = "true" ] && [ "$SYNC_DHCP_EXCL" = "true" ]; then
@@ -450,29 +461,42 @@ fi
 
 # 3. Preserve DNS upstreams (e.g. local unbound 127.0.0.1#5335)
 if [ "$SYNC_DNS" = "true" ] && [ "$SYNC_DNS_EXCL_UP" = "true" ]; then
-    dns_up=$(sed -n '/^\[dns\]/,/^\[/{ /^[[:space:]]*upstreams = /p; }' "$LIVE" | head -n1)
-    if [ -n "$dns_up" ]; then
-        # upstreams value is a TOML array like ["x","y"] — use python3 for safe replace
-        python3 -c "
+    # Read live upstreams directly from file (never expose in process args)
+    python3 << 'PYPRESERVE_UPSTREAMS'
 import sys
-live_up = sys.argv[1]
-with open(sys.argv[2], 'r') as f:
+LIVE = "/etc/pihole/pihole.toml"
+STAGED = "/tmp/pihole.toml.new"
+# Extract upstreams line from live [dns] section
+up_line = None
+in_dns = False
+with open(LIVE) as f:
+    for line in f:
+        s = line.strip()
+        if s == "[dns]":
+            in_dns = True
+        elif s.startswith("[") and s != "[dns]":
+            in_dns = False
+        if in_dns and s.startswith("upstreams = "):
+            up_line = line
+            break
+if up_line is None:
+    sys.exit(0)
+with open(STAGED) as f:
     lines = f.readlines()
 in_dns = False
-with open(sys.argv[2], 'w') as f:
+with open(STAGED, "w") as f:
     for line in lines:
-        stripped = line.strip()
-        if stripped == '[dns]':
+        s = line.strip()
+        if s == "[dns]":
             in_dns = True
-        elif stripped.startswith('[') and stripped != '[dns]':
+        elif s.startswith("[") and s != "[dns]":
             in_dns = False
-        if in_dns and stripped.startswith('upstreams = '):
-            f.write(live_up + '\n')
+        if in_dns and s.startswith("upstreams = "):
+            f.write(up_line)
         else:
             f.write(line)
-" "$dns_up" "$STAGED"
-        echo "$(ts) - Preserved secondary DNS upstreams" >> "$LOGFILE"
-    fi
+PYPRESERVE_UPSTREAMS
+    echo "$(ts) - Preserved secondary DNS upstreams" >> "$LOGFILE"
 fi
 
 # 4. Preserve DNS listeningMode
@@ -485,43 +509,48 @@ if [ "$SYNC_DNS" = "true" ]; then
 fi
 
 # 5. Preserve webserver domain (indented key, e.g. 'pihole2.home')
-# The domain value may contain dots but no shell-special chars — python3 for consistency
-# with the indented [webserver] section structure.
-domain_line=$(grep -m1 '^\s*domain = ' "$LIVE" || true)
-if [ -n "$domain_line" ]; then
-    python3 -c "
-import sys
-live_val = sys.argv[1]
-with open(sys.argv[2], 'r') as f:
-    lines = f.readlines()
-with open(sys.argv[2], 'w') as f:
-    for line in lines:
-        if line.lstrip().startswith('domain = '):
-            f.write(live_val + '\n')
-        else:
-            f.write(line)
-" "$domain_line" "$STAGED"
-    echo "$(ts) - Preserved secondary webserver domain" >> "$LOGFILE"
-fi
+# SECURITY: read directly from file, not via process args
+python3 << 'PYPRESERVE_DOMAIN'
+LIVE, STAGED = "/etc/pihole/pihole.toml", "/tmp/pihole.toml.new"
+domain_line = None
+with open(LIVE) as f:
+    for line in f:
+        if line.lstrip().startswith("domain = "):
+            domain_line = line
+            break
+if domain_line is not None:
+    with open(STAGED) as f:
+        lines = f.readlines()
+    with open(STAGED, "w") as f:
+        for line in lines:
+            if line.lstrip().startswith("domain = "):
+                f.write(domain_line)
+            else:
+                f.write(line)
+PYPRESERVE_DOMAIN
+echo "$(ts) - Preserved secondary webserver domain" >> "$LOGFILE"
 
 # 6. Preserve TLS certificate path (indented key under [webserver.tls])
-# Each node has its own certificate — syncing the primary's cert path would break TLS.
-cert_line=$(grep -m1 '^\s*cert = ' "$LIVE" || true)
-if [ -n "$cert_line" ]; then
-    python3 -c "
-import sys
-live_val = sys.argv[1]
-with open(sys.argv[2], 'r') as f:
-    lines = f.readlines()
-with open(sys.argv[2], 'w') as f:
-    for line in lines:
-        if line.lstrip().startswith('cert = '):
-            f.write(live_val + '\n')
-        else:
-            f.write(line)
-" "$cert_line" "$STAGED"
-    echo "$(ts) - Preserved secondary TLS cert path" >> "$LOGFILE"
-fi
+# SECURITY: read directly from file, not via process args
+python3 << 'PYPRESERVE_CERT'
+LIVE, STAGED = "/etc/pihole/pihole.toml", "/tmp/pihole.toml.new"
+cert_line = None
+with open(LIVE) as f:
+    for line in f:
+        if line.lstrip().startswith("cert = "):
+            cert_line = line
+            break
+if cert_line is not None:
+    with open(STAGED) as f:
+        lines = f.readlines()
+    with open(STAGED, "w") as f:
+        for line in lines:
+            if line.lstrip().startswith("cert = "):
+                f.write(cert_line)
+            else:
+                f.write(line)
+PYPRESERVE_CERT
+echo "$(ts) - Preserved secondary TLS cert path" >> "$LOGFILE"
 
 echo "$(ts) - All node-specific values preserved" >> "$LOGFILE"
 REMOTE_PRESERVE
