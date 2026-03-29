@@ -1,3 +1,11 @@
+## [0.12.5-beta.8] - 2026-03-29
+
+### Improved
+- **Config sync is now optional in setup** — the setup wizard now asks "Enable built-in config
+  sync? (Y/n)" before the interval question. Answering `n` skips the sync deployment step
+  entirely, for users who already use nebula-sync, gravity-sync, or a similar solution.
+  Defaults to `Y` (enabled) for backward compatibility.
+
 ## [0.12.5-beta.7] - 2026-03-29
 
 ### Security
