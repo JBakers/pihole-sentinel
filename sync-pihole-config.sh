@@ -427,16 +427,15 @@ if [ -n "$pwhash_line" ]; then
     python3 -c "
 import sys
 live_pw = sys.argv[1]
-with open('$STAGED', 'r') as f:
+with open(sys.argv[2], 'r') as f:
     lines = f.readlines()
-with open('$STAGED', 'w') as f:
+with open(sys.argv[2], 'w') as f:
     for line in lines:
         if line.lstrip().startswith('pwhash = '):
-            f.write(live_pw + '
-')
+            f.write(live_pw + '\n')
         else:
             f.write(line)
-" "$pwhash_line"
+" "$pwhash_line" "$STAGED"
     echo "$(ts) - Preserved secondary pwhash" >> "$LOGFILE"
 fi
 
@@ -457,10 +456,10 @@ if [ "$SYNC_DNS" = "true" ] && [ "$SYNC_DNS_EXCL_UP" = "true" ]; then
         python3 -c "
 import sys
 live_up = sys.argv[1]
-with open('$STAGED', 'r') as f:
+with open(sys.argv[2], 'r') as f:
     lines = f.readlines()
 in_dns = False
-with open('$STAGED', 'w') as f:
+with open(sys.argv[2], 'w') as f:
     for line in lines:
         stripped = line.strip()
         if stripped == '[dns]':
@@ -468,11 +467,10 @@ with open('$STAGED', 'w') as f:
         elif stripped.startswith('[') and stripped != '[dns]':
             in_dns = False
         if in_dns and stripped.startswith('upstreams = '):
-            f.write(live_up + '
-')
+            f.write(live_up + '\n')
         else:
             f.write(line)
-" "$dns_up"
+" "$dns_up" "$STAGED"
         echo "$(ts) - Preserved secondary DNS upstreams" >> "$LOGFILE"
     fi
 fi
