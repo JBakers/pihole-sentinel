@@ -236,6 +236,37 @@ systemctl stop pihole-FTL
 systemctl start pihole-FTL
 ```
 
+### Configuration Sync
+
+If you enabled the built-in config sync during setup, it runs automatically via a systemd timer on the primary Pi-hole.
+
+**Check sync timer status:**
+```bash
+systemctl status pihole-sync.timer
+```
+
+**Stop sync (temporarily):**
+```bash
+systemctl stop pihole-sync.timer
+```
+
+**Stop sync (permanently, survives reboot):**
+```bash
+systemctl stop pihole-sync.timer && systemctl disable pihole-sync.timer
+```
+
+**Re-enable sync:**
+```bash
+systemctl enable pihole-sync.timer && systemctl start pihole-sync.timer
+```
+
+**Run sync manually:**
+```bash
+pisen sync --run
+```
+
+See **[Configuration Sync](docs/maintenance/sync.md)** for full details.
+
 ### Upgrading
 
 **On monitor server:**
