@@ -1630,6 +1630,7 @@ SECONDARY_IP={self.config['secondary_ip']}
                 f"SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE={sync_options.get('dhcp_exclude_active', 'true')}",
                 f"SYNC_CONFIG_DNS={sync_options.get('config_dns', 'true')}",
                 f"SYNC_RESTART_FTL={sync_options.get('restart_ftl', 'true')}",
+                f"SYNC_MAX_BACKUPS={sync_options.get('max_backups', '3')}",
             ]
             sync_conf = "\n".join(sync_conf_lines) + "\n"
 
