@@ -1,3 +1,8 @@
+## [0.12.5-beta.5] - 2026-03-29
+
+### Improved
+- **Conditional sudo for non-root SSH users** — added `_s(user)` helper that returns `"sudo "` when the SSH user is not root and an empty string when it is. All privileged remote commands in `install_remote_dependencies()`, `configure_timezone_and_ntp()`, `deploy_monitor_remote()`, and `deploy_keepalived_remote()` now use this helper instead of always or never prepending `sudo`. Root SSH users continue to work as before without any sudo overhead.
+
 ## [0.12.5-beta.4] - 2026-03-29
 
 ### Fixed

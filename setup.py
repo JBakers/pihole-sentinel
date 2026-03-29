@@ -233,6 +233,14 @@ class SetupConfig:
             return f'"{escaped}"'
         return value_str
     
+    @staticmethod
+    def _s(user):
+        """Return 'sudo ' when the SSH user is not root, empty string otherwise.
+
+        Usage: S = self._s(user)  →  f"{S}apt-get install ..."
+        """
+        return "" if user == "root" else "sudo "
+
     def remote_exec(self, host, user, port, command, password=None, retries=3, retry_delay=10):
         """Execute command on remote host via SSH.
 
@@ -315,16 +323,17 @@ class SetupConfig:
             timezone = "Europe/Amsterdam"
         
         print(f"{Colors.CYAN}├─ Configuring timezone ({timezone}) and NTP...{Colors.END}")
+        S = self._s(user)
         try:
             # Set timezone — pass as positional argument, not embedded in shell string
             self.remote_exec(host, user, port,
-                f"sudo timedatectl set-timezone -- {timezone}", password)
+                f"{S}timedatectl set-timezone -- {timezone}", password)
 
             # Try to enable NTP (will be skipped in containers, which sync from host)
             try:
-                self.remote_exec(host, user, port, "sudo systemctl enable systemd-timesyncd >/dev/null 2>&1 || true", password)
-                self.remote_exec(host, user, port, "sudo systemctl start systemd-timesyncd >/dev/null 2>&1 || true", password)
-                self.remote_exec(host, user, port, "sudo timedatectl set-ntp true >/dev/null 2>&1 || true", password)
+                self.remote_exec(host, user, port, f"{S}systemctl enable systemd-timesyncd >/dev/null 2>&1 || true", password)
+                self.remote_exec(host, user, port, f"{S}systemctl start systemd-timesyncd >/dev/null 2>&1 || true", password)
+                self.remote_exec(host, user, port, f"{S}timedatectl set-ntp true >/dev/null 2>&1 || true", password)
             except:
                 pass  # Containers sync time from host, so NTP service not needed
             
@@ -345,15 +354,17 @@ class SetupConfig:
         
         print(f"\n┌─ Installing system dependencies on {host}")
         print(f"│  Packages: {len(packages)} total")
-        
+
+        S = self._s(user)
+
         try:
             # Update package lists
             print(f"│  [░░░░░░░░░░░░░░░░░░░░] 0%   Updating package lists...", end='\r')
             if VERBOSE:
-                self.remote_exec(host, user, port, "sudo apt-get update -o Acquire::Retries=3", password)
+                self.remote_exec(host, user, port, f"{S}apt-get update -o Acquire::Retries=3", password)
             else:
                 # Keep stdout quiet but let stderr through so failures are visible
-                self.remote_exec(host, user, port, "sudo apt-get update -o Acquire::Retries=3 -qq >/dev/null", password)
+                self.remote_exec(host, user, port, f"{S}apt-get update -o Acquire::Retries=3 -qq >/dev/null", password)
             print(f"│  [████░░░░░░░░░░░░░░░░] 20%  Package lists updated     ")
 
             # Install packages (this is the slow part)
@@ -366,7 +377,7 @@ class SetupConfig:
                 user,
                 port,
                 (
-                    "sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a "
+                    f"{S}env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a "
                     "apt-get install -y "
                     "-o Dpkg::Use-Pty=0 "
                     "-o DPkg::Lock::Timeout=120 "
@@ -1268,6 +1279,7 @@ SECONDARY_IP={self.config['secondary_ip']}
         user = self.config['monitor_ssh_user']
         port = self.config['monitor_ssh_port']
         password = self.config.get('monitor_ssh_pass')
+        S = self._s(user)
 
         try:
             print(f"\nDeploying monitor to {host} via SSH...")
@@ -1283,7 +1295,7 @@ SECONDARY_IP={self.config['secondary_ip']}
             print("Running pre-deployment checks...")
             print("├─ Creating required directories...")
             # Create /etc/pihole-sentinel (required by systemd ReadWritePaths)
-            self.remote_exec(host, user, port, "sudo mkdir -p /etc/pihole-sentinel", password)
+            self.remote_exec(host, user, port, f"{S}mkdir -p /etc/pihole-sentinel", password)
 
             # Create remote temp directory
             print("├─ Preparing deployment staging area...")
@@ -1314,35 +1326,35 @@ SECONDARY_IP={self.config['secondary_ip']}
             # Execute installation commands
             print("Installing monitor service...")
             print("├─ Creating service user...")
-            self.remote_exec(host, user, port, "sudo useradd -r -s /bin/false pihole-monitor 2>/dev/null || true", password)
+            self.remote_exec(host, user, port, f"{S}useradd -r -s /bin/false pihole-monitor 2>/dev/null || true", password)
 
             print("├─ Setting up directories...")
-            self.remote_exec(host, user, port, "sudo mkdir -p /opt/pihole-monitor", password)
+            self.remote_exec(host, user, port, f"{S}mkdir -p /opt/pihole-monitor", password)
 
             print("├─ [░░░░░░░░░░░░░░░░░░░░] 0%   Creating virtual environment...", end='\r')
-            self.remote_exec(host, user, port, "sudo python3 -m venv /opt/pihole-monitor/venv", password)
+            self.remote_exec(host, user, port, f"{S}python3 -m venv /opt/pihole-monitor/venv", password)
             print("├─ [████░░░░░░░░░░░░░░░░] 20%  Virtual environment created      ")
 
             print("├─ [████░░░░░░░░░░░░░░░░] 20%  Installing Python packages (this may take 1-2 minutes)...", end='\r')
             if VERBOSE:
                 self.remote_exec(host, user, port,
-                    "cd /tmp/pihole-sentinel-deploy && sudo /opt/pihole-monitor/venv/bin/pip install -r requirements.txt",
+                    f"cd /tmp/pihole-sentinel-deploy && {S}/opt/pihole-monitor/venv/bin/pip install -r requirements.txt",
                     password)
                 print("├─ [████████████████████] 100% Python packages installed                              ")
             else:
                 self.remote_exec(host, user, port,
-                    "cd /tmp/pihole-sentinel-deploy && sudo /opt/pihole-monitor/venv/bin/pip install -q -r requirements.txt >/dev/null 2>&1",
+                    f"cd /tmp/pihole-sentinel-deploy && {S}/opt/pihole-monitor/venv/bin/pip install -q -r requirements.txt >/dev/null 2>&1",
                     password)
                 print("├─ [████████████████████] 100% Python packages installed                              ")
 
             print("├─ Copying application files...")
             commands = [
-                "sudo cp /tmp/pihole-sentinel-deploy/monitor.py /opt/pihole-monitor/",
-                "sudo cp /tmp/pihole-sentinel-deploy/index.html /opt/pihole-monitor/",
-                "sudo cp /tmp/pihole-sentinel-deploy/settings.html /opt/pihole-monitor/",
-                "sudo cp /tmp/pihole-sentinel-deploy/monitor.env /opt/pihole-monitor/.env",
-                "sudo cp /tmp/pihole-sentinel-deploy/pihole-monitor.service /etc/systemd/system/",
-                "sudo cp /tmp/pihole-sentinel-deploy/VERSION /opt/VERSION",
+                f"{S}cp /tmp/pihole-sentinel-deploy/monitor.py /opt/pihole-monitor/",
+                f"{S}cp /tmp/pihole-sentinel-deploy/index.html /opt/pihole-monitor/",
+                f"{S}cp /tmp/pihole-sentinel-deploy/settings.html /opt/pihole-monitor/",
+                f"{S}cp /tmp/pihole-sentinel-deploy/monitor.env /opt/pihole-monitor/.env",
+                f"{S}cp /tmp/pihole-sentinel-deploy/pihole-monitor.service /etc/systemd/system/",
+                f"{S}cp /tmp/pihole-sentinel-deploy/VERSION /opt/VERSION",
             ]
             for cmd in commands:
                 self.remote_exec(host, user, port, cmd, password)
@@ -1355,33 +1367,33 @@ SECONDARY_IP={self.config['secondary_ip']}
                 escaped_key = self.escape_for_sed(api_key)
                 # Use # as delimiter to avoid issues with / in the key
                 self.remote_exec(host, user, port,
-                    f"sudo sed -i 's#YOUR_API_KEY_HERE#{escaped_key}#g' /opt/pihole-monitor/index.html",
+                    f"{S}sed -i 's#YOUR_API_KEY_HERE#{escaped_key}#g' /opt/pihole-monitor/index.html",
                     password)
                 self.remote_exec(host, user, port,
-                    f"sudo sed -i 's#YOUR_API_KEY_HERE#{escaped_key}#g' /opt/pihole-monitor/settings.html",
+                    f"{S}sed -i 's#YOUR_API_KEY_HERE#{escaped_key}#g' /opt/pihole-monitor/settings.html",
                     password)
                 print("│  → API key configured successfully")
 
             print("├─ Setting permissions...")
             perms_commands = [
-                "sudo chown -R pihole-monitor:pihole-monitor /opt/pihole-monitor",
-                "sudo chmod 755 /opt/pihole-monitor",
-                "sudo chmod 644 /opt/pihole-monitor/*.py /opt/pihole-monitor/*.html",
-                "sudo chmod 600 /opt/pihole-monitor/.env",
-                "sudo chmod 755 -R /opt/pihole-monitor/venv",
-                "sudo chown root:root /etc/systemd/system/pihole-monitor.service",
-                "sudo chmod 644 /etc/systemd/system/pihole-monitor.service",
-                "sudo chown pihole-monitor:pihole-monitor /etc/pihole-sentinel",
-                "sudo chmod 755 /etc/pihole-sentinel",
-                "sudo chmod 644 /opt/VERSION",
+                f"{S}chown -R pihole-monitor:pihole-monitor /opt/pihole-monitor",
+                f"{S}chmod 755 /opt/pihole-monitor",
+                f"{S}chmod 644 /opt/pihole-monitor/*.py /opt/pihole-monitor/*.html",
+                f"{S}chmod 600 /opt/pihole-monitor/.env",
+                f"{S}chmod 755 -R /opt/pihole-monitor/venv",
+                f"{S}chown root:root /etc/systemd/system/pihole-monitor.service",
+                f"{S}chmod 644 /etc/systemd/system/pihole-monitor.service",
+                f"{S}chown pihole-monitor:pihole-monitor /etc/pihole-sentinel",
+                f"{S}chmod 755 /etc/pihole-sentinel",
+                f"{S}chmod 644 /opt/VERSION",
             ]
             for cmd in perms_commands:
                 self.remote_exec(host, user, port, cmd, password)
 
             print("└─ Starting service...")
-            self.remote_exec(host, user, port, "sudo systemctl daemon-reload", password)
-            self.remote_exec(host, user, port, "sudo systemctl enable pihole-monitor >/dev/null 2>&1", password)
-            self.remote_exec(host, user, port, "sudo systemctl restart pihole-monitor", password)
+            self.remote_exec(host, user, port, f"{S}systemctl daemon-reload", password)
+            self.remote_exec(host, user, port, f"{S}systemctl enable pihole-monitor >/dev/null 2>&1", password)
+            self.remote_exec(host, user, port, f"{S}systemctl restart pihole-monitor", password)
             self.remote_exec(host, user, port, "rm -rf /tmp/pihole-sentinel-deploy", password)
             
             print(f"✓ Monitor deployed successfully to {host}!")
@@ -1457,6 +1469,7 @@ SECONDARY_IP={self.config['secondary_ip']}
         user = self.config[f'{node_type}_ssh_user']
         port = self.config[f'{node_type}_ssh_port']
         password = self.config.get(f'{node_type}_ssh_pass')
+        S = self._s(user)
 
         try:
             print(f"\nDeploying {node_type} keepalived to {host} via SSH...")
@@ -1500,14 +1513,14 @@ SECONDARY_IP={self.config['secondary_ip']}
             # Execute installation commands
             print("Installing keepalived...")
             commands = [
-                "command -v keepalived >/dev/null 2>&1 || (sudo env DEBIAN_FRONTEND=noninteractive apt-get update -qq && sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y keepalived arping)",
-                "sudo mkdir -p /etc/keepalived",
-                "sudo chmod 755 /etc/keepalived",
-                "sudo mkdir -p /usr/local/bin",
-                "sudo chmod 755 /usr/local/bin",
-                "sudo cp /tmp/pihole-sentinel-deploy/keepalived.conf /etc/keepalived/keepalived.conf",
-                "sudo chown root:root /etc/keepalived/keepalived.conf",
-                "sudo chmod 644 /etc/keepalived/keepalived.conf",
+                f"command -v keepalived >/dev/null 2>&1 || ({S}env DEBIAN_FRONTEND=noninteractive apt-get update -qq && {S}env DEBIAN_FRONTEND=noninteractive apt-get install -y keepalived arping)",
+                f"{S}mkdir -p /etc/keepalived",
+                f"{S}chmod 755 /etc/keepalived",
+                f"{S}mkdir -p /usr/local/bin",
+                f"{S}chmod 755 /usr/local/bin",
+                f"{S}cp /tmp/pihole-sentinel-deploy/keepalived.conf /etc/keepalived/keepalived.conf",
+                f"{S}chown root:root /etc/keepalived/keepalived.conf",
+                f"{S}chmod 644 /etc/keepalived/keepalived.conf",
                 # Auto-detect actual network interface on this host and patch keepalived.conf.
                 # The config was generated on the installer machine (which may use eno1/wlan0/etc.)
                 # but this Pi-hole may use a completely different interface name (eth0, enp3s0, …).
@@ -1517,25 +1530,25 @@ SECONDARY_IP={self.config['secondary_ip']}
                 "| awk '{for(i=1;i<=NF;i++) if($i==\"dev\") print $(i+1)}' "
                 "| head -1 | tr -d '[:space:]') && "
                 "[ -n \"$REMOTE_IFACE\" ] && "
-                "sudo sed -i \"s/^    interface .*/    interface $REMOTE_IFACE/\" /etc/keepalived/keepalived.conf && "
+                f"{S}sed -i \"s/^    interface .*/    interface $REMOTE_IFACE/\" /etc/keepalived/keepalived.conf && "
                 "echo \"Auto-configured VRRP interface: $REMOTE_IFACE\" || "
                 "echo 'Warning: could not auto-detect interface, keeping installer value'",
-                "sudo cp /tmp/pihole-sentinel-deploy/.env /etc/keepalived/.env",
-                "sudo chown root:root /etc/keepalived/.env",
-                "sudo chmod 600 /etc/keepalived/.env",
+                f"{S}cp /tmp/pihole-sentinel-deploy/.env /etc/keepalived/.env",
+                f"{S}chown root:root /etc/keepalived/.env",
+                f"{S}chmod 600 /etc/keepalived/.env",
                 # Copy and fix line endings for scripts
                 "for script in check_pihole_service.sh check_dhcp_service.sh dhcp_control.sh keepalived_notify.sh; do " +
                 "cp /tmp/pihole-sentinel-deploy/$script /tmp/$script && " +
                 "sed -i 's/\\r$//' /tmp/$script && " +
-                "sudo mv /tmp/$script /usr/local/bin/$script && " +
-                "sudo chown root:root /usr/local/bin/$script && " +
-                "sudo chmod 755 /usr/local/bin/$script; done",
+                f"{S}mv /tmp/$script /usr/local/bin/$script && " +
+                f"{S}chown root:root /usr/local/bin/$script && " +
+                f"{S}chmod 755 /usr/local/bin/$script; done",
                 # Install pisen CLI tool
-                "sudo cp /tmp/pihole-sentinel-deploy/pisen /usr/local/bin/pisen && "
-                "sudo sed -i 's/\\r$//' /usr/local/bin/pisen && "
-                "sudo chown root:root /usr/local/bin/pisen && "
-                "sudo chmod 755 /usr/local/bin/pisen",
-                "sudo systemctl enable keepalived",
+                f"{S}cp /tmp/pihole-sentinel-deploy/pisen /usr/local/bin/pisen && "
+                f"{S}sed -i 's/\\r$//' /usr/local/bin/pisen && "
+                f"{S}chown root:root /usr/local/bin/pisen && "
+                f"{S}chmod 755 /usr/local/bin/pisen",
+                f"{S}systemctl enable keepalived",
             ]
 
             for cmd in commands:
@@ -1544,9 +1557,9 @@ SECONDARY_IP={self.config['secondary_ip']}
             # Validate config before starting — surfacing errors early
             print("├─ Validating keepalived configuration...")
             self.remote_exec(host, user, port,
-                "sudo keepalived --config-test 2>&1 || "
-                "(echo ''; echo '=== keepalived config test output ===' && "
-                "sudo keepalived --config-test 2>&1; "
+                f"{S}keepalived --config-test 2>&1 || "
+                f"(echo ''; echo '=== keepalived config test output ===' && "
+                f"{S}keepalived --config-test 2>&1; "
                 "echo '=== keepalived.conf content ===' && "
                 "cat /etc/keepalived/keepalived.conf; exit 1)",
                 password)
@@ -1554,14 +1567,14 @@ SECONDARY_IP={self.config['secondary_ip']}
             # Start service and show diagnostics on failure
             print("├─ Starting keepalived service...")
             self.remote_exec(host, user, port,
-                "sudo systemctl stop keepalived 2>/dev/null || true && "
-                "sudo systemctl restart keepalived 2>&1 || ("
+                f"{S}systemctl stop keepalived 2>/dev/null || true && "
+                f"{S}systemctl restart keepalived 2>&1 || ("
                 "echo '' && "
                 "echo '=== keepalived failed to start — diagnostic output ===' && "
-                "sudo systemctl status keepalived --no-pager -l 2>&1 || true && "
+                f"{S}systemctl status keepalived --no-pager -l 2>&1 || true && "
                 "echo '' && "
                 "echo '=== last 40 journal lines ===' && "
-                "sudo journalctl -xeu keepalived --no-pager -n 40 2>&1 || true && "
+                f"{S}journalctl -xeu keepalived --no-pager -n 40 2>&1 || true && "
                 "echo '' && "
                 "echo '=== keepalived.conf ===' && "
                 "cat /etc/keepalived/keepalived.conf && "
