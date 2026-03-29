@@ -1448,6 +1448,12 @@ def describe_master_transition(
 
     return "failover", "MASTER changed"
 
+# Latest Pi-hole stats — updated every poll cycle, served via /api/status
+_pihole_stats = {
+    "primary": {"queries": 0, "blocked": 0, "clients": 0},
+    "secondary": {"queries": 0, "blocked": 0, "clients": 0},
+}
+
 async def monitor_loop():
     previous_state = None
     previous_primary_online = None
@@ -1463,6 +1469,11 @@ async def monitor_loop():
         try:
             primary_data = await check_pihole_simple(CONFIG["primary"]["ip"], CONFIG["primary"]["password"])
             secondary_data = await check_pihole_simple(CONFIG["secondary"]["ip"], CONFIG["secondary"]["password"])
+            
+            # Update Pi-hole stats cache
+            for key in ("queries", "blocked", "clients"):
+                _pihole_stats["primary"][key] = primary_data.get(key, 0)
+                _pihole_stats["secondary"][key] = secondary_data.get(key, 0)
             
             # Check DNS functionality separately
             primary_dns = await check_dns(CONFIG["primary"]["ip"]) if primary_data["online"] else False
@@ -1791,7 +1802,10 @@ async def get_status(api_key: str = Depends(verify_api_key)):
                     "online": bool(row[6]),
                     "pihole": bool(row[8]),
                     "dns": bool(row[10]) if len(row) > 10 else bool(row[6]),  # Fallback to online for backward compatibility
-                    "dhcp": bool(row[13]) if len(row) > 13 else False  # New DHCP status
+                    "dhcp": bool(row[13]) if len(row) > 13 else False,  # New DHCP status
+                    "queries": _pihole_stats["primary"]["queries"],
+                    "blocked": _pihole_stats["primary"]["blocked"],
+                    "clients": _pihole_stats["primary"]["clients"],
                 },
                 "secondary": {
                     "ip": CONFIG["secondary"]["ip"],
@@ -1801,7 +1815,10 @@ async def get_status(api_key: str = Depends(verify_api_key)):
                     "online": bool(row[7]),
                     "pihole": bool(row[9]),
                     "dns": bool(row[11]) if len(row) > 11 else bool(row[7]),  # Fallback to online for backward compatibility
-                    "dhcp": bool(row[14]) if len(row) > 14 else False  # New DHCP status
+                    "dhcp": bool(row[14]) if len(row) > 14 else False,  # New DHCP status
+                    "queries": _pihole_stats["secondary"]["queries"],
+                    "blocked": _pihole_stats["secondary"]["blocked"],
+                    "clients": _pihole_stats["secondary"]["clients"],
                 },
                 "vip": CONFIG["vip"],
                 "dhcp_leases": row[12] if len(row) > 12 else row[10]  # Adjust for new column
@@ -1828,9 +1845,30 @@ async def get_history(
         List of history entries with timestamps and master/backup status flags
     """
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
-        async with db.execute("SELECT timestamp, primary_state, secondary_state FROM status_history WHERE timestamp > datetime('now', '-' || ? || ' hours') ORDER BY timestamp ASC", (hours,)) as cursor:
+        async with db.execute(
+            "SELECT timestamp, primary_state, secondary_state, "
+            "primary_online, secondary_online, "
+            "primary_pihole, secondary_pihole, "
+            "primary_dns, secondary_dns, "
+            "dhcp_leases "
+            "FROM status_history "
+            "WHERE timestamp > datetime('now', '-' || ? || ' hours') "
+            "ORDER BY timestamp ASC",
+            (hours,)
+        ) as cursor:
             rows = await cursor.fetchall()
-            return [{"time": row[0], "primary": 1 if row[1] == "MASTER" else 0, "secondary": 1 if row[2] == "MASTER" else 0} for row in rows]
+            return [{
+                "time": row[0],
+                "primary": 1 if row[1] == "MASTER" else 0,
+                "secondary": 1 if row[2] == "MASTER" else 0,
+                "primary_online": 1 if row[3] else 0,
+                "secondary_online": 1 if row[4] else 0,
+                "primary_pihole": 1 if row[5] else 0,
+                "secondary_pihole": 1 if row[6] else 0,
+                "primary_dns": 1 if row[7] else 0,
+                "secondary_dns": 1 if row[8] else 0,
+                "dhcp_leases": row[9] or 0,
+            } for row in rows]
 
 @app.get("/api/events", response_model=EventsResponse, tags=["History"])
 async def get_events(limit: int = 50, api_key: str = Depends(verify_api_key)):
@@ -2180,15 +2218,55 @@ async def execute_command(command_name: str, request: Request, api_key: str = De
                 ) as cursor:
                     rows = await cursor.fetchall()
             lines = [f"{r[0]} [{r[1]}] {r[2]}" for r in rows]
-            lines.reverse()  # display oldest → newest
             return _resp("\n".join(lines) if lines else "(No events found)")
 
         if command_name == "vip_check":
+            vip = CONFIG.get("vip", "")
+            primary_ip = CONFIG.get("primary_ip", "")
+            secondary_ip = CONFIG.get("secondary_ip", "")
             parts = []
-            for cmd in (["ip", "addr", "show"], ["ip", "neigh", "show"]):
-                proc = _run(cmd)
-                parts.append(f"=== {' '.join(cmd)} ===\n{proc.stdout or '(no output)'}".rstrip())
-            return _resp("\n\n".join(parts))
+
+            # VIP summary
+            parts.append(f"=== VIP Configuration ===")
+            parts.append(f"VIP address: {vip or '(not configured)'}")
+            parts.append(f"Primary:     {primary_ip or '(not configured)'}")
+            parts.append(f"Secondary:   {secondary_ip or '(not configured)'}")
+            parts.append("")
+
+            # Check which interfaces have VIP
+            proc_addr = _run(["ip", "addr", "show"])
+            if proc_addr.stdout and vip:
+                vip_found = False
+                for line in proc_addr.stdout.splitlines():
+                    if vip in line:
+                        vip_found = True
+                        parts.append(f"=== VIP Location (on this server) ===")
+                        parts.append(line.strip())
+                if not vip_found:
+                    parts.append("VIP is NOT assigned to this server.")
+            else:
+                parts.append("(Could not check VIP assignment)")
+
+            parts.append("")
+
+            # ARP: only show relevant entries (VIP + Pi-hole IPs)
+            proc_neigh = _run(["ip", "neigh", "show"])
+            if proc_neigh.stdout:
+                relevant_ips = {vip, primary_ip, secondary_ip} - {""}
+                arp_lines = []
+                for line in proc_neigh.stdout.splitlines():
+                    for ip in relevant_ips:
+                        if ip and ip in line:
+                            arp_lines.append(line.strip())
+                            break
+                if arp_lines:
+                    parts.append("=== ARP Table (relevant entries) ===")
+                    parts.extend(arp_lines)
+                else:
+                    parts.append("=== ARP Table ===")
+                    parts.append("No ARP entries found for VIP/Pi-hole IPs.")
+
+            return _resp("\n".join(parts))
 
         if command_name == "monitor_status":
             proc = _run(["systemctl", "status", "pihole-monitor", "--no-pager", "-l"], env=colored_env)
@@ -2219,26 +2297,43 @@ async def execute_command(command_name: str, request: Request, api_key: str = De
             proc = _run(["systemctl", "status", "keepalived", "--no-pager", "-l"], env=colored_env)
             combined = (proc.stdout + proc.stderr).lower()
             if proc.returncode == 4 or "could not be found" in combined or "not-found" in combined:
+                primary_ip = CONFIG.get("primary_ip", "<primary-ip>")
+                secondary_ip = CONFIG.get("secondary_ip", "<secondary-ip>")
                 msg = (
-                    "⚠️  keepalived is not installed on this server.\n\n"
-                    "keepalived runs on the Pi-hole nodes, not the monitor server.\n\n"
-                    "To check keepalived on your Pi-holes:\n\n"
-                    "    ssh root@<primary-ip>   systemctl status keepalived\n"
-                    "    ssh root@<secondary-ip> systemctl status keepalived"
+                    "ℹ️  keepalived is not installed on this monitor server.\n\n"
+                    "This is expected — keepalived runs on the Pi-hole nodes, not here.\n\n"
+                    f"To check keepalived on your Pi-holes:\n\n"
+                    f"    ssh root@{primary_ip}   systemctl status keepalived\n"
+                    f"    ssh root@{secondary_ip} systemctl status keepalived"
                 )
                 return _resp(msg, 0, "success")
-            output = proc.stdout + (("\n--- STDERR ---\n" + proc.stderr) if proc.stderr else "")
+            # Keepalived found but inactive — add context
+            if "inactive" in combined or "dead" in combined:
+                note = (
+                    "ℹ️  keepalived is installed but not running on this server.\n"
+                    "If this is the monitor server, that is expected — keepalived\n"
+                    "should run on the Pi-hole nodes, not on the monitor.\n\n"
+                    "--- systemctl status keepalived ---\n\n"
+                )
+                output = note + proc.stdout
+            else:
+                output = proc.stdout
+            if proc.stderr:
+                output += "\n--- STDERR ---\n" + proc.stderr
             return _resp(output, proc.returncode, "success")
 
         if command_name == "keepalived_logs":
             log_path = "/var/log/keepalived-notify.log"
             if not _os.path.exists(log_path):
+                primary_ip = CONFIG.get("primary_ip", "<primary-ip>")
+                secondary_ip = CONFIG.get("secondary_ip", "<secondary-ip>")
                 msg = (
-                    f"⚠️  Log file not found: {log_path}\n\n"
-                    "keepalived logs are on the Pi-hole nodes, not the monitor server.\n\n"
-                    "To read the log on your Pi-holes:\n\n"
-                    "    ssh root@<primary-ip>   tail -200 /var/log/keepalived-notify.log\n"
-                    "    ssh root@<secondary-ip> tail -200 /var/log/keepalived-notify.log"
+                    f"ℹ️  Log file not found: {log_path}\n\n"
+                    "This is expected — keepalived logs are on the Pi-hole nodes,\n"
+                    "not the monitor server.\n\n"
+                    f"To read the logs on your Pi-holes:\n\n"
+                    f"    ssh root@{primary_ip}   tail -200 /var/log/keepalived-notify.log\n"
+                    f"    ssh root@{secondary_ip} tail -200 /var/log/keepalived-notify.log"
                 )
                 return _resp(msg, 0, "success")
             proc = _run(["tail", "-n", "200", log_path])

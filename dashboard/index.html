@@ -53,13 +53,13 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(203, 213, 225, 0.6);
             border-radius: 16px;
-            padding: 30px;
+            padding: 16px 24px;
             margin-bottom: 20px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
             display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
+            gap: 16px;
             flex-wrap: wrap;
         }
 
@@ -84,34 +84,64 @@
 
         .header h1 {
             color: #1e293b;
-            margin-bottom: 10px;
-            font-size: 32px;
+            margin: 0;
+            font-size: 24px;
             font-weight: 700;
             letter-spacing: -0.5px;
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 12px;
+            white-space: nowrap;
         }
 
         .logo {
-            width: 48px;
-            height: 48px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            width: 40px;
+            height: 40px;
+            flex-shrink: 0;
         }
 
-        .header-info {
+        .header-title-group {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 15px;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .header-subtitle {
             color: #64748b;
-            width: 100%;
-            flex-basis: 100%;
+            font-size: 12px;
+            font-weight: 400;
+        }
+
+        .header-stats {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: auto;
+            flex-wrap: wrap;
+        }
+
+        .header-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            background: rgba(102, 126, 234, 0.08);
+            border: 1px solid rgba(102, 126, 234, 0.15);
+            border-radius: 20px;
+            font-size: 13px;
+            color: #475569;
+            white-space: nowrap;
+        }
+
+        .header-pill strong {
+            color: #1e293b;
+        }
+
+        .header-pill .pill-label {
+            color: #64748b;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .status-grid {
@@ -217,6 +247,11 @@
         .status-dot.unknown {
             background: #9ca3af;
             box-shadow: 0 0 4px rgba(156, 163, 175, 0.3);
+        }
+
+        .status-dot.standby {
+            background: #6366f1;
+            box-shadow: 0 0 6px rgba(99, 102, 241, 0.4);
         }
 
         .status-dot.warning {
@@ -518,9 +553,29 @@
             color: #cbd5e0;
         }
 
+        body.dark-mode .header-subtitle {
+            color: #94a3b8;
+        }
+
+        body.dark-mode .header-pill {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.1);
+            color: #cbd5e0;
+        }
+
+        body.dark-mode .header-pill strong {
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .header-pill .pill-label {
+            color: #94a3b8;
+        }
+
         body.dark-mode .status-item,
         body.dark-mode .event-item {
             background: #16213e;
+            border-color: #2d3748;
+            color: #e2e8f0;
         }
 
         body.dark-mode .badge.backup {
@@ -544,6 +599,46 @@
         body.dark-mode .time-btn.active {
             background: #667eea;
             color: white;
+        }
+
+        body.dark-mode .time-btn:hover {
+            background: #3d4f6f;
+            color: #f1f5f9;
+        }
+
+        /* Dark mode — improve contrast for description and helper text */
+        body.dark-mode .chart-card div[style*="color: #666"],
+        body.dark-mode .events-card div[style*="color: #666"] {
+            color: #94a3b8 !important;
+        }
+
+        body.dark-mode .summary-info {
+            color: #94a3b8;
+        }
+
+        body.dark-mode .event-time {
+            color: #94a3b8;
+        }
+
+        body.dark-mode .footer {
+            color: rgba(255, 255, 255, 0.7);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        body.dark-mode .footer a {
+            color: #818cf8;
+        }
+
+        body.dark-mode table th {
+            color: #e2e8f0;
+        }
+
+        body.dark-mode table td {
+            color: #cbd5e1;
+        }
+
+        body.dark-mode .node-ip {
+            color: #94a3b8;
         }
 
         /* Blink animation for errors */
@@ -598,31 +693,31 @@
             }
 
             .header {
-                padding: 20px 15px;
+                padding: 14px 16px;
                 flex-direction: column;
                 align-items: flex-start;
+                gap: 12px;
             }
 
             .header h1 {
-                font-size: 24px;
+                font-size: 20px;
                 gap: 10px;
             }
 
             .logo {
-                width: 40px;
-                height: 40px;
+                width: 36px;
+                height: 36px;
             }
 
-            .header-info {
-                flex-direction: column;
-                gap: 10px;
-                align-items: flex-start;
+            .header-stats {
+                margin-left: 0;
+                width: 100%;
+                gap: 8px;
             }
 
-            .back-btn {
-                padding: 8px 16px;
-                font-size: 14px;
-                margin-top: 10px;
+            .header-pill {
+                font-size: 12px;
+                padding: 4px 10px;
             }
 
             .status-grid {
@@ -697,12 +792,16 @@
 
         @media (max-width: 480px) {
             .header h1 {
-                font-size: 20px;
+                font-size: 18px;
             }
 
             .logo {
-                width: 36px;
-                height: 36px;
+                width: 32px;
+                height: 32px;
+            }
+
+            .header-stats {
+                flex-wrap: wrap;
             }
 
             .node-card-header {
@@ -720,6 +819,49 @@
                 align-items: flex-start;
                 gap: 5px;
             }
+        }
+
+        /* Pi-hole Stats Bar */
+        .node-stats {
+            display: flex;
+            gap: 16px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(0, 0, 0, 0.06);
+            flex-wrap: wrap;
+        }
+
+        .node-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 70px;
+        }
+
+        .node-stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e293b;
+            line-height: 1.2;
+        }
+
+        .node-stat-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        body.dark-mode .node-stats {
+            border-top-color: rgba(255, 255, 255, 0.08);
+        }
+
+        body.dark-mode .node-stat-value {
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .node-stat-label {
+            color: #94a3b8;
         }
 
         /* System Commands Section */
@@ -1015,37 +1157,52 @@
         </div>
 
         <div class="header">
-            <div>
-                <h1>
-                    <div class="logo">
-                        <svg width="32" height="32" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M 50 20 L 35 35 L 42 35 L 42 55 L 35 55 L 50 70 L 65 55 L 58 55 L 58 35 L 65 35 Z"
-                                fill="white" />
-                            <circle cx="50" cy="50" r="40" fill="none" stroke="white" stroke-width="2" opacity="0.3" />
-                        </svg>
-                    </div>
-                    Pi-hole Sentinel
-                </h1>
-                <p style="color: #666; margin-top: 5px; opacity: 0.7; font-size: 14px;">Keepalived System Monitor <span
-                        id="version-header" style="opacity: 0.7;">v0.0.0</span></p>
-            </div>
-            <a href="settings.html" class="settings-icon" title="Settings"
-                style="align-self: center; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2); border: none; cursor: pointer; transition: all 0.2s;">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="3" />
+            <h1>
+                <svg class="logo" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#667eea" />
+                            <stop offset="100%" style="stop-color:#764ba2" />
+                        </linearGradient>
+                    </defs>
+                    <circle cx="256" cy="256" r="240" fill="url(#logoGrad)" />
                     <path
-                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                        d="M 256 156 L 200 216 L 230 216 L 230 296 L 200 296 L 256 352 L 312 296 L 282 296 L 282 216 L 312 216 Z"
+                        fill="white" opacity="0.95" />
+                    <circle cx="256" cy="256" r="160" fill="none" stroke="white" stroke-width="6" opacity="0.15" />
+                    <circle cx="156" cy="196" r="10" fill="white" opacity="0.6" />
+                    <circle cx="356" cy="196" r="10" fill="white" opacity="0.6" />
+                    <circle cx="156" cy="316" r="10" fill="white" opacity="0.6" />
+                    <circle cx="356" cy="316" r="10" fill="white" opacity="0.6" />
                 </svg>
-            </a>
-            <div class="header-info">
-                <div>
-                    <span>VIP: <strong id="vip-ip">-</strong></span>
-                    <span style="margin-left: 30px;">DHCP Leases: <strong id="dhcp-leases">-</strong></span>
+                <div class="header-title-group">
+                    <span>Pi-hole Sentinel</span>
+                    <span class="header-subtitle" id="version-header">v0.0.0</span>
                 </div>
-                <div>
-                    Last update: <span id="last-update">-</span>
+            </h1>
+
+            <div class="header-stats">
+                <div class="header-pill">
+                    <span class="pill-label">VIP</span>
+                    <strong id="vip-ip">-</strong>
                 </div>
+                <div class="header-pill">
+                    <span class="pill-label">Leases</span>
+                    <strong id="dhcp-leases">-</strong>
+                </div>
+                <div class="header-pill">
+                    <span class="pill-label">Updated</span>
+                    <strong id="last-update">-</strong>
+                </div>
+                <a href="settings.html" class="settings-icon" title="Settings"
+                    style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2); cursor: pointer; transition: all 0.2s; flex-shrink: 0;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                </a>
             </div>
         </div>
 
@@ -1057,6 +1214,7 @@
                 </div>
                 <div class="node-ip" id="primary-ip">-</div>
                 <div class="status-items" id="primary-status"></div>
+                <div class="node-stats" id="primary-stats"></div>
             </div>
 
             <div class="node-card" id="secondary-card">
@@ -1066,6 +1224,7 @@
                 </div>
                 <div class="node-ip" id="secondary-ip">-</div>
                 <div class="status-items" id="secondary-status"></div>
+                <div class="node-stats" id="secondary-stats"></div>
             </div>
         </div>
 
@@ -1074,16 +1233,14 @@
                 <h2>Master State History</h2>
                 <div class="time-selector">
                     <button class="time-btn" data-minutes="15">15m</button>
-                    <button class="time-btn" data-minutes="30">30m</button>
-                    <button class="time-btn active" data-hours="24">24u</button>
+                    <button class="time-btn" data-hours="1">1h</button>
+                    <button class="time-btn" data-hours="6">6h</button>
+                    <button class="time-btn active" data-hours="24">24h</button>
                     <button class="time-btn" data-hours="168">7d</button>
                     <button class="time-btn" data-hours="720">30d</button>
                 </div>
             </div>
-            <div style="color: #666; margin-bottom: 15px;">
-                This graph shows which node was MASTER at any given time. Green = Primary, Orange = Secondary.
-            </div>
-            <canvas id="historyChart" height="80"></canvas>
+            <canvas id="historyChart" height="100"></canvas>
         </div>
 
         <div class="events-card">
@@ -1426,16 +1583,30 @@
             const dhcpIsOn = nodeData.dhcp;
             const dhcpCorrect = dhcpShouldBeOn === dhcpIsOn;
 
-            // Generate DHCP status indicator
-            let dhcpIndicator = '';
+            // Generate DHCP status — clear labels per state
+            let dhcpDot = '';
+            let dhcpLabel = '';
+            let dhcpTooltip = '';
             if (serverOffline) {
-                dhcpIndicator = '<div class="status-dot unknown"></div>';
-            } else if (dhcpCorrect) {
-                dhcpIndicator = dhcpIsOn
-                    ? '<span style="color: #10b981; font-size: 16px;">✓</span>'
-                    : '<span style="color: #64748b; font-size: 16px;">✓</span>';
+                dhcpDot = '<div class="status-dot unknown"></div>';
+                dhcpLabel = 'DHCP Unknown';
+                dhcpTooltip = 'Unknown — server offline';
+            } else if (dhcpCorrect && dhcpIsOn) {
+                dhcpDot = '<div class="status-dot online"></div>';
+                dhcpLabel = 'DHCP Active';
+                dhcpTooltip = 'DHCP is active — correct for MASTER';
+            } else if (dhcpCorrect && !dhcpIsOn) {
+                dhcpDot = '<div class="status-dot standby"></div>';
+                dhcpLabel = 'DHCP Standby';
+                dhcpTooltip = 'DHCP is on standby — correct for BACKUP';
+            } else if (!dhcpCorrect && dhcpShouldBeOn) {
+                dhcpDot = '<div class="status-dot warning"></div>';
+                dhcpLabel = 'DHCP Misconfigured ⚠️';
+                dhcpTooltip = 'DHCP should be ENABLED on MASTER but is disabled!';
             } else {
-                dhcpIndicator = '<div class="status-dot warning"></div>';
+                dhcpDot = '<div class="status-dot warning"></div>';
+                dhcpLabel = 'DHCP Misconfigured ⚠️';
+                dhcpTooltip = 'DHCP should be DISABLED on BACKUP but is enabled!';
             }
 
             // VIP status: when server is offline, state is unknown.
@@ -1445,40 +1616,75 @@
             const vipStatus = serverOffline ? 'unknown' : (vipCorrect ? 'online' : 'offline');
 
             let vipLabel = '';
+            let vipTooltip = '';
             if (serverOffline) {
-                vipLabel = 'VIP Unknown (Offline)';
+                vipLabel = 'VIP Unknown';
+                vipTooltip = 'Unknown — server offline';
             } else if (nodeData.state === 'MASTER' && nodeData.has_vip) {
-                vipLabel = 'VIP Active (Master)';
+                vipLabel = 'VIP Assigned';
+                vipTooltip = 'This node holds the Virtual IP — correct';
             } else if (nodeData.state === 'BACKUP' && !nodeData.has_vip) {
-                vipLabel = 'VIP Inactive (Backup)';
+                vipLabel = 'VIP —';
+                vipTooltip = 'VIP is on the other node — correct for BACKUP';
             } else if (nodeData.state === 'MASTER' && !nodeData.has_vip) {
-                vipLabel = 'VIP CONFLICT - Should be Master!';
+                vipLabel = 'VIP MISSING ⚠️';
+                vipTooltip = 'CONFLICT: This node is MASTER but does not hold the VIP!';
             } else {
-                vipLabel = 'VIP CONFLICT - Should be Backup!';
+                vipLabel = 'VIP CONFLICT ⚠️';
+                vipTooltip = 'CONFLICT: This node is BACKUP but holds the VIP!';
             }
 
             status.innerHTML = `
                 <div class="status-item" title="Server is reachable on the network">
                     <div class="status-dot ${nodeData.online ? 'online' : 'offline'}"></div>
-                    <span>${nodeData.online ? 'Server Online' : 'Server Offline'}</span>
+                    <span>${nodeData.online ? 'Online' : 'Offline'}</span>
                 </div>
-                <div class="status-item" title="${serverOffline ? 'Unknown — server offline' : 'Pi-hole FTL service is running'}">
+                <div class="status-item" title="${serverOffline ? 'Unknown — server offline' : (nodeData.pihole ? 'Pi-hole FTL service is running' : 'Pi-hole FTL service is DOWN')}">
                     <div class="status-dot ${serverOffline ? 'unknown' : (nodeData.pihole ? 'online' : 'offline')}"></div>
-                    <span>Pi-hole Service${serverOffline ? ' (?)' : ''}</span>
+                    <span>${serverOffline ? 'FTL Service (?)' : (nodeData.pihole ? 'FTL Running' : 'FTL Down')}</span>
                 </div>
-                <div class="status-item" title="${serverOffline ? 'Unknown — server offline' : (vipCorrect ? 'VIP status is correct' : 'VIP CONFLICT detected!')}">
+                <div class="status-item" title="${vipTooltip}">
                     <div class="status-dot ${vipStatus}"></div>
                     <span>${vipLabel}</span>
                 </div>
-                <div class="status-item" title="${serverOffline ? 'Unknown — server offline' : 'DNS resolution is working'}">
+                <div class="status-item" title="${serverOffline ? 'Unknown — server offline' : (nodeData.dns ? 'DNS queries are resolving' : 'DNS resolution is failing')}">
                     <div class="status-dot ${serverOffline ? 'unknown' : (nodeData.dns ? 'online' : 'offline')}"></div>
-                    <span>DNS Resolver${serverOffline ? ' (?)' : ''}</span>
+                    <span>${serverOffline ? 'DNS (?)' : (nodeData.dns ? 'DNS Resolving' : 'DNS Failing')}</span>
                 </div>
-                <div class="status-item" title="${serverOffline ? 'Unknown — server offline' : (dhcpCorrect ? (dhcpIsOn ? 'DHCP server is active (correct for MASTER)' : 'DHCP server is disabled (correct for BACKUP)') : 'DHCP configuration mismatch! Should be ' + (dhcpShouldBeOn ? 'enabled' : 'disabled'))}">
-                    ${dhcpIndicator}
-                    <span>DHCP Server${serverOffline ? ' (?)' : (dhcpCorrect ? '' : ' ⚠️')}</span>
+                <div class="status-item" title="${dhcpTooltip}">
+                    ${dhcpDot}
+                    <span>${dhcpLabel}</span>
                 </div>
             `;
+
+            // Pi-hole stats (queries, blocked, clients)
+            const statsEl = document.getElementById(`${nodeType}-stats`);
+            if (statsEl) {
+                if (serverOffline || !nodeData.pihole) {
+                    statsEl.innerHTML = '';
+                } else {
+                    const q = (nodeData.queries || 0).toLocaleString('nl-NL');
+                    const b = (nodeData.blocked || 0).toLocaleString('nl-NL');
+                    const c = (nodeData.clients || 0).toLocaleString('nl-NL');
+                    const pct = nodeData.queries > 0
+                        ? ((nodeData.blocked / nodeData.queries) * 100).toFixed(1) + '%'
+                        : '0%';
+                    statsEl.innerHTML = `
+                        <div class="node-stat">
+                            <span class="node-stat-value">${q}</span>
+                            <span class="node-stat-label">Queries</span>
+                        </div>
+                        <div class="node-stat">
+                            <span class="node-stat-value">${b}</span>
+                            <span class="node-stat-label">Blocked (${pct})</span>
+                        </div>
+                        <div class="node-stat">
+                            <span class="node-stat-value">${c}</span>
+                            <span class="node-stat-label">Clients</span>
+                        </div>
+                    `;
+                }
+            }
         }
 
         async function loadHistory(hours, minutes) {
@@ -1516,47 +1722,31 @@
         }
 
         function updateChart(data) {
-            console.log('updateChart called with data:', data);
-            console.log('Data length:', data ? data.length : 'undefined');
-
-            // Check if Chart.js is loaded
             if (typeof Chart === 'undefined') {
-                console.error('Chart.js library not loaded! Cannot create chart.');
-                console.error('Make sure the monitor server has internet access to load Chart.js from CDN');
+                console.error('Chart.js library not loaded!');
                 const ctx = document.getElementById('historyChart');
                 if (ctx && ctx.getContext) {
                     const context = ctx.getContext('2d');
                     context.font = '16px Arial';
                     context.fillStyle = '#ef4444';
                     context.textAlign = 'center';
-                    context.fillText('Chart.js library failed to load', ctx.width / 2, ctx.height / 2 - 10);
-                    context.fillText('Check internet connection', ctx.width / 2, ctx.height / 2 + 10);
+                    context.fillText('Chart.js library failed to load', ctx.width / 2, ctx.height / 2);
                 }
                 return;
             }
 
             const ctx = document.getElementById('historyChart');
-            if (!ctx) {
-                console.error('historyChart canvas element not found!');
-                return;
-            }
+            if (!ctx) return;
+            if (chart) chart.destroy();
+            if (!data || data.length === 0) return;
 
-            if (chart) {
-                chart.destroy();
-            }
-
-            if (!data || data.length === 0) {
-                console.warn('No history data available to display');
-                return;
-            }
-
+            // Sample data for performance
             let maxPoints = 500;
-            if (currentHours <= 1) maxPoints = 360;      // 15/30min: show all (every 10s)
-            else if (currentHours <= 24) maxPoints = 500; // 24h: ~3min intervals
-            else if (currentHours <= 168) maxPoints = 800; // 7d: ~15min intervals
-            else maxPoints = 1000; // 30d: ~45min intervals
+            if (currentHours <= 1) maxPoints = 360;
+            else if (currentHours <= 24) maxPoints = 500;
+            else if (currentHours <= 168) maxPoints = 800;
+            else maxPoints = 1000;
 
-            // Sample data evenly across the time range
             let limitedData;
             if (data.length > maxPoints) {
                 const step = Math.ceil(data.length / maxPoints);
@@ -1565,37 +1755,78 @@
                 limitedData = data;
             }
 
+            const labels = limitedData.map(d => {
+                const date = new Date(d.time + ' UTC');
+                return date.toLocaleString('nl-NL', {
+                    month: 'short', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit'
+                });
+            });
+
+            const maxLeases = Math.max(...limitedData.map(d => d.dhcp_leases || 0), 1);
+            const isDark = document.body.classList.contains('dark-mode');
+
+            // Store master state data for the background plugin
+            const masterStates = limitedData.map(d => {
+                if (d.primary) return 'primary';
+                if (d.secondary) return 'secondary';
+                return 'none';
+            });
+
+            // Plugin: draw colored background bands based on MASTER state
+            const bgPlugin = {
+                id: 'masterBackground',
+                beforeDraw(chart) {
+                    const { ctx, chartArea, scales } = chart;
+                    if (!chartArea) return;
+                    const { top, bottom, left, right } = chartArea;
+                    const xScale = scales.x;
+                    const points = xScale.ticks.length;
+                    if (points < 2) return;
+
+                    ctx.save();
+                    for (let i = 0; i < masterStates.length; i++) {
+                        const x1 = i === 0 ? left : xScale.getPixelForValue(i);
+                        const x2 = i === masterStates.length - 1 ? right : xScale.getPixelForValue(i + 1);
+                        const state = masterStates[i];
+
+                        if (state === 'primary') {
+                            ctx.fillStyle = isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.15)';
+                        } else if (state === 'secondary') {
+                            ctx.fillStyle = isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.15)';
+                        } else {
+                            ctx.fillStyle = isDark ? 'rgba(239, 68, 68, 0.06)' : 'rgba(239, 68, 68, 0.08)';
+                        }
+                        ctx.fillRect(x1, top, x2 - x1, bottom - top);
+                    }
+                    ctx.restore();
+                }
+            };
+
+            // Tooltip: master state per point
+            const masterLabels = limitedData.map(d => {
+                if (d.primary) return '🟢 Primary is MASTER';
+                if (d.secondary) return '🟠 Secondary is MASTER';
+                return '🔴 No MASTER detected';
+            });
 
             chart = new Chart(ctx, {
                 type: 'line',
+                plugins: [bgPlugin],
                 data: {
-                    labels: limitedData.map(d => {
-                        const date = new Date(d.time + ' UTC');
-                        return date.toLocaleString('nl-NL', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        });
-                    }),
+                    labels: labels,
                     datasets: [
                         {
-                            label: 'Primary MASTER',
-                            data: limitedData.map(d => d.primary),
-                            borderColor: '#10b981',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                            stepped: true,
+                            label: 'DHCP Leases',
+                            data: limitedData.map(d => d.dhcp_leases || 0),
+                            borderColor: '#6366f1',
+                            backgroundColor: isDark
+                                ? 'rgba(99, 102, 241, 0.08)'
+                                : 'rgba(99, 102, 241, 0.1)',
                             fill: true,
-                            pointRadius: 0
-                        },
-                        {
-                            label: 'Secondary MASTER',
-                            data: limitedData.map(d => d.secondary),
-                            borderColor: '#f59e0b',
-                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                            stepped: true,
-                            fill: true,
-                            pointRadius: 0
+                            pointRadius: 0,
+                            borderWidth: 2.5,
+                            tension: 0.3,
                         }
                     ]
                 },
@@ -1603,26 +1834,59 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     animation: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index',
+                    },
                     scales: {
                         y: {
                             beginAtZero: true,
-                            max: 1,
+                            suggestedMax: maxLeases * 1.15,
+                            title: {
+                                display: true,
+                                text: 'DHCP Leases',
+                                color: isDark ? '#94a3b8' : '#64748b',
+                            },
                             ticks: {
-                                stepSize: 1,
-                                callback: function (value) {
-                                    return value === 1 ? 'MASTER' : 'BACKUP';
-                                }
-                            }
+                                color: isDark ? '#94a3b8' : '#64748b',
+                                precision: 0,
+                            },
+                            grid: {
+                                color: isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+                            },
                         },
                         x: {
                             ticks: {
-                                maxTicksLimit: 20
-                            }
+                                maxTicksLimit: 12,
+                                color: isDark ? '#94a3b8' : '#64748b',
+                            },
+                            grid: {
+                                color: isDark ? 'rgba(148, 163, 184, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+                            },
                         }
                     },
                     plugins: {
                         legend: {
-                            position: 'top'
+                            position: 'top',
+                            labels: {
+                                color: isDark ? '#e2e8f0' : '#334155',
+                                usePointStyle: true,
+                                padding: 16,
+                                generateLabels: function () {
+                                    return [
+                                        { text: 'Primary is MASTER', fillStyle: 'rgba(16, 185, 129, 0.35)', strokeStyle: 'transparent', pointStyle: 'rectRounded' },
+                                        { text: 'Secondary is MASTER', fillStyle: 'rgba(245, 158, 11, 0.35)', strokeStyle: 'transparent', pointStyle: 'rectRounded' },
+                                        { text: 'DHCP Leases', fillStyle: '#6366f1', strokeStyle: '#6366f1', pointStyle: 'line', lineWidth: 2 },
+                                    ];
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterBody: function (context) {
+                                    return [masterLabels[context[0].dataIndex]];
+                                }
+                            }
                         }
                     }
                 }
