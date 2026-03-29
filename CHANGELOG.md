@@ -1,3 +1,14 @@
+## [0.12.5-beta.7] - 2026-03-29
+
+### Security
+- **`sudo -n` for non-root SSH users** — `_s(user)` helper now returns `"sudo -n "` instead of
+  `"sudo "`. The `-n` flag makes sudo fail immediately (exit 1) when a password would be required,
+  preventing silent hangs over non-TTY SSH sessions where a password prompt can never be answered.
+  Non-root SSH users must still have passwordless sudo (`NOPASSWD`) configured.
+- **MITM warning during SSH key setup** — setup now prints a clear notice that
+  `StrictHostKeyChecking=no` is in effect and that the script should only be run on a trusted
+  network, so users are aware of the trade-off.
+
 ## [0.12.5-beta.6] - 2026-03-29
 
 ### Fixed
