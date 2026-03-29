@@ -1,20 +1,45 @@
+## [0.12.6-beta.2] - 2026-03-29
+
+### Security
+- **🔒 pwhash preservation now runs entirely on the secondary node** — the previous fix (beta.1)
+  had two flaws:
+  1. **Correctness bug**: the bcrypt hash (`$2y$10$...`) was stored in a local bash variable and
+     interpolated into a double-quoted SSH command string. Bash expanded `$2` and `$10` as
+     positional parameters (empty), silently corrupting the hash and leaving the password
+     unrestorable.
+  2. **Security bug**: the hash was briefly stored in a local shell variable and embedded as a
+     command-line argument, making it visible in `ps aux` and SSH audit logs.
+  
+  **Fix**: the extraction and sed restore now run in a single heredoc on the remote machine.
+  The hash never leaves the secondary node — not as a command argument, not as a local
+  variable, not in any log.
+
+## [0.12.6-beta.1] - 2026-03-29
+
+### Fixed
+- **🐛 Secondary Pi-hole web password overwritten by sync** — `sync_to_secondary()` copied the
+  entire `pihole.toml` from primary to secondary as a base file, then only restored `dhcp.active`,
+  `upstreams`, and `listeningMode`. The `[webserver.api] pwhash` (bcrypt password hash) was never
+  preserved, causing the secondary's web UI password to be silently replaced with the primary's
+  password on every sync run. The secondary's `pwhash` is now always saved and restored.
+
 ## [0.12.5-beta.10] - 2026-03-29
 
 ### Fixed
-- **Config sync no longer overwrites secondary's upstream DNS** — when syncing the `[dns]` section
+- **🐛 Config sync no longer overwrites secondary's upstream DNS** — when syncing the `[dns]` section
   of `pihole.toml`, the secondary's `upstreams` value (e.g. `["127.0.0.1#5335"]` for unbound)
   is now preserved. Previously, the primary's upstream DNS was pushed to the secondary, causing
   DNS failures on the secondary after a failover when using a local resolver like unbound.
-- **`sync_to_secondary()` now section-based** — previously used a whole-file rsync that only
+- **🐛 `sync_to_secondary()` now section-based** — previously used a whole-file rsync that only
   preserved `dhcp.active`. Now uses the same section-based approach as `sync_from_primary()`,
   preserving `upstreams`, `listeningMode`, and `dhcp.active` on the secondary.
-- **`SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS`** variable added (default: `true`) — configurable via
+- **🐛 `SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS`** variable added (default: `true`) — configurable via
   `/etc/pihole-sentinel/sync.conf` and written by `setup.py`.
 
 ## [0.12.5-beta.9] - 2026-03-29
 
 ### Improved
-- **Deployment success screen simplified** — removed verbose status commands and failover test
+- **🔧 Deployment success screen simplified** — removed verbose status commands and failover test
   instructions (moved to README). Screen now shows dashboard URL, essential log commands, and
   a prominent warning when built-in sync is disabled but DHCP is active, reminding the user
   to use nebula-sync, gravity-sync, or similar to keep nodes in sync.
@@ -22,7 +47,7 @@
 ## [0.12.5-beta.8] - 2026-03-29
 
 ### Improved
-- **Config sync is now optional in setup** — the setup wizard now asks "Enable built-in config
+- **🔧 Config sync is now optional in setup** — the setup wizard now asks "Enable built-in config
   sync? (Y/n)" before the interval question. Answering `n` skips the sync deployment step
   entirely, for users who already use nebula-sync, gravity-sync, or a similar solution.
   Defaults to `Y` (enabled) for backward compatibility.
@@ -30,43 +55,52 @@
 ## [0.12.5-beta.7] - 2026-03-29
 
 ### Security
-- **`sudo -n` for non-root SSH users** — `_s(user)` helper now returns `"sudo -n "` instead of
+- **🔒 `sudo -n` for non-root SSH users** — `_s(user)` helper now returns `"sudo -n "` instead of
   `"sudo "`. The `-n` flag makes sudo fail immediately (exit 1) when a password would be required,
   preventing silent hangs over non-TTY SSH sessions where a password prompt can never be answered.
   Non-root SSH users must still have passwordless sudo (`NOPASSWD`) configured.
-- **MITM warning during SSH key setup** — setup now prints a clear notice that
+- **🔒 MITM warning during SSH key setup** — setup now prints a clear notice that
   `StrictHostKeyChecking=no` is in effect and that the script should only be run on a trusted
   network, so users are aware of the trade-off.
 
 ## [0.12.5-beta.6] - 2026-03-29
 
 ### Fixed
-- **sync-pihole-config.sh:** backup rotation was missing on secondary node — every 10-minute sync
+- **🐛 sync-pihole-config.sh:** backup rotation was missing on secondary node — every 10-minute sync
   created a new tar.gz (including gravity.db) without ever deleting old ones, causing disk full.
-- **sync-pihole-config.sh:** `SYNC_MAX_BACKUPS` variable added (default: 3) to control how many
+- **🐛 sync-pihole-config.sh:** `SYNC_MAX_BACKUPS` variable added (default: 3) to control how many
   backups are kept on both primary and secondary nodes.
-- **setup.py:** `SYNC_MAX_BACKUPS=3` now written to generated `sync.conf`.
+- **🐛 setup.py:** `SYNC_MAX_BACKUPS=3` now written to generated `sync.conf`.
 
 ## [0.12.5-beta.5] - 2026-03-29
 
 ### Improved
-- **Conditional sudo for non-root SSH users** — added `_s(user)` helper that returns `"sudo "` when the SSH user is not root and an empty string when it is. All privileged remote commands in `install_remote_dependencies()`, `configure_timezone_and_ntp()`, `deploy_monitor_remote()`, and `deploy_keepalived_remote()` now use this helper instead of always or never prepending `sudo`. Root SSH users continue to work as before without any sudo overhead.
+- **🔧 Conditional sudo for non-root SSH users** — added `_s(user)` helper that returns `"sudo "` when the SSH user is not root and an empty string when it is. All privileged remote commands in `install_remote_dependencies()`, `configure_timezone_and_ntp()`, `deploy_monitor_remote()`, and `deploy_keepalived_remote()` now use this helper instead of always or never prepending `sudo`. Root SSH users continue to work as before without any sudo overhead.
 
 ## [0.12.5-beta.4] - 2026-03-29
 
 ### Fixed
-- **SSH deployment with non-root user** — all privileged remote commands in `setup.py` now use `sudo`. Previously, `install_remote_dependencies()`, `configure_timezone_and_ntp()`, `deploy_monitor_remote()`, and `deploy_keepalived_remote()` ran commands like `apt-get`, `useradd`, `mkdir /opt/...`, `cp /etc/...`, `chown`, `chmod`, and `systemctl` without `sudo`, causing them to fail silently with exit code 100 when the SSH user was not root. The script defaults to SSH user `root` but non-root users with passwordless sudo are now supported.
-- **apt-get update error visibility** — stderr is no longer suppressed (`>/dev/null` instead of `>/dev/null 2>&1`) so permission errors and repository failures are visible when `apt-get update` fails.
+- **🐛 SSH deployment with non-root user** — all privileged remote commands in `setup.py` now use `sudo`. Previously, `install_remote_dependencies()`, `configure_timezone_and_ntp()`, `deploy_monitor_remote()`, and `deploy_keepalived_remote()` ran commands like `apt-get`, `useradd`, `mkdir /opt/...`, `cp /etc/...`, `chown`, `chmod`, and `systemctl` without `sudo`, causing them to fail silently with exit code 100 when the SSH user was not root. The script defaults to SSH user `root` but non-root users with passwordless sudo are now supported.
+- **🐛 apt-get update error visibility** — stderr is no longer suppressed (`>/dev/null` instead of `>/dev/null 2>&1`) so permission errors and repository failures are visible when `apt-get update` fails.
 
 ## [0.12.5-beta.3] - 2026-03-28
 
 ### Changed
-- **Release workflow:** removed prerelease detection step; prerelease flag is now always false (release.yml).
+- **📚 Release workflow:** removed prerelease detection step; prerelease flag is now always false (release.yml).
 ## [0.12.5-beta.2] - 2026-03-28
 
 ### Changed
-- **Release workflow:** prerelease flag always set to false in GitHub Release step (release.yml).
+- **📚 Release workflow:** prerelease flag always set to false in GitHub Release step (release.yml).
 # Changelog
+
+## Legend
+- 🎉 New feature
+- 🔧 Improvement / Enhancement
+- 🐛 Bug fix
+- 🔒 Security update
+- 📚 Documentation / Changed
+- ⚠️ Breaking change
+- 🗑️ Removed / Deprecated
 
 All notable changes to Pi-hole Sentinel will be documented in this file.
 
@@ -77,150 +111,150 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.12.5-beta.1] - 2026-03-28
 
 ### Improved
-- **Release workflow:** whitespace opgeschoond, stapnaam verbeterd, tweede tarball toegevoegd voor stabiele download-URL.
-- **Installatie-instructies:** README.md vereenvoudigd, download en setup nu in één stap, minder kans op fouten.
+- **🔧 Release workflow:** whitespace opgeschoond, stapnaam verbeterd, tweede tarball toegevoegd voor stabiele download-URL.
+- **🔧 Installatie-instructies:** README.md vereenvoudigd, download en setup nu in één stap, minder kans op fouten.
 
 ## [0.12.4-beta.10] - 2026-03-28
 
 ### Improved
-- **Release workflow triggers on main merge** — release.yml no longer requires manual tags. Automatically creates git tag, clean tarball, and GitHub Release when code is merged to main. Skips if tag already exists.
+- **🔧 Release workflow triggers on main merge** — release.yml no longer requires manual tags. Automatically creates git tag, clean tarball, and GitHub Release when code is merged to main. Skips if tag already exists.
 
 ## [0.12.4-beta.9] - 2026-03-28
 
 ### Fixed
-- **API docs auth mismatch** — `/api/version` and `/api/client-config` were documented as unauthenticated but require `X-API-Key` in code. Updated docs and overview table to reflect actual auth requirements.
-- **Version fallback stuck on "loading..."** — `loadVersionFallback()` in index.html and settings.html now sends `X-API-Key` header and falls back to "unknown" on failure instead of staying on "loading..." forever.
-- **Stale version strings in API docs** — replaced all pinned version literals in docs/api/README.md with `<current version>` placeholders and linked header/footer to VERSION file.
-- **TODO_USER.md version reference** — updated from v0.12.4-beta.7 to match current release.
-- **CHANGELOG accuracy** — corrected beta.8 entry that incorrectly claimed "all" hardcoded versions were eliminated.
+- **🐛 API docs auth mismatch** — `/api/version` and `/api/client-config` were documented as unauthenticated but require `X-API-Key` in code. Updated docs and overview table to reflect actual auth requirements.
+- **🐛 Version fallback stuck on "loading..."** — `loadVersionFallback()` in index.html and settings.html now sends `X-API-Key` header and falls back to "unknown" on failure instead of staying on "loading..." forever.
+- **🐛 Stale version strings in API docs** — replaced all pinned version literals in docs/api/README.md with `<current version>` placeholders and linked header/footer to VERSION file.
+- **🐛 TODO_USER.md version reference** — updated from v0.12.4-beta.7 to match current release.
+- **🐛 CHANGELOG accuracy** — corrected beta.8 entry that incorrectly claimed "all" hardcoded versions were eliminated.
 
 ## [0.12.4-beta.8] - 2026-03-28
 
 ### Fixed
-- **Removed most hardcoded version strings** — monitor.py, pisen CLI, and settings.html now read the version dynamically from the VERSION file. API docs use placeholder values instead of pinned versions to avoid staleness.
+- **🐛 Removed most hardcoded version strings** — monitor.py, pisen CLI, and settings.html now read the version dynamically from the VERSION file. API docs use placeholder values instead of pinned versions to avoid staleness.
 
 ## [0.12.4-beta.7] - 2026-03-28
 
 ### Fixed
-- **Config sync no longer overwrites web API password** — sync now uses section-based TOML merging instead of copying the entire pihole.toml. Only `[dhcp]` and `[dns]` sections are synced (matching nebula-sync behavior). Web password, webserver settings, and other node-specific config are never touched.
+- **🐛 Config sync no longer overwrites web API password** — sync now uses section-based TOML merging instead of copying the entire pihole.toml. Only `[dhcp]` and `[dns]` sections are synced (matching nebula-sync behavior). Web password, webserver settings, and other node-specific config are never touched.
 
 ### Improved
-- **Sync options now match nebula-sync** — `SYNC_CONFIG` replaced with granular `SYNC_CONFIG_DHCP` and `SYNC_CONFIG_DNS` toggles. Old `SYNC_CONFIG=true` still works (enables both). Local DHCP active state and DNS listening mode are always preserved.
+- **🔧 Sync options now match nebula-sync** — `SYNC_CONFIG` replaced with granular `SYNC_CONFIG_DHCP` and `SYNC_CONFIG_DNS` toggles. Old `SYNC_CONFIG=true` still works (enables both). Local DHCP active state and DNS listening mode are always preserved.
 
 ## [0.12.4-beta.6] - 2026-03-28
 
 ### Fixed
-- **Chart.js SRI hash was truncated** — integrity hash was cut short, causing both primary and fallback CDN to fail. Charts now load correctly.
+- **🐛 Chart.js SRI hash was truncated** — integrity hash was cut short, causing both primary and fallback CDN to fail. Charts now load correctly.
 
 ## [0.12.4-beta.5] - 2026-03-28
 
 ### Fixed
-- **CSP blocked Chart.js fallback CDN** — added `cdnjs.cloudflare.com` to Content-Security-Policy script-src, fixing blank dashboard charts
+- **🐛 CSP blocked Chart.js fallback CDN** — added `cdnjs.cloudflare.com` to Content-Security-Policy script-src, fixing blank dashboard charts
 
 ## [0.12.4-beta.4] - 2026-03-28
 
 ### Fixed
-- **Download URLs in install docs** — previous commands failed because `/releases/latest` ignores pre-releases and `wget` can't use shell wildcards in URLs. Now uses GitHub API `/releases` endpoint which works for both stable and beta releases.
+- **🐛 Download URLs in install docs** — previous commands failed because `/releases/latest` ignores pre-releases and `wget` can't use shell wildcards in URLs. Now uses GitHub API `/releases` endpoint which works for both stable and beta releases.
 
 ## [0.12.4-beta.3] - 2026-03-28
 
 ### Fixed
-- **Uninstall: removed invalid `pihole -a setdns` command** — this Pi-hole v5 command doesn't exist in v6, causing the full pihole help text to print during uninstall. DHCP state is preserved in pihole.toml after sentinel removal; no pihole command needed.
+- **🐛 Uninstall: removed invalid `pihole -a setdns` command** — this Pi-hole v5 command doesn't exist in v6, causing the full pihole help text to print during uninstall. DHCP state is preserved in pihole.toml after sentinel removal; no pihole command needed.
 
 ## [0.12.4-beta.2] - 2026-03-28
 
 ### New
-- **Clean release tarballs** — `.gitattributes` export-ignore excludes dev/test files (docker/, tests/, CLAUDE.md, etc.) from `git archive` output
-- **Automated GitHub Releases** — workflow automatically creates a git tag and GitHub Release with clean tarball on every merge to `main`
+- **🎉 Clean release tarballs** — `.gitattributes` export-ignore excludes dev/test files (docker/, tests/, CLAUDE.md, etc.) from `git archive` output
+- **🎉 Automated GitHub Releases** — workflow automatically creates a git tag and GitHub Release with clean tarball on every merge to `main`
 
 ## [0.12.4-beta.1] - 2026-03-28
 
 ### Security
-- **Rate limiting on all write endpoints** — POST endpoints for settings, commands, and snooze now rate-limited (20 req/min per IP)
-- **Safe template formatting** — switched from `format(**vars)` to `format_map(defaultdict)` to prevent KeyError injection from malformed templates
-- **Explicit state tracking** — replaced fragile `hasattr(monitor_loop, ...)` pattern with explicit state dict
+- **🔒 Rate limiting on all write endpoints** — POST endpoints for settings, commands, and snooze now rate-limited (20 req/min per IP)
+- **🔒 Safe template formatting** — switched from `format(**vars)` to `format_map(defaultdict)` to prevent KeyError injection from malformed templates
+- **🔒 Explicit state tracking** — replaced fragile `hasattr(monitor_loop, ...)` pattern with explicit state dict
 
 ### Improved
-- **Database cleanup batching** — large DELETEs are now batched (5000 rows) with async yields between batches to prevent database locks during cleanup
+- **🔧 Database cleanup batching** — large DELETEs are now batched (5000 rows) with async yields between batches to prevent database locks during cleanup
 
 ## [0.12.3-beta.10] - 2026-03-28
 
 ### Security
-- **SSRF protection** — webhook URLs (Discord, Ntfy, custom) are validated at save time and send time; blocks private/loopback/reserved IPs and non-HTTP schemes
-- **Security headers** — all responses now include X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, and Content-Security-Policy
-- **Auth on /api/version** — version endpoint now requires API key to prevent version enumeration
-- **TOCTOU fix in dhcp_control.sh** — added flock-based file locking to prevent race conditions between concurrent enable/disable calls
-- **Timezone injection hardening** — setup.py now uses `--` separator in timedatectl command to prevent option injection
+- **🔒 SSRF protection** — webhook URLs (Discord, Ntfy, custom) are validated at save time and send time; blocks private/loopback/reserved IPs and non-HTTP schemes
+- **🔒 Security headers** — all responses now include X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, and Content-Security-Policy
+- **🔒 Auth on /api/version** — version endpoint now requires API key to prevent version enumeration
+- **🔒 TOCTOU fix in dhcp_control.sh** — added flock-based file locking to prevent race conditions between concurrent enable/disable calls
+- **🔒 Timezone injection hardening** — setup.py now uses `--` separator in timedatectl command to prevent option injection
 
 ## [0.12.3-beta.9] - 2026-03-28
 
 ### Fixed
-- **Uninstall no longer re-asks IPs** — when choosing uninstall from the deployment menu (option 4), IPs already collected in earlier steps are reused instead of prompting again
+- **🐛 Uninstall no longer re-asks IPs** — when choosing uninstall from the deployment menu (option 4), IPs already collected in earlier steps are reused instead of prompting again
 
 ## [0.12.3-beta.8] - 2026-03-28
 
 ### Improved
-- **Monitor location default** — "Separate server" is now the default option (Enter to select)
+- **🔧 Monitor location default** — "Separate server" is now the default option (Enter to select)
 
 ## [0.12.3-beta.7] - 2026-03-28
 
 ### Improved
-- **Required field validation** — all IP address inputs in setup and uninstall now reject empty values and validate format inline, preventing accidental blank entries
+- **🔧 Required field validation** — all IP address inputs in setup and uninstall now reject empty values and validate format inline, preventing accidental blank entries
 
 ## [0.12.3-beta.6] - 2026-03-28
 
 ### Fixed
-- **Cross-node SSH key read failure** — `subprocess.run` SSH call to read the public key from Pi-holes used `BatchMode=yes` without the installer's identity file (`-i key_path`), causing "failed to read key" error
+- **🐛 Cross-node SSH key read failure** — `subprocess.run` SSH call to read the public key from Pi-holes used `BatchMode=yes` without the installer's identity file (`-i key_path`), causing "failed to read key" error
 
 ## [0.12.3-beta.5] - 2026-03-28
 
 ### Improved
-- **Uninstall UX simplified** — removed confusing "IP input method" / "last octet" flow; now asks plain IP addresses directly with clear prompts
+- **🔧 Uninstall UX simplified** — removed confusing "IP input method" / "last octet" flow; now asks plain IP addresses directly with clear prompts
 
 ## [0.12.3-beta.4] - 2026-03-28
 
 ### Fixed
-- **Cross-node SSH auth failure** — `ssh_key_path` was not set before `_setup_cross_node_ssh` ran, causing `remote_exec` to fall back to `BatchMode=yes` without a key. Key path is now stored immediately after distribution.
+- **🐛 Cross-node SSH auth failure** — `ssh_key_path` was not set before `_setup_cross_node_ssh` ran, causing `remote_exec` to fall back to `BatchMode=yes` without a key. Key path is now stored immediately after distribution.
 
 ## [0.12.3-beta.3] - 2026-03-28
 
 ### Fixed
-- **Cross-node SSH setup** — setup.py now generates SSH keys on each Pi-hole and distributes public keys between them (primary ↔ secondary), enabling the sync script to SSH from pihole1 → pihole2
+- **🐛 Cross-node SSH setup** — setup.py now generates SSH keys on each Pi-hole and distributes public keys between them (primary ↔ secondary), enabling the sync script to SSH from pihole1 → pihole2
 - Host key acceptance pre-configured to prevent first-sync hang on StrictHostKeyChecking prompt
 
 ## [0.12.3-beta.2] - 2026-03-28
 
 ### Fixed
-- **pisen CLI not deployed** — `bin/pisen` is now copied to `/usr/local/bin/pisen` during keepalived deployment on both Pi-hole nodes
+- **🐛 pisen CLI not deployed** — `bin/pisen` is now copied to `/usr/local/bin/pisen` during keepalived deployment on both Pi-hole nodes
 
 ### Improved
-- **Shared SSH password option** — setup now asks "Use the same SSH password for all servers?" (default: yes) to avoid entering the same password 2-3 times
+- **🔧 Shared SSH password option** — setup now asks "Use the same SSH password for all servers?" (default: yes) to avoid entering the same password 2-3 times
 
 ## [0.12.3-beta.1] - 2026-03-28
 
 ### New
-- **Config sync deployment** — setup.py now deploys sync service as step [4/4] in full SSH deployment
-- **Configurable sync options** — per-feature toggles: gravity, custom DNS, CNAME, DHCP leases, pihole.toml config (all enabled by default)
-- **Sync interval** — configurable during setup (default: every 10 minutes), replaces fixed 6-hour timer
-- **`pisen sync`** — new CLI command to view sync status, config, and trigger manual sync (`pisen sync --run`)
-- **Automatic IP injection** — PRIMARY_IP/SECONDARY_IP auto-configured in keepalived .env and sync.conf by setup.py
+- **🎉 Config sync deployment** — setup.py now deploys sync service as step [4/4] in full SSH deployment
+- **🎉 Configurable sync options** — per-feature toggles: gravity, custom DNS, CNAME, DHCP leases, pihole.toml config (all enabled by default)
+- **🎉 Sync interval** — configurable during setup (default: every 10 minutes), replaces fixed 6-hour timer
+- **🎉 `pisen sync`** — new CLI command to view sync status, config, and trigger manual sync (`pisen sync --run`)
+- **🎉 Automatic IP injection** — PRIMARY_IP/SECONDARY_IP auto-configured in keepalived .env and sync.conf by setup.py
 
 ### Improved
-- **Setup menu simplified** — deployment options reduced from 6 to 4 (full deploy, generate only, advanced, uninstall)
-- **Sync script hardening** — IPs validated at startup, safe config parsing (no `source`), clear error on missing config
-- **nebula-sync feature parity** — built-in sync now covers all nebula-sync capabilities including DHCP active state exclusion
+- **🔧 Setup menu simplified** — deployment options reduced from 6 to 4 (full deploy, generate only, advanced, uninstall)
+- **🔧 Sync script hardening** — IPs validated at startup, safe config parsing (no `source`), clear error on missing config
+- **🔧 nebula-sync feature parity** — built-in sync now covers all nebula-sync capabilities including DHCP active state exclusion
 
 ### Security
-- **CRITICAL:** API key no longer exposed via unauthenticated `/api/client-config` endpoint; key is now injected server-side via HTML meta tags
-- **CRITICAL:** API key comparison uses `hmac.compare_digest()` for timing-safe verification
-- **CRITICAL:** Generated API key written to secured file (mode 600) instead of plaintext log output
-- **HIGH:** Sync agent token comparison is now timing-safe with startup warning when unset
-- **HIGH:** `/internal/state-change` endpoint now requires sync token authentication
-- **HIGH:** HTML-escape all event descriptions and command output rendered via `innerHTML`
-- **HIGH:** Strip control characters (newlines, carriage returns) in bash config escape function
-- **MEDIUM:** Restrictive file permissions (0o700/0o600) on generated configs and notification settings
-- **MEDIUM:** Shell-quote timezone value and use heredoc for SSH public key distribution
-- **MEDIUM:** Add SRI integrity hash to Chart.js CDN script tag
+- **🔒 CRITICAL:** API key no longer exposed via unauthenticated `/api/client-config` endpoint; key is now injected server-side via HTML meta tags
+- **🔒 CRITICAL:** API key comparison uses `hmac.compare_digest()` for timing-safe verification
+- **🔒 CRITICAL:** Generated API key written to secured file (mode 600) instead of plaintext log output
+- **🔒 HIGH:** Sync agent token comparison is now timing-safe with startup warning when unset
+- **🔒 HIGH:** `/internal/state-change` endpoint now requires sync token authentication
+- **🔒 HIGH:** HTML-escape all event descriptions and command output rendered via `innerHTML`
+- **🔒 HIGH:** Strip control characters (newlines, carriage returns) in bash config escape function
+- **🔒 MEDIUM:** Restrictive file permissions (0o700/0o600) on generated configs and notification settings
+- **🔒 MEDIUM:** Shell-quote timezone value and use heredoc for SSH public key distribution
+- **🔒 MEDIUM:** Add SRI integrity hash to Chart.js CDN script tag
 
 ### Changed
 - Consolidated testing documentation into one file: `docs/development/testing.md`
@@ -245,31 +279,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > Individual beta entries are consolidated in this summary for readability.
 
 ### New
-- **⌨️ System Commands panel** — run `systemctl status`, last 200 log lines, VIP check,
+- **🎉 ⌨️ System Commands panel** — run `systemctl status`, last 200 log lines, VIP check,
   and last 500 DB events directly from the browser dashboard
-- **ANSI colour rendering** in command output modal — `active (running)` green,
+- **🎉 ANSI colour rendering** in command output modal — `active (running)` green,
   `inactive (dead)` grey, `enabled` bold-green; OSC 8 hyperlinks rendered as `<a>` tags
-- **Offline indicators** — Pi-hole Service / VIP / DNS / DHCP all turn grey with `(?)`
+- **🎉 Offline indicators** — Pi-hole Service / VIP / DNS / DHCP all turn grey with `(?)`
   when a server is unreachable (was incorrectly green/red based on stale data)
 
 ### Fixed
-- **Fault debounce (60 s)** — brief FTL restarts (e.g. keepalived DHCP apply) no longer
+- **🐛 Fault debounce (60 s)** — brief FTL restarts (e.g. keepalived DHCP apply) no longer
   trigger spurious fault notifications
-- **Paired recovery notifications** — every fault notification is guaranteed to be followed
+- **🐛 Paired recovery notifications** — every fault notification is guaranteed to be followed
   by a recovery notification once the issue resolves
-- **Notifications when both Pi-holes offline** — HTTP session now uses Cloudflare (1.1.1.1) /
+- **🐛 Notifications when both Pi-holes offline** — HTTP session now uses Cloudflare (1.1.1.1) /
   Google (8.8.8.8) DNS via `aiodns`, bypassing the Pi-hole VIP so Telegram / Discord / etc.
   remain reachable when both nodes are down
-- **keepalived / journalctl commands on monitor server** — graceful fallback messages with
+- **🐛 keepalived / journalctl commands on monitor server** — graceful fallback messages with
   SSH commands to run on Pi-hole nodes; permission-denied journalctl shows the exact fix
-- **Failover History** — recovery events shown alongside failover events (green tint + ✅)
-- **SSH retry on exit 255** — `setup.py` retries up to 3× after keepalived stop causes brief
+- **🐛 Failover History** — recovery events shown alongside failover events (green tint + ✅)
+- **🐛 SSH retry on exit 255** — `setup.py` retries up to 3× after keepalived stop causes brief
   SSH unavailability; added `ConnectTimeout` / `ServerAliveInterval` to all SSH calls
-- **System Commands modal title** — was "undefined undefined"; endpoint now returns full
+- **🐛 System Commands modal title** — was "undefined undefined"; endpoint now returns full
   `icon / description / exit_code / status / output` structured response
-- **Test notification response** — `NotificationTestResponse` field mismatch fixed
-- **Translations** — all Dutch table headers, log messages, and UI strings translated to English
-- **System Commands card styling** — section was missing card background/border; now uses
+- **🐛 Test notification response** — `NotificationTestResponse` field mismatch fixed
+- **🐛 Translations** — all Dutch table headers, log messages, and UI strings translated to English
+- **🐛 System Commands card styling** — section was missing card background/border; now uses
   same `events-card` + collapsible structure as Failover History and Recent Events
 
 ---
@@ -279,24 +313,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > Consolidates all `0.12.1-beta.1` through `0.12.1-beta.10` changes.
 
 ### New
-- **Pre-flight credential checks** — SSH + Pi-hole API validated on all servers before deployment
-- **Automatic rollback** — if deployment fails, all already-deployed servers revert to backup
-- **Uninstall option** — menu option 6 removes all Sentinel files from all servers
-- **30 tests for setup.py** in `tests/test_setup.py` (21 unit + 9 Docker integration)
-- **Startup notification** — `send_notification("startup")` on monitor boot (disabled by default)
-- **Fault notifications** at all 4 detection points (host offline, service down per node)
+- **🎉 Pre-flight credential checks** — SSH + Pi-hole API validated on all servers before deployment
+- **🎉 Automatic rollback** — if deployment fails, all already-deployed servers revert to backup
+- **🎉 Uninstall option** — menu option 6 removes all Sentinel files from all servers
+- **🎉 30 tests for setup.py** in `tests/test_setup.py` (21 unit + 9 Docker integration)
+- **🎉 Startup notification** — `send_notification("startup")` on monitor boot (disabled by default)
+- **🎉 Fault notifications** at all 4 detection points (host offline, service down per node)
 
 ### Fixed
-- **VRRP v2** — `vrrp_version 3` → `2`; v3 does not support PASS auth or `preempt_delay`
-- **Interface auto-detect** — keepalived config uses Pi-hole's interface, not installer machine's
-- **`auth_pass` length** — 32 → 8 characters (keepalived PASS max)
-- **`preempt_delay`** on MASTER node — removed (only valid on BACKUP); deployment now completes cleanly
-- **Notification templates audit** — all event types (`failover`, `recovery`, `fault`, `startup`)
+- **🐛 VRRP v2** — `vrrp_version 3` → `2`; v3 does not support PASS auth or `preempt_delay`
+- **🐛 Interface auto-detect** — keepalived config uses Pi-hole's interface, not installer machine's
+- **🐛 `auth_pass` length** — 32 → 8 characters (keepalived PASS max)
+- **🐛 `preempt_delay`** on MASTER node — removed (only valid on BACKUP); deployment now completes cleanly
+- **🐛 Notification templates audit** — all event types (`failover`, `recovery`, `fault`, `startup`)
   corrected; `{reason}` variable wired through; reminder vars use stored context
-- **`import time` missing** — monitor loop crashed every cycle on DHCP debounce line
-- **SSH retry on exit 255** — 3× retry after keepalived stop causes brief SSH unavailability
-- **`dnsutils` → `bind9-dnsutils`** fallback for Debian 12+
-- **Progress bar formatting** — missing f-string, stray dots, leftover text after overwrite
+- **🐛 `import time` missing** — monitor loop crashed every cycle on DHCP debounce line
+- **🐛 SSH retry on exit 255** — 3× retry after keepalived stop causes brief SSH unavailability
+- **🐛 `dnsutils` → `bind9-dnsutils`** fallback for Debian 12+
+- **🐛 Progress bar formatting** — missing f-string, stray dots, leftover text after overwrite
 
 ---
 
@@ -360,8 +394,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **✨ `.github/copilot-instructions.md`** — AI agent instructions for GitHub Copilot
 
 ### Changed
-- **📝 TODO_USER.md fully rewritten** — Master bug/fix list with 10 bugs (B1-B10), 5 features (F1-F5), 4 docs items (D1-D4), pisen CLI analysis, Docker test status
-- **📝 Events API response** — Now returns `{total_events, recent_events, failover_count, last_failover}` instead of a flat array
+- **📚 📝 TODO_USER.md fully rewritten** — Master bug/fix list with 10 bugs (B1-B10), 5 features (F1-F5), 4 docs items (D1-D4), pisen CLI analysis, Docker test status
+- **📚 📝 Events API response** — Now returns `{total_events, recent_events, failover_count, last_failover}` instead of a flat array
 
 **Version:** 0.12.0-beta.7 → 0.12.0-beta.8
 
@@ -370,7 +404,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.12.0-beta.7] - 2025-12-07
 
 ### Security
-- **🚫 CRITICAL: Added foolproof git hook protection against unauthorized merges**
+- **🔒 🚫 CRITICAL: Added foolproof git hook protection against unauthorized merges**
   - Created `.githooks/pre-merge-commit` hook to block AI agents from merging to testing/main
   - Hook enforces CLAUDE.md mandatory rule: "Only user may merge to testing/main"
   - Provides clear error messages and instructions (Dutch/English)
@@ -382,7 +416,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 150+ lines of detailed rules, examples, and workflows
   - Clear forbidden vs. correct workflows for AI agents
   - Installation instructions for git hooks
-- **📝 Updated `.githooks/README.md`**
+- **📚 📝 Updated `.githooks/README.md`**
   - Documented pre-merge-commit hook functionality
   - Added testing instructions for merge protection
   - Updated installation methods (Option 1 & 2)
