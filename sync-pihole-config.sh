@@ -395,11 +395,17 @@ sync_to_secondary() {
         rsync -avz --progress "${PIHOLE_DIR}/pihole.toml" "root@${SECONDARY_IP}:/tmp/pihole.toml.new"
 
         # Always preserve secondary web API password (node-specific, MUST never be overwritten)
-        secondary_pwhash=$(ssh "root@${SECONDARY_IP}" "sed -n '/^\[webserver\.api\]/,/^\[/{ /^pwhash = /p; }' ${PIHOLE_DIR}/pihole.toml | head -n1" 2>/dev/null || echo "")
-        if [ -n "$secondary_pwhash" ]; then
-            ssh "root@${SECONDARY_IP}" "sed -i "/^\[webserver\.api\]/,/^\[/ s|^pwhash = .*|${secondary_pwhash}|" /tmp/pihole.toml.new"
-            log_info "Preserved secondary web API password"
-        fi
+        # SECURITY: run entirely on the remote so the bcrypt hash ($2y$...) never crosses
+        # the SSH connection as a command-line argument (visible in ps/logs) and never
+        # touches a local bash variable where $-expansion would corrupt the hash.
+        ssh "root@${SECONDARY_IP}" bash << REMOTE_PWHASH 2>/dev/null
+pwhash=\$(sed -n '/^\[webserver\.api\]/,/^\[/{ /^pwhash = /p; }' '${PIHOLE_DIR}/pihole.toml' | head -n1)
+if [ -n "\$pwhash" ]; then
+    sed -i "s|^pwhash = .*|\${pwhash}|" /tmp/pihole.toml.new
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - Preserved secondary web API password" >> /var/log/pihole-sync.log
+fi
+REMOTE_PWHASH
+        log_info "Preserved secondary web API password"
 
         # Restore secondary DHCP active state (node-specific)
         if [ "$SYNC_CONFIG_DHCP" = "true" ] && [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ]; then

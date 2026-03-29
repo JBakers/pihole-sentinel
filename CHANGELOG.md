@@ -1,3 +1,19 @@
+## [0.12.6-beta.2] - 2026-03-29
+
+### Security
+- **🔒 pwhash preservation now runs entirely on the secondary node** — the previous fix (beta.1)
+  had two flaws:
+  1. **Correctness bug**: the bcrypt hash (`$2y$10$...`) was stored in a local bash variable and
+     interpolated into a double-quoted SSH command string. Bash expanded `$2` and `$10` as
+     positional parameters (empty), silently corrupting the hash and leaving the password
+     unrestorable.
+  2. **Security bug**: the hash was briefly stored in a local shell variable and embedded as a
+     command-line argument, making it visible in `ps aux` and SSH audit logs.
+  
+  **Fix**: the extraction and sed restore now run in a single heredoc on the remote machine.
+  The hash never leaves the secondary node — not as a command argument, not as a local
+  variable, not in any log.
+
 ## [0.12.6-beta.1] - 2026-03-29
 
 ### Fixed
