@@ -1,3 +1,12 @@
+## [0.12.6-beta.1] - 2026-03-29
+
+### Fixed
+- **🐛 Secondary Pi-hole web password overwritten by sync** — `sync_to_secondary()` copied the
+  entire `pihole.toml` from primary to secondary as a base file, then only restored `dhcp.active`,
+  `upstreams`, and `listeningMode`. The `[webserver.api] pwhash` (bcrypt password hash) was never
+  preserved, causing the secondary's web UI password to be silently replaced with the primary's
+  password on every sync run. The secondary's `pwhash` is now always saved and restored.
+
 ## [0.12.5-beta.10] - 2026-03-29
 
 ### Fixed

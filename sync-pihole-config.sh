@@ -394,11 +394,18 @@ sync_to_secondary() {
         # Copy primary toml to secondary as staging file
         rsync -avz --progress "${PIHOLE_DIR}/pihole.toml" "root@${SECONDARY_IP}:/tmp/pihole.toml.new"
 
+        # Always preserve secondary web API password (node-specific, MUST never be overwritten)
+        secondary_pwhash=$(ssh "root@${SECONDARY_IP}" "sed -n '/^\[webserver\.api\]/,/^\[/{ /^pwhash = /p; }' ${PIHOLE_DIR}/pihole.toml | head -n1" 2>/dev/null || echo "")
+        if [ -n "$secondary_pwhash" ]; then
+            ssh "root@${SECONDARY_IP}" "sed -i "/^\[webserver\.api\]/,/^\[/ s|^pwhash = .*|${secondary_pwhash}|" /tmp/pihole.toml.new"
+            log_info "Preserved secondary web API password"
+        fi
+
         # Restore secondary DHCP active state (node-specific)
         if [ "$SYNC_CONFIG_DHCP" = "true" ] && [ "$SYNC_CONFIG_DHCP_EXCLUDE_ACTIVE" = "true" ]; then
             secondary_dhcp_active=$(ssh "root@${SECONDARY_IP}" "sed -n '/^\[dhcp\]/,/^\[/{ /^active = /p; }' ${PIHOLE_DIR}/pihole.toml | head -n1" 2>/dev/null || echo "")
             if [ -n "$secondary_dhcp_active" ]; then
-                ssh "root@${SECONDARY_IP}" "sed -i "/^\[dhcp\]/,/^\[/ s/^active = .*/$secondary_dhcp_active/" /tmp/pihole.toml.new"
+                ssh "root@${SECONDARY_IP}" "sed -i "/^\[dhcp\]/,/^\[/ s/^active = .*/${secondary_dhcp_active}/" /tmp/pihole.toml.new"
                 log_info "Preserved secondary DHCP active state"
             fi
         fi
@@ -407,7 +414,7 @@ sync_to_secondary() {
         if [ "$SYNC_CONFIG_DNS" = "true" ] && [ "$SYNC_CONFIG_DNS_EXCLUDE_UPSTREAMS" = "true" ]; then
             secondary_dns_upstreams=$(ssh "root@${SECONDARY_IP}" "sed -n '/^\[dns\]/,/^\[/{ /^upstreams = /p; }' ${PIHOLE_DIR}/pihole.toml | head -n1" 2>/dev/null || echo "")
             if [ -n "$secondary_dns_upstreams" ]; then
-                ssh "root@${SECONDARY_IP}" "sed -i "/^\[dns\]/,/^\[/ s/^upstreams = .*/$secondary_dns_upstreams/" /tmp/pihole.toml.new"
+                ssh "root@${SECONDARY_IP}" "sed -i "/^\[dns\]/,/^\[/ s/^upstreams = .*/${secondary_dns_upstreams}/" /tmp/pihole.toml.new"
                 log_info "Preserved secondary DNS upstreams: $secondary_dns_upstreams"
             fi
         fi
@@ -416,7 +423,7 @@ sync_to_secondary() {
         if [ "$SYNC_CONFIG_DNS" = "true" ]; then
             secondary_dns_listening=$(ssh "root@${SECONDARY_IP}" "sed -n '/^\[dns\]/,/^\[/{ /^listeningMode = /p; }' ${PIHOLE_DIR}/pihole.toml | head -n1" 2>/dev/null || echo "")
             if [ -n "$secondary_dns_listening" ]; then
-                ssh "root@${SECONDARY_IP}" "sed -i "/^\[dns\]/,/^\[/ s/^listeningMode = .*/$secondary_dns_listening/" /tmp/pihole.toml.new"
+                ssh "root@${SECONDARY_IP}" "sed -i "/^\[dns\]/,/^\[/ s/^listeningMode = .*/${secondary_dns_listening}/" /tmp/pihole.toml.new"
             fi
         fi
 
