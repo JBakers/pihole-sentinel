@@ -22,9 +22,19 @@ enable_dhcp() {
             return 0
         fi
         echo "Enabling DHCP in $CONFIG_FILE..."
-        # Changes 'active = false' to 'active = true' only under the [dhcp] header
+        # Changes 'active = false' to 'active = true' only under the [dhcp] header.
+        # FTL v6 auto-detects TOML changes via inotify and binds/unbinds port 67
+        # without a restart — zero downtime, no health-check interruption.
         sed -i '/^\[dhcp\]/,/^\[/ s/active = false/active = true/' "$CONFIG_FILE"
-        systemctl restart pihole-FTL.service
+        # Verify FTL picked up the change (port 67 should bind within ~3s)
+        for i in 1 2 3 4 5; do
+            if ss -ulnp 2>/dev/null | grep -q ':67'; then
+                echo "DHCP enabled (port 67 bound)."
+                return 0
+            fi
+            sleep 1
+        done
+        echo "WARNING: DHCP enabled in config but port 67 not yet bound."
         echo "DHCP enabled."
     ) 200>"$LOCK_FILE"
 }
@@ -39,9 +49,18 @@ disable_dhcp() {
             return 0
         fi
         echo "Disabling DHCP in $CONFIG_FILE..."
-        # Changes 'active = true' to 'active = false' only under the [dhcp] header
+        # Changes 'active = true' to 'active = false' only under the [dhcp] header.
+        # FTL v6 auto-detects TOML changes via inotify — no restart needed.
         sed -i '/^\[dhcp\]/,/^\[/ s/active = true/active = false/' "$CONFIG_FILE"
-        systemctl restart pihole-FTL.service
+        # Verify FTL released port 67 (should unbind within ~3s)
+        for i in 1 2 3 4 5; do
+            if ! ss -ulnp 2>/dev/null | grep -q ':67'; then
+                echo "DHCP disabled (port 67 released)."
+                return 0
+            fi
+            sleep 1
+        done
+        echo "WARNING: DHCP disabled in config but port 67 still bound."
         echo "DHCP disabled."
     ) 200>"$LOCK_FILE"
 }

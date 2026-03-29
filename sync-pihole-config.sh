@@ -403,10 +403,12 @@ sync_to_secondary() {
         # PIHOLE_DIR is passed via env to the remote shell.
         #
         # Preserved values:
-        #   1. pwhash       — web API password (indented under [webserver.api])
-        #   2. dhcp.active  — DHCP on/off state (top-level [dhcp])
-        #   3. upstreams    — DNS upstream servers (top-level [dns])
+        #   1. pwhash        — web API password (indented under [webserver.api])
+        #   2. dhcp.active   — DHCP on/off state (top-level [dhcp])
+        #   3. upstreams     — DNS upstream servers (top-level [dns])
         #   4. listeningMode — DNS listening scope (top-level [dns])
+        #   5. domain        — webserver hostname (indented under [webserver])
+        #   6. cert          — TLS certificate path (indented under [webserver.tls])
         #
         # We use python3 for the pwhash swap because the hash ($BALLOON-SHA256$...)
         # contains $, |, &, = which corrupt sed replacement strings.
@@ -482,6 +484,45 @@ if [ "$SYNC_DNS" = "true" ]; then
         sed -i "/^\[dns\]/,/^\[/ s/^listeningMode = .*/$dns_lm/" "$STAGED"
         echo "$(ts) - Preserved secondary DNS listeningMode" >> "$LOGFILE"
     fi
+fi
+
+# 5. Preserve webserver domain (indented key, e.g. 'pihole2.home')
+# The domain value may contain dots but no shell-special chars — python3 for consistency
+# with the indented [webserver] section structure.
+domain_line=$(grep -m1 '^\s*domain = ' "$LIVE" || true)
+if [ -n "$domain_line" ]; then
+    python3 -c "
+import sys
+live_val = sys.argv[1]
+with open(sys.argv[2], 'r') as f:
+    lines = f.readlines()
+with open(sys.argv[2], 'w') as f:
+    for line in lines:
+        if line.lstrip().startswith('domain = '):
+            f.write(live_val + '\n')
+        else:
+            f.write(line)
+" "$domain_line" "$STAGED"
+    echo "$(ts) - Preserved secondary webserver domain" >> "$LOGFILE"
+fi
+
+# 6. Preserve TLS certificate path (indented key under [webserver.tls])
+# Each node has its own certificate — syncing the primary's cert path would break TLS.
+cert_line=$(grep -m1 '^\s*cert = ' "$LIVE" || true)
+if [ -n "$cert_line" ]; then
+    python3 -c "
+import sys
+live_val = sys.argv[1]
+with open(sys.argv[2], 'r') as f:
+    lines = f.readlines()
+with open(sys.argv[2], 'w') as f:
+    for line in lines:
+        if line.lstrip().startswith('cert = '):
+            f.write(live_val + '\n')
+        else:
+            f.write(line)
+" "$cert_line" "$STAGED"
+    echo "$(ts) - Preserved secondary TLS cert path" >> "$LOGFILE"
 fi
 
 echo "$(ts) - All node-specific values preserved" >> "$LOGFILE"
