@@ -30,8 +30,6 @@ class TestIPValidation:
             "192.168.1.1",
             "10.0.0.1",
             "172.16.0.1",
-            "255.255.255.255",
-            "0.0.0.0",
             "127.0.0.1",
             "8.8.8.8",
         ]
@@ -57,8 +55,11 @@ class TestIPValidation:
     def test_edge_case_ips(self, config):
         """Test edge case IP addresses."""
         edge_cases = [
-            ("0.0.0.0", True),  # All zeros - valid
-            ("255.255.255.255", True),  # All max - valid
+            ("0.0.0.0", False),  # Unspecified - rejected
+            ("255.255.255.255", False),  # Broadcast/reserved - rejected
+            ("224.0.0.1", False),  # Multicast - rejected
+            ("239.255.255.255", False),  # Multicast upper bound - rejected
+            ("240.0.0.1", False),  # Reserved (future use) - rejected
             ("192.168.001.001", False),  # Leading zeros - rejected by validate_ip regex
         ]
         for ip, expected in edge_cases:

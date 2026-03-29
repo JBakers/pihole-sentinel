@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-03-29
 **Branch:** `develop`
-**Current Version:** 0.12.5-beta.7
+**Current Version:** 0.12.7
 
 > **📌 This is the central planning and TODO document.**
 > CLAUDE.md references this file. All open tasks, bugs, and the
