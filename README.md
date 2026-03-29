@@ -8,7 +8,7 @@
 
 *Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
 
-[![Version](https://img.shields.io/github/v/tag/JBakers/pihole-sentinel?label=version&sort=semver&color=blue)](https://github.com/JBakers/pihole-sentinel/releases)
+[![Version](https://img.shields.io/github/v/release/JBakers/pihole-sentinel?include_prereleases&label=version&color=blue)](https://github.com/JBakers/pihole-sentinel/releases)
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/stargazers)
