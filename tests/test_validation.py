@@ -60,7 +60,7 @@ class TestIPValidation:
             ("224.0.0.1", False),  # Multicast - rejected
             ("239.255.255.255", False),  # Multicast upper bound - rejected
             ("240.0.0.1", False),  # Reserved (future use) - rejected
-            ("192.168.001.001", False),  # Leading zeros - rejected by validate_ip regex
+            ("192.168.001.001", False),  # Leading zeros - rejected by ipaddress.ip_address()
         ]
         for ip, expected in edge_cases:
             result = config.validate_ip(ip)
