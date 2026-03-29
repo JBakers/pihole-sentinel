@@ -1,3 +1,31 @@
+## [0.14.0] - 2026-03-30
+
+### New
+- **Pi-hole Stats** — node cards now show Queries, Blocked (%), and Clients
+  from Pi-hole API (in-memory, no DB overhead)
+- **Chart redesign** — mixed chart with colored background bands (green=Primary
+  MASTER, orange=Secondary MASTER) and DHCP lease line overlay; custom Canvas
+  plugin for smooth rendering
+- **Header redesign** — compact single-row header with inline SVG logo, pill
+  badges for VIP/Leases/Updated, and settings icon
+
+### Improved
+- **Status labels** — clearer dashboard terminology: FTL Running/Down, VIP
+  Assigned/—, DHCP Active/Standby/Misconfigured, DNS Resolving/Failing
+- **Dark mode** — fixed low-contrast text in status items, events, chart, header,
+  and footer elements
+- **Time selector** — logical intervals: 15m, 1h, 6h, 24h, 7d, 30d (was 15m,
+  30m, 24h, 7d, 30d)
+- **System Commands** — Recent Events shows newest first; VIP Check returns
+  summary instead of full dump; Keepalived Status/Logs explain when service runs
+  on Pi-holes not monitor
+- **Social preview** — redesigned as dashboard mockup with dark theme, node
+  cards, chart, and feature list; updated version and Pi-hole 6.0+ requirement
+
+### Fixed
+- **History API** — now returns online, pihole, dns, dhcp_leases per node
+  (was only primary/secondary state)
+
 ## [0.13.0] - 2026-03-29
 
 ### Improved
