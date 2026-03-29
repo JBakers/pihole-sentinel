@@ -1,3 +1,11 @@
+## [0.12.5-beta.9] - 2026-03-29
+
+### Improved
+- **Deployment success screen simplified** — removed verbose status commands and failover test
+  instructions (moved to README). Screen now shows dashboard URL, essential log commands, and
+  a prominent warning when built-in sync is disabled but DHCP is active, reminding the user
+  to use nebula-sync, gravity-sync, or similar to keep nodes in sync.
+
 ## [0.12.5-beta.8] - 2026-03-29
 
 ### Improved
