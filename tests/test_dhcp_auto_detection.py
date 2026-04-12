@@ -162,6 +162,75 @@ class TestDhcpAutoDetection:
         data = json.loads(config_path.read_text())
         assert data["system"]["dhcp_failover"] is False
 
+    @pytest.mark.asyncio
+    async def test_skip_when_both_none(self, monitor):
+        """When both readings are None (API unreachable), detection is skipped."""
+        monitor._dhcp_auto_detected = True
+        monitor._dhcp_detect_counter = 0
+
+        with patch.object(monitor, '_push_dhcp_config', new_callable=AsyncMock) as mock_push:
+            # 10 polls with None — should never change state
+            for _ in range(10):
+                await monitor._update_dhcp_auto_detection(None, None)
+
+        assert monitor._dhcp_auto_detected is True
+        assert monitor._dhcp_detect_counter == 0
+        mock_push.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skip_when_one_none_one_true(self, monitor):
+        """When one reading is None, detection is skipped even if other is True."""
+        monitor._dhcp_auto_detected = False
+        monitor._dhcp_detect_counter = 0
+
+        with patch.object(monitor, '_push_dhcp_config', new_callable=AsyncMock) as mock_push:
+            for _ in range(5):
+                await monitor._update_dhcp_auto_detection(None, True)
+
+        assert monitor._dhcp_auto_detected is False
+        assert monitor._dhcp_detect_counter == 0
+        mock_push.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skip_when_one_none_one_false(self, monitor):
+        """When one reading is None, detection is skipped even if other is False."""
+        monitor._dhcp_auto_detected = True
+        monitor._dhcp_detect_counter = 0
+
+        with patch.object(monitor, '_push_dhcp_config', new_callable=AsyncMock) as mock_push:
+            for _ in range(5):
+                await monitor._update_dhcp_auto_detection(True, None)
+
+        assert monitor._dhcp_auto_detected is True
+        assert monitor._dhcp_detect_counter == 0
+        mock_push.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_counter_frozen_during_unknown(self, monitor):
+        """Debounce counter doesn't advance during None readings."""
+        monitor._dhcp_auto_detected = True
+        monitor._dhcp_detect_counter = 0
+
+        with patch.object(monitor, '_push_dhcp_config', new_callable=AsyncMock) as mock_push:
+            with patch.object(monitor, 'log_event', new_callable=AsyncMock):
+                # 2 real different readings → counter=2
+                await monitor._update_dhcp_auto_detection(False, False)
+                await monitor._update_dhcp_auto_detection(False, False)
+                assert monitor._dhcp_detect_counter == 2
+
+                # API goes down — None readings shouldn't advance counter
+                await monitor._update_dhcp_auto_detection(None, None)
+                await monitor._update_dhcp_auto_detection(None, False)
+                assert monitor._dhcp_detect_counter == 2  # frozen
+
+                # API comes back with same different reading → threshold reached
+                with patch.object(monitor, '_save_system_settings'):
+                    await monitor._update_dhcp_auto_detection(False, False)
+
+        assert monitor._dhcp_auto_detected is False
+        assert monitor._dhcp_detect_counter == 0
+        mock_push.assert_called_once_with(False)
+
 
 # ─────────────────────────────────────────────────────────────────────
 # _push_dhcp_config — SSH push

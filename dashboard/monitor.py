@@ -1227,7 +1227,7 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
         "blocked": 0,
         "clients": 0,
         "dhcp_leases": 0,
-        "dhcp_enabled": False
+        "dhcp_enabled": None
     }
 
     # Use TCP socket connection test instead of ping to avoid capability issues
@@ -1285,11 +1285,11 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
                         result["dhcp_enabled"] = dhcp_config.get("config", {}).get("dhcp", {}).get("active", False)
                         logger.debug(f"DHCP for {ip}: active={result['dhcp_enabled']}")
                     else:
-                        result["dhcp_enabled"] = False
+                        result["dhcp_enabled"] = None
                         logger.debug(f"DHCP config API returned status {dhcp_resp.status} for {ip}")
             except Exception as e:
                 logger.debug(f"DHCP config check exception for {ip}: {e}")
-                result["dhcp_enabled"] = False
+                result["dhcp_enabled"] = None
 
             # Check DHCP leases count
             # Pi-hole v6 API - use content_type=None to accept any content-type header
@@ -1785,8 +1785,8 @@ async def monitor_loop():
                 monitor_loop._state = {"last_dhcp_warning": 0}
 
             # Auto-detect DHCP usage from Pi-hole API responses
-            primary_dhcp = primary_data.get("dhcp_enabled", False)
-            secondary_dhcp = secondary_data.get("dhcp_enabled", False)
+            primary_dhcp = primary_data.get("dhcp_enabled")
+            secondary_dhcp = secondary_data.get("dhcp_enabled")
             await _update_dhcp_auto_detection(primary_dhcp, secondary_dhcp)
 
             if _dhcp_auto_detected:
@@ -2356,14 +2356,26 @@ async def _push_dhcp_config(enabled: bool) -> bool:
     return success_count > 0
 
 
-async def _update_dhcp_auto_detection(primary_dhcp: bool, secondary_dhcp: bool) -> None:
+async def _update_dhcp_auto_detection(primary_dhcp, secondary_dhcp) -> None:
     """Update DHCP auto-detection state based on Pi-hole API responses.
 
     If either Pi-hole has DHCP active, DHCP failover is considered in use.
     State changes require _DHCP_DETECT_THRESHOLD consecutive identical readings
     (debounce) to prevent flip-flopping.
+
+    When either reading is None (API unreachable), the poll is skipped entirely.
+    This prevents API failures from being misinterpreted as "DHCP not in use"
+    and incorrectly disabling keepalived DHCP failover.
     """
     global _dhcp_auto_detected, _dhcp_detect_counter, _system_settings
+
+    # Skip when data is incomplete — "unknown" is not "disabled"
+    if primary_dhcp is None or secondary_dhcp is None:
+        logger.debug(
+            f"DHCP detection skipped: incomplete data "
+            f"(primary={primary_dhcp}, secondary={secondary_dhcp})"
+        )
+        return
 
     dhcp_in_use = primary_dhcp or secondary_dhcp
 

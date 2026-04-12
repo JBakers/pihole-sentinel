@@ -1,3 +1,15 @@
+## [0.16.2] - 2026-04-12
+
+### Fixed
+- **Critical: DHCP auto-detection disabled failover during Pi-hole outage** —
+  When a Pi-hole's API was unreachable (FTL crash, network issue, restart),
+  the DHCP status defaulted to `False`, causing the monitor to incorrectly
+  conclude "DHCP not in use" after 30 seconds and push `DHCP_ENABLED=false`
+  to keepalived — disabling failover exactly when it was needed most.
+  Fix: API failures now return `None` (unknown) instead of `False`. The
+  auto-detection skips polls with incomplete data and only acts on confirmed
+  API responses from both Pi-holes.
+
 ## [0.16.1] - 2026-04-12
 
 ### Security
