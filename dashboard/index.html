@@ -144,6 +144,92 @@
             letter-spacing: 0.5px;
         }
 
+        .header-pill.dimmed {
+            opacity: 0.4;
+        }
+
+        /* Compact DHCP toggle in header */
+        .dhcp-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            background: rgba(102, 126, 234, 0.08);
+            border: 1px solid rgba(102, 126, 234, 0.15);
+            border-radius: 20px;
+            font-size: 11px;
+            color: #64748b;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .dhcp-toggle:hover {
+            background: rgba(102, 126, 234, 0.15);
+        }
+        .dhcp-toggle .mini-switch {
+            width: 28px;
+            height: 16px;
+            background: #cbd5e1;
+            border-radius: 8px;
+            position: relative;
+            transition: background 0.2s;
+        }
+        .dhcp-toggle .mini-switch::after {
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s;
+        }
+        .dhcp-toggle.active .mini-switch {
+            background: #667eea;
+        }
+        .dhcp-toggle.active .mini-switch::after {
+            transform: translateX(12px);
+        }
+
+        /* DHCP instructions banner */
+        .dhcp-instructions {
+            display: none;
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: #92400e;
+            line-height: 1.5;
+        }
+        .dhcp-instructions code {
+            background: rgba(0,0,0,0.06);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .dhcp-instructions .close-btn {
+            float: right;
+            cursor: pointer;
+            font-weight: bold;
+            opacity: 0.6;
+        }
+        .dhcp-instructions .close-btn:hover {
+            opacity: 1;
+        }
+        body.dark-mode .dhcp-instructions {
+            background: #451a03;
+            border-color: #d97706;
+            color: #fef3c7;
+        }
+        body.dark-mode .dhcp-instructions code {
+            background: rgba(255,255,255,0.1);
+        }
+
         .status-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
@@ -569,6 +655,18 @@
 
         body.dark-mode .header-pill .pill-label {
             color: #94a3b8;
+        }
+
+        body.dark-mode .dhcp-toggle {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.1);
+            color: #94a3b8;
+        }
+        body.dark-mode .dhcp-toggle:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+        body.dark-mode .dhcp-toggle .mini-switch {
+            background: #4a5568;
         }
 
         body.dark-mode .status-item,
@@ -1186,9 +1284,13 @@
                     <span class="pill-label">VIP</span>
                     <strong id="vip-ip">-</strong>
                 </div>
-                <div class="header-pill">
+                <div class="header-pill" id="leases-pill">
                     <span class="pill-label">Leases</span>
                     <strong id="dhcp-leases">-</strong>
+                </div>
+                <div class="dhcp-toggle active" id="dhcp-toggle" onclick="toggleDhcpFailover()" title="Toggle DHCP failover monitoring">
+                    <span>DHCP</span>
+                    <div class="mini-switch"></div>
                 </div>
                 <div class="header-pill">
                     <span class="pill-label">Updated</span>
@@ -1204,6 +1306,14 @@
                     </svg>
                 </a>
             </div>
+        </div>
+
+        <div class="dhcp-instructions" id="dhcp-instructions">
+            <span class="close-btn" onclick="document.getElementById('dhcp-instructions').style.display='none'">&times;</span>
+            <strong>DHCP Failover changed</strong><br>
+            To apply on your Pi-holes, run on <strong>both</strong> nodes:<br>
+            <code id="dhcp-sed-cmd">sudo sed -i 's/^DHCP_ENABLED=.*/DHCP_ENABLED=false/' /etc/keepalived/.env</code><br>
+            <code>sudo systemctl restart keepalived</code>
         </div>
 
         <div class="status-grid">
@@ -1534,6 +1644,19 @@
             document.getElementById('vip-ip').textContent = data.vip;
             document.getElementById('dhcp-leases').textContent = data.dhcp_leases;
 
+            // DHCP failover toggle state
+            const dhcpEnabled = data.dhcp_failover !== false;
+            const toggle = document.getElementById('dhcp-toggle');
+            const leasesPill = document.getElementById('leases-pill');
+            if (dhcpEnabled) {
+                toggle.classList.add('active');
+                leasesPill.classList.remove('dimmed');
+            } else {
+                toggle.classList.remove('active');
+                leasesPill.classList.add('dimmed');
+            }
+            window._dhcpFailoverEnabled = dhcpEnabled;
+
             // Handle timestamp - server sends UTC, convert to browser's local time
             const timestamp = new Date(data.timestamp + ' UTC');
             document.getElementById('last-update').textContent = timestamp.toLocaleString('nl-NL', {
@@ -1578,6 +1701,9 @@
             // Pi-hole service, VIP, DNS or DHCP — show all as grey/unknown.
             const serverOffline = !nodeData.online;
 
+            // DHCP status — respect global dhcp_failover toggle
+            const dhcpMonitoring = window._dhcpFailoverEnabled !== false;
+
             // Check for DHCP misconfiguration
             const dhcpShouldBeOn = nodeData.state === 'MASTER';
             const dhcpIsOn = nodeData.dhcp;
@@ -1587,7 +1713,11 @@
             let dhcpDot = '';
             let dhcpLabel = '';
             let dhcpTooltip = '';
-            if (serverOffline) {
+            if (!dhcpMonitoring) {
+                dhcpDot = '<div class="status-dot unknown"></div>';
+                dhcpLabel = 'DHCP N/A';
+                dhcpTooltip = 'DHCP failover is disabled — not monitored';
+            } else if (serverOffline) {
                 dhcpDot = '<div class="status-dot unknown"></div>';
                 dhcpLabel = 'DHCP Unknown';
                 dhcpTooltip = 'Unknown — server offline';
@@ -1684,6 +1814,40 @@
                         </div>
                     `;
                 }
+            }
+        }
+
+        async function toggleDhcpFailover() {
+            const current = window._dhcpFailoverEnabled !== false;
+            const newVal = !current;
+            try {
+                const resp = await fetch(`${API_BASE}/api/settings/system`, {
+                    method: 'POST',
+                    headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dhcp_failover: newVal })
+                });
+                const result = await resp.json();
+                if (result.status === 'success') {
+                    window._dhcpFailoverEnabled = newVal;
+                    const toggle = document.getElementById('dhcp-toggle');
+                    const leasesPill = document.getElementById('leases-pill');
+                    if (newVal) {
+                        toggle.classList.add('active');
+                        leasesPill.classList.remove('dimmed');
+                    } else {
+                        toggle.classList.remove('active');
+                        leasesPill.classList.add('dimmed');
+                    }
+                    // Show keepalived instructions
+                    const sedVal = newVal ? 'true' : 'false';
+                    document.getElementById('dhcp-sed-cmd').textContent =
+                        `sudo sed -i 's/^DHCP_ENABLED=.*/DHCP_ENABLED=${sedVal}/' /etc/keepalived/.env`;
+                    document.getElementById('dhcp-instructions').style.display = 'block';
+                    // Refresh node cards immediately
+                    fetchStatus();
+                }
+            } catch (e) {
+                console.error('Failed to toggle DHCP failover:', e);
             }
         }
 

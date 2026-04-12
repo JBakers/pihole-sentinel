@@ -1,3 +1,50 @@
+## [0.15.0] - 2026-04-12
+
+### New
+- **DHCP failover toggle on dashboard** — Users who don't run DHCP on their
+  Pi-holes can now disable DHCP failover monitoring with a single click on
+  the main dashboard.  When disabled:
+  - No more "DHCP Misconfigured ⚠️" warnings in the event log
+  - Node cards show "DHCP N/A" instead of misconfiguration warnings
+  - Leases pill is dimmed in the header
+  - keepalived stops toggling DHCP on state transitions
+  - A banner shows the exact commands to apply the change on the Pi-holes
+- **System settings API** — New `GET/POST /api/settings/system` endpoints for
+  persistent system-wide settings (currently: `dhcp_failover` toggle).
+  Settings are stored in `notify_settings.json` under the `system` key.
+
+### Fixed
+- **Bug: `DHCP_ENABLED` missing from keepalived .env** — `setup.py` now writes
+  `DHCP_ENABLED=true/false` to the generated keepalived environment files.
+  Previously `check_dhcp_service.sh` expected this variable but it was never
+  written, causing the DHCP health check to always exit 0.
+- **keepalived_notify.sh unconditionally toggling DHCP** — The script now
+  reads `DHCP_ENABLED` from `/etc/keepalived/.env` and skips `dhcp_control.sh`
+  when DHCP failover is disabled.
+
+## [0.14.3] - 2026-04-12
+
+### Fixed
+- **Event debounce for sync-related flapping** — When the config sync timer
+  restarts Pi-hole FTL on the secondary (~12-32 s), the monitor no longer
+  floods the event log with "went OFFLINE / is back ONLINE / Pi-hole is back
+  UP" events.  A node must stay offline for 30 seconds before an event is
+  logged.  Transient outages (< 30 s) are suppressed silently.
+- **Orphaned "Pi-hole service is back UP" events** — When a node goes offline,
+  `pihole=False` is a side-effect of unreachability.  Recovery no longer
+  generates a spurious "Pi-hole service is back UP" event unless a
+  corresponding "Pi-hole service is DOWN" was actually logged.
+- **False pihole/DNS state transitions** — `previous_pihole` and
+  `previous_dns` tracking variables are now only updated when the node is
+  online, preventing false transitions from offline→online recovery.
+
+### Improved
+- **Unified event + notification debounce** — Events and notifications now
+  share the same debounce pipeline: 30 s event debounce + 30 s notification
+  delay = ~60 s total (previously: events were immediate, notifications
+  delayed 60 s).  This eliminates dashboard event spam while keeping the
+  same total notification delay.
+
 ## [0.14.2] - 2026-03-30
 
 ### Security
