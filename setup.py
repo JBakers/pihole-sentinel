@@ -1179,6 +1179,7 @@ NODE_PRIORITY=150
 NODE_STATE=MASTER
 PRIMARY_IP={self.config['primary_ip']}
 SECONDARY_IP={self.config['secondary_ip']}
+DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
 """
 
         secondary_env = primary_env.replace(

@@ -1753,38 +1753,40 @@ async def monitor_loop():
             
             # Check DHCP misconfiguration (with debounce)
             # Only warn every 5 minutes to avoid log spam
+            # Skip entirely when DHCP failover is disabled
             current_time = time.time()
             if not hasattr(monitor_loop, "_state"):
                 monitor_loop._state = {"last_dhcp_warning": 0}
             
-            should_warn = (current_time - monitor_loop._state["last_dhcp_warning"]) > 300
+            if _system_settings.get("dhcp_failover", True):
+                should_warn = (current_time - monitor_loop._state["last_dhcp_warning"]) > 300
 
-            primary_dhcp = primary_data.get("dhcp_enabled", False)
-            secondary_dhcp = secondary_data.get("dhcp_enabled", False)
-            
-            # MASTER should have DHCP enabled, BACKUP should have it disabled
-            misconfigured = False
-            msg = ""
-            
-            if primary_state == "MASTER" and not primary_dhcp:
-                msg = "⚠️ DHCP misconfiguration: Primary is MASTER but DHCP is DISABLED"
-                misconfigured = True
-            elif primary_state == "BACKUP" and primary_dhcp:
-                msg = "⚠️ DHCP misconfiguration: Primary is BACKUP but DHCP is ENABLED"
-                misconfigured = True
-            elif secondary_state == "MASTER" and not secondary_dhcp:
-                msg = "⚠️ DHCP misconfiguration: Secondary is MASTER but DHCP is DISABLED"
-                misconfigured = True
-            elif secondary_state == "BACKUP" and secondary_dhcp:
-                msg = "⚠️ DHCP misconfiguration: Secondary is BACKUP but DHCP is ENABLED"
-                misconfigured = True
-            
-            if misconfigured and should_warn:
-                await log_event("warning", msg)
-                logger.warning(msg)
-                monitor_loop._state["last_dhcp_warning"] = current_time
-            elif misconfigured and not should_warn:
-                logger.debug(f"Suppressing DHCP warning (debounce): {msg}")
+                primary_dhcp = primary_data.get("dhcp_enabled", False)
+                secondary_dhcp = secondary_data.get("dhcp_enabled", False)
+                
+                # MASTER should have DHCP enabled, BACKUP should have it disabled
+                misconfigured = False
+                msg = ""
+                
+                if primary_state == "MASTER" and not primary_dhcp:
+                    msg = "⚠️ DHCP misconfiguration: Primary is MASTER but DHCP is DISABLED"
+                    misconfigured = True
+                elif primary_state == "BACKUP" and primary_dhcp:
+                    msg = "⚠️ DHCP misconfiguration: Primary is BACKUP but DHCP is ENABLED"
+                    misconfigured = True
+                elif secondary_state == "MASTER" and not secondary_dhcp:
+                    msg = "⚠️ DHCP misconfiguration: Secondary is MASTER but DHCP is DISABLED"
+                    misconfigured = True
+                elif secondary_state == "BACKUP" and secondary_dhcp:
+                    msg = "⚠️ DHCP misconfiguration: Secondary is BACKUP but DHCP is ENABLED"
+                    misconfigured = True
+                
+                if misconfigured and should_warn:
+                    await log_event("warning", msg)
+                    logger.warning(msg)
+                    monitor_loop._state["last_dhcp_warning"] = current_time
+                elif misconfigured and not should_warn:
+                    logger.debug(f"Suppressing DHCP warning (debounce): {msg}")
 
             logger.debug(f"[{datetime.now()}] Primary: {primary_state}, Secondary: {secondary_state}, Leases: {dhcp_leases}")
             
@@ -1844,7 +1846,8 @@ async def get_status(api_key: str = Depends(verify_api_key)):
                     "clients": _pihole_stats["secondary"]["clients"],
                 },
                 "vip": CONFIG["vip"],
-                "dhcp_leases": row[12] if len(row) > 12 else row[10]  # Adjust for new column
+                "dhcp_leases": row[12] if len(row) > 12 else row[10],  # Adjust for new column
+                "dhcp_failover": _system_settings.get("dhcp_failover", True),
             }
 
 @app.get("/api/history", response_model=List[dict], tags=["History"])
@@ -2190,6 +2193,100 @@ async def save_notification_settings(
     except Exception as e:
         logger.error(f"Failed to save notification settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to save settings: {str(e)}")
+
+# ============================================================================
+# System Settings (DHCP failover toggle)
+# ============================================================================
+
+def _load_system_settings() -> dict:
+    """Load system settings from the notification config file.
+
+    System settings are stored under the ``system`` key inside
+    ``notify_settings.json`` to avoid creating a separate config file.
+    Missing keys fall back to safe defaults (DHCP failover enabled).
+    """
+    import json
+
+    defaults = {"dhcp_failover": True}
+    config_path = CONFIG["notify_config_path"]
+    if not os.path.exists(config_path):
+        return defaults
+    try:
+        with open(config_path, 'r') as f:
+            data = json.load(f)
+        system = data.get("system", {})
+        return {
+            "dhcp_failover": system.get("dhcp_failover", True),
+        }
+    except Exception:
+        return defaults
+
+
+def _save_system_settings(system: dict) -> None:
+    """Persist *system* settings into ``notify_settings.json``."""
+    import json
+
+    config_path = CONFIG["notify_config_path"]
+    config_dir = os.path.dirname(config_path)
+    os.makedirs(config_dir, exist_ok=True)
+
+    existing = {}
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                existing = json.load(f)
+        except (json.JSONDecodeError, IOError, OSError):
+            pass
+
+    existing["system"] = system
+    with open(config_path, 'w') as f:
+        json.dump(existing, f, indent=2)
+    os.chmod(config_path, 0o600)
+
+
+# Cache for system settings — refreshed on POST and at startup
+_system_settings: dict = _load_system_settings()
+
+
+@app.get("/api/settings/system", tags=["System"])
+async def get_system_settings(api_key: str = Depends(verify_api_key)):
+    """Return current system settings (DHCP failover toggle etc.)."""
+    return _system_settings
+
+
+@app.post("/api/settings/system", tags=["System"])
+async def save_system_settings(
+    request: Request,
+    settings: dict,
+    api_key: str = Depends(verify_api_key),
+    _rate_limit: bool = Depends(write_rate_limit_check),
+):
+    """Save system settings and return keepalived restart instructions."""
+    global _system_settings
+
+    allowed_keys = {"dhcp_failover"}
+    filtered = {k: v for k, v in settings.items() if k in allowed_keys}
+
+    if "dhcp_failover" in filtered:
+        filtered["dhcp_failover"] = bool(filtered["dhcp_failover"])
+
+    merged = {**_system_settings, **filtered}
+    _save_system_settings(merged)
+    _system_settings = merged
+    logger.info(f"System settings updated: {merged}")
+
+    dhcp_val = "true" if merged["dhcp_failover"] else "false"
+    instructions = (
+        f"To apply DHCP failover changes on your Pi-holes, run on BOTH nodes:\n"
+        f"  sudo sed -i 's/^DHCP_ENABLED=.*/DHCP_ENABLED={dhcp_val}/' /etc/keepalived/.env\n"
+        f"  sudo systemctl restart keepalived"
+    )
+
+    return {
+        "status": "success",
+        "message": "System settings saved",
+        "instructions": instructions,
+    }
 
 class CommandRequest(BaseModel):
     command: str

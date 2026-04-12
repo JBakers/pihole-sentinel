@@ -1,3 +1,27 @@
+## [0.15.0] - 2026-04-12
+
+### New
+- **DHCP failover toggle on dashboard** — Users who don't run DHCP on their
+  Pi-holes can now disable DHCP failover monitoring with a single click on
+  the main dashboard.  When disabled:
+  - No more "DHCP Misconfigured ⚠️" warnings in the event log
+  - Node cards show "DHCP N/A" instead of misconfiguration warnings
+  - Leases pill is dimmed in the header
+  - keepalived stops toggling DHCP on state transitions
+  - A banner shows the exact commands to apply the change on the Pi-holes
+- **System settings API** — New `GET/POST /api/settings/system` endpoints for
+  persistent system-wide settings (currently: `dhcp_failover` toggle).
+  Settings are stored in `notify_settings.json` under the `system` key.
+
+### Fixed
+- **Bug: `DHCP_ENABLED` missing from keepalived .env** — `setup.py` now writes
+  `DHCP_ENABLED=true/false` to the generated keepalived environment files.
+  Previously `check_dhcp_service.sh` expected this variable but it was never
+  written, causing the DHCP health check to always exit 0.
+- **keepalived_notify.sh unconditionally toggling DHCP** — The script now
+  reads `DHCP_ENABLED` from `/etc/keepalived/.env` and skips `dhcp_control.sh`
+  when DHCP failover is disabled.
+
 ## [0.14.3] - 2026-04-12
 
 ### Fixed
