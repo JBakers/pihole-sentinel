@@ -1,3 +1,72 @@
+## [0.16.2] - 2026-04-12
+
+### Fixed
+- **Critical: DHCP auto-detection disabled failover during Pi-hole outage** —
+  When a Pi-hole's API was unreachable (FTL crash, network issue, restart),
+  the DHCP status defaulted to `False`, causing the monitor to incorrectly
+  conclude "DHCP not in use" after 30 seconds and push `DHCP_ENABLED=false`
+  to keepalived — disabling failover exactly when it was needed most.
+  Fix: API failures now return `None` (unknown) instead of `False`. The
+  auto-detection skips polls with incomplete data and only acts on confirmed
+  API responses from both Pi-holes.
+
+## [0.16.1] - 2026-04-12
+
+### Security
+- **Shell injection prevention in sync script** — Added `validate_ip()` function
+  with regex validation for `PRIMARY_IP` and `SECONDARY_IP` in
+  `sync-pihole-config.sh`. Rejects malformed values before they reach rsync/ssh
+  commands.
+- **Config file permission validation** — `notify.sh`, `keepalived_notify.sh`,
+  and `check_dhcp_service.sh` now refuse to source configuration files that are
+  world-writable, preventing arbitrary code execution via tampered `.env` or
+  `notify.conf` files.
+- **Safe curl parameter encoding** — Notification script (`notify.sh`) now uses
+  `--data-urlencode` for Telegram and Pushover API calls, and `--data-raw` for
+  Ntfy, preventing shell metacharacter injection via notification messages.
+- **Template injection prevention** — Notification templates are validated before
+  `format_map()` processing. Only simple `{varname}` placeholders are allowed;
+  attribute access (`{x.y}`), indexing (`{x[0]}`), and format specs are blocked.
+- **Proxy-aware rate limiting** — Rate limiter now checks `X-Forwarded-For`
+  header to correctly identify clients behind reverse proxies. Previously all
+  proxied requests counted as one IP, making rate limiting ineffective.
+
+## [0.16.0] - 2026-04-12
+
+### New
+- **Automatic DHCP failover detection** — Monitor now auto-detects whether DHCP
+  is in use by polling both Pi-holes' API. No manual toggle needed. State changes
+  require 3 consecutive identical readings (30s debounce) to prevent flip-flopping.
+- **SSH push of DHCP config** — When DHCP detection state changes, monitor pushes
+  `DHCP_ENABLED=true/false` to `/etc/keepalived/.env` on both Pi-holes via SSH.
+  No keepalived restart needed (scripts source .env dynamically).
+- **DHCP status indicator** — Dashboard toggle replaced with read-only indicator
+  showing "DHCP Active" (green) or "DHCP Not Used" (grey), auto-detected from
+  Pi-hole API responses.
+- **SSH key deployment** — `setup.py` copies SSH key to monitor server and adds
+  SSH environment variables to `.env` for automated DHCP config push.
+- **Always include DHCP scripts** — Keepalived config now always includes DHCP
+  health check scripts (they exit 0 gracefully when DHCP is disabled), allowing
+  DHCP to be enabled later without regenerating keepalived.conf.
+
+### Fixed
+- **Bug: Dashboard stats showing 0** — Fixed Pi-hole v5 API field names
+  (`dns_queries_today`, `ads_blocked_today`, `unique_clients`) replaced with
+  Pi-hole v6 field names (`queries.total`, `queries.blocked`, `clients.total`).
+
+### Security
+- **Shell injection in setup.py** — Replaced `bash -c "echo '...'"` patterns in
+  both local and remote deploy with safe alternatives (`sudo tee` with stdin,
+  `tempfile` + `remote_copy`).
+- **SSH key exposure in /tmp/** — SSH key now gets `chmod 600` immediately after
+  copy to staging directory, and is removed right after placement in final
+  location. Added `finally` block for cleanup on deployment failure.
+- **Generated configs world-readable** — Config files containing passwords and
+  API keys are now created with `os.open(..., 0o600)` instead of `open()`,
+  preventing other system users from reading credentials.
+- **DoS via /api/history** — Hours parameter capped to 720 (30 days) to prevent
+  memory exhaustion from unbounded database queries.
+
 ## [0.15.0] - 2026-04-12
 
 ### New
