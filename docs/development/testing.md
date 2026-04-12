@@ -224,6 +224,74 @@ curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/notification_settings
 
 ---
 
+## Docker Integration Tests
+
+### Setup
+
+```bash
+make docker-up              # Start mock environment (15 containers)
+make docker-integration     # Run automated integration tests
+make docker-status          # Manual status overview
+make docker-down            # Cleanup
+```
+
+### Automated Tests (pytest)
+
+Run via `make docker-integration`. Tests use the mock Pi-hole control API
+to simulate failures and verify monitor responses.
+
+| Test | Scenario | Validates |
+|------|----------|-----------|
+| `test_primary_offline_detected` | Primary FTL stops | Monitor detects offline |
+| `test_primary_failure_logs_event` | Primary FTL stops | Event appears in timeline |
+| `test_secondary_offline_detected` | Secondary FTL stops | Monitor detects offline |
+| `test_secondary_failure_logs_event` | Secondary FTL stops | Event appears in timeline |
+| `test_dhcp_disabled_on_primary_detected` | DHCP crash on primary | DHCP=false in status |
+| `test_secondary_dhcp_state_reported` | Steady state | DHCP field exists in response |
+| `test_primary_stats_nonzero` | Healthy state | queries, blocked, clients > 0 |
+| `test_secondary_stats_nonzero` | Healthy state | queries > 0 |
+| `test_primary_dhcp_enabled_as_master` | MASTER config | DHCP=true |
+| `test_secondary_dhcp_disabled_as_backup` | BACKUP config | DHCP=false |
+| `test_failure_and_recovery_events` | Failure + recovery | Both events logged |
+| `test_leases_present` | Fake clients active | leases >= 3 |
+| `test_full_recovery` | Offline → reset → check | All systems healthy |
+| `test_history_has_entries` | After polling | History not empty |
+
+### Visual Checklist (Manual)
+
+After `make docker-up`, open `http://localhost:8080` in a browser.
+
+#### V1. Dashboard Layout
+- [ ] Both node cards visible and correctly labeled (Primary / Secondary)
+- [ ] Stats show values > 0 (queries, blocked, clients)
+- [ ] DHCP leases indicator shows a count
+- [ ] Status graph loads and renders data points
+
+#### V2. Failover Visual
+- [ ] Run `make docker-failover`
+- [ ] Primary card turns red / shows offline status within ~15s
+- [ ] Events timeline shows failure event with timestamp
+- [ ] Run `make docker-recover`
+- [ ] Primary card returns to green / healthy
+- [ ] Events timeline shows recovery event
+
+#### V3. DHCP Indicator
+- [ ] "DHCP Active" badge visible when DHCP is in use (green)
+- [ ] Toggle primary DHCP off: `curl -X POST localhost:8001/mock/set-state -H 'Content-Type: application/json' -d '{"dhcp_enabled":false}'`
+- [ ] After ~30s, indicator updates to reflect DHCP state change
+
+#### V4. Dark Mode
+- [ ] Toggle dark mode via UI switch
+- [ ] All text remains readable
+- [ ] Cards, graphs, and indicators adapt correctly
+
+#### V5. Mobile Responsive
+- [ ] Open dashboard at 375px width (phone)
+- [ ] Cards stack vertically
+- [ ] No horizontal scrolling required
+
+---
+
 ## References
 
 - [pytest Documentation](https://docs.pytest.org/)

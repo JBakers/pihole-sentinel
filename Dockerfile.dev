@@ -34,6 +34,6 @@ COPY docker/mock-pihole/mock-systemctl /usr/bin/systemctl
 EXPOSE 8080
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
-    CMD curl -sf http://localhost:8080/api/version || exit 1
+    CMD curl -sf http://localhost:8080/ -o /dev/null || exit 1
 
 CMD ["python3", "-u", "dashboard/monitor.py"]

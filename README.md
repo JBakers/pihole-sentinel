@@ -152,13 +152,14 @@ That's it! Your Pi-hole infrastructure now has automatic failover.
 - **[Existing Pi-hole Setup](docs/installation/existing-setup.md)** - Add HA to existing Pi-holes
 - **[Configuration Sync](docs/maintenance/sync.md)** - Keep Pi-holes synchronized
 - **[Development Guide](docs/development/README.md)** - Setup dev environment
-- **[Testing Guide](docs/development/testing.md)** - User testing procedures
+- **[Testing Guide](docs/development/testing.md)** - Testing procedures & Docker integration tests
 - **[API Documentation](docs/api/README.md)** - REST API reference
 
 ### 📖 Additional Guides
 
 - **[CLAUDE.md](CLAUDE.md)** - Comprehensive guide for AI assistants and advanced users
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history
+- **[CLI Tool](docs/usage/cli-tool.md)** - `pisen` command-line interface
 - **[LICENSE](LICENSE)** - GPLv3 License
 
 ---
@@ -444,10 +445,10 @@ Contributions welcome! Please:
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests if applicable
+4. Run tests: `make test` (unit) and `make docker-integration` (integration)
 5. Submit a pull request
 
-**See:** [Contributing Guide](README.md#contributing) for contribution workflow.
+**See:** [Development Guide](docs/development/README.md) for dev environment setup.
 
 ---
 

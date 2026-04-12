@@ -169,6 +169,9 @@ class PiHoleStatus(BaseModel):
     pihole: bool = Field(..., description="Whether pihole-FTL service is running")
     dns: bool = Field(False, description="Whether DNS resolution is working")
     dhcp: bool = Field(False, description="Whether DHCP server is running")
+    queries: int = Field(0, description="Total DNS queries today")
+    blocked: int = Field(0, description="Blocked queries today")
+    clients: int = Field(0, description="Unique clients today")
 
 
 class StatusResponse(BaseModel):
@@ -516,7 +519,7 @@ notification_state = {
 # EVENT_DEBOUNCE_SECONDS before an event is logged.  Notifications fire after
 # an additional FAULT_NOTIFICATION_DELAY seconds (total ≈ 60 s).
 # Recovery before the debounce window expires is suppressed silently.
-EVENT_DEBOUNCE_SECONDS = 30   # seconds before logging an offline/down event
+EVENT_DEBOUNCE_SECONDS = int(os.getenv("EVENT_DEBOUNCE_SECONDS", "30"))
 FAULT_NOTIFICATION_DELAY = 30  # additional seconds before sending notification
 _fault_tasks: dict = {}     # key → asyncio.Task (pending debounce timer)
 _fault_notified: set = set()  # keys where a fault notification was actually sent

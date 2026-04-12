@@ -53,7 +53,7 @@ install-dev:
 
 # Testing
 test:
-	python3 -m pytest --cov=dashboard --cov=setup --cov-report=term-missing --cov-report=html
+	python3 -m pytest -m "not integration" --cov=dashboard --cov=setup --cov-report=term-missing --cov-report=html
 
 test-unit:
 	python3 -m pytest -m unit -v
@@ -175,6 +175,14 @@ docker-recover:
 	@echo ""
 	@echo "Wait ~10s for monitor to detect recovery, then check:"
 	@echo "  make docker-status"
+
+docker-integration: docker-up
+	@echo ""
+	@echo "🧪 Running integration tests against Docker mock environment..."
+	@echo ""
+	python3 -m pytest tests/test_integration.py -v --tb=short --no-header -p no:cacheprovider --override-ini="addopts=" -m integration
+	@echo ""
+	@echo "✅ Integration tests done"
 
 # Setup.py tests against live Docker mock environment
 docker-setup-test: docker-up
