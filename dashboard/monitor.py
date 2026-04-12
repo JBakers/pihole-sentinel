@@ -75,7 +75,14 @@ CONFIG = {
     "check_interval": int(os.getenv("CHECK_INTERVAL", "10")),
     "db_path": os.getenv("DB_PATH", "/opt/pihole-monitor/monitor.db"),
     "notify_config_path": os.getenv("NOTIFY_CONFIG_PATH", "/opt/pihole-monitor/notify_settings.json"),
-    "api_key": os.getenv("API_KEY")
+    "api_key": os.getenv("API_KEY"),
+    "ssh": {
+        "key_path": os.getenv("SSH_KEY_PATH", "/opt/pihole-monitor/.ssh/id_pihole_sentinel"),
+        "primary_user": os.getenv("PRIMARY_SSH_USER", "root"),
+        "primary_port": os.getenv("PRIMARY_SSH_PORT", "22"),
+        "secondary_user": os.getenv("SECONDARY_SSH_USER", "root"),
+        "secondary_port": os.getenv("SECONDARY_SSH_PORT", "22"),
+    },
 }
 
 # Generate API key if not set (for backward compatibility during transition)
@@ -1244,9 +1251,9 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
                 if stats_resp.status == 200:
                     stats = await stats_resp.json()
                     result["pihole"] = True
-                    result["queries"] = stats.get("dns_queries_today", 0)
-                    result["blocked"] = stats.get("ads_blocked_today", 0)
-                    result["clients"] = stats.get("unique_clients", 0)
+                    result["queries"] = stats.get("queries", {}).get("total", 0)
+                    result["blocked"] = stats.get("queries", {}).get("blocked", 0)
+                    result["clients"] = stats.get("clients", {}).get("total", 0)
         except Exception:
             result["pihole"] = False
 
@@ -1757,12 +1764,14 @@ async def monitor_loop():
             current_time = time.time()
             if not hasattr(monitor_loop, "_state"):
                 monitor_loop._state = {"last_dhcp_warning": 0}
-            
-            if _system_settings.get("dhcp_failover", True):
-                should_warn = (current_time - monitor_loop._state["last_dhcp_warning"]) > 300
 
-                primary_dhcp = primary_data.get("dhcp_enabled", False)
-                secondary_dhcp = secondary_data.get("dhcp_enabled", False)
+            # Auto-detect DHCP usage from Pi-hole API responses
+            primary_dhcp = primary_data.get("dhcp_enabled", False)
+            secondary_dhcp = secondary_data.get("dhcp_enabled", False)
+            await _update_dhcp_auto_detection(primary_dhcp, secondary_dhcp)
+
+            if _dhcp_auto_detected:
+                should_warn = (current_time - monitor_loop._state["last_dhcp_warning"]) > 300
                 
                 # MASTER should have DHCP enabled, BACKUP should have it disabled
                 misconfigured = False
@@ -1847,7 +1856,7 @@ async def get_status(api_key: str = Depends(verify_api_key)):
                 },
                 "vip": CONFIG["vip"],
                 "dhcp_leases": row[12] if len(row) > 12 else row[10],  # Adjust for new column
-                "dhcp_failover": _system_settings.get("dhcp_failover", True),
+                "dhcp_failover": _dhcp_auto_detected,
             }
 
 @app.get("/api/history", response_model=List[dict], tags=["History"])
@@ -1870,6 +1879,8 @@ async def get_history(
     Returns:
         List of history entries with timestamps and master/backup status flags
     """
+    # Cap to 30 days to prevent DoS via massive queries
+    hours = max(0.25, min(hours, 720))
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
         async with db.execute(
             "SELECT timestamp, primary_state, secondary_state, "
@@ -2247,45 +2258,144 @@ def _save_system_settings(system: dict) -> None:
 # Cache for system settings — refreshed on POST and at startup
 _system_settings: dict = _load_system_settings()
 
+# ============================================================================
+# DHCP Auto-Detection & SSH Push
+# ============================================================================
+
+# Auto-detected DHCP state — derived from Pi-hole API responses
+_dhcp_auto_detected: bool = _system_settings.get("dhcp_failover", True)
+_dhcp_detect_counter: int = 0
+_DHCP_DETECT_THRESHOLD: int = 3  # require 3 consecutive identical readings
+
+
+def _ssh_key_available() -> bool:
+    """Check if SSH key exists for pushing config to Pi-holes."""
+    return os.path.exists(CONFIG["ssh"]["key_path"])
+
+
+async def _push_dhcp_config(enabled: bool) -> bool:
+    """Push DHCP_ENABLED value to keepalived .env on both Pi-holes via SSH.
+
+    Returns True if at least one push succeeded.
+    """
+    if not _ssh_key_available():
+        logger.warning("SSH key not available — cannot push DHCP config to Pi-holes")
+        return False
+
+    key_path = CONFIG["ssh"]["key_path"]
+    dhcp_val = "true" if enabled else "false"
+
+    async def _push_to_node(ip: str, user: str, port: str) -> bool:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "ssh",
+                "-i", key_path,
+                "-o", "BatchMode=yes",
+                # accept-new: auto-accept on first connect, reject on change (MITM).
+                # If a Pi-hole is reinstalled, remove its entry from
+                # /opt/pihole-monitor/.ssh/known_hosts to restore connectivity.
+                "-o", "StrictHostKeyChecking=accept-new",
+                "-o", "ConnectTimeout=5",
+                "-p", port,
+                f"{user}@{ip}",
+                "--",
+                f"sed -i 's/^DHCP_ENABLED=.*/DHCP_ENABLED={dhcp_val}/' /etc/keepalived/.env",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+            if proc.returncode == 0:
+                logger.info(f"DHCP config pushed to {ip}: DHCP_ENABLED={dhcp_val}")
+                return True
+            else:
+                logger.error(f"SSH push to {ip} failed (rc={proc.returncode}): {stderr.decode().strip()}")
+                return False
+        except asyncio.TimeoutError:
+            logger.error(f"SSH push to {ip} timed out")
+            return False
+        except Exception as e:
+            logger.error(f"SSH push to {ip} error: {e}")
+            return False
+
+    results = await asyncio.gather(
+        _push_to_node(
+            CONFIG["primary"]["ip"],
+            CONFIG["ssh"]["primary_user"],
+            CONFIG["ssh"]["primary_port"],
+        ),
+        _push_to_node(
+            CONFIG["secondary"]["ip"],
+            CONFIG["ssh"]["secondary_user"],
+            CONFIG["ssh"]["secondary_port"],
+        ),
+        return_exceptions=True,
+    )
+
+    success_count = sum(1 for r in results if r is True)
+    if success_count == 0:
+        logger.error("DHCP config push failed for all nodes")
+    return success_count > 0
+
+
+async def _update_dhcp_auto_detection(primary_dhcp: bool, secondary_dhcp: bool) -> None:
+    """Update DHCP auto-detection state based on Pi-hole API responses.
+
+    If either Pi-hole has DHCP active, DHCP failover is considered in use.
+    State changes require _DHCP_DETECT_THRESHOLD consecutive identical readings
+    (debounce) to prevent flip-flopping.
+    """
+    global _dhcp_auto_detected, _dhcp_detect_counter, _system_settings
+
+    dhcp_in_use = primary_dhcp or secondary_dhcp
+
+    if dhcp_in_use == _dhcp_auto_detected:
+        # State matches — reset debounce counter
+        _dhcp_detect_counter = 0
+        return
+
+    # State differs — increment debounce counter
+    _dhcp_detect_counter += 1
+    logger.debug(
+        f"DHCP detection: current={_dhcp_auto_detected}, observed={dhcp_in_use}, "
+        f"counter={_dhcp_detect_counter}/{_DHCP_DETECT_THRESHOLD}"
+    )
+
+    if _dhcp_detect_counter < _DHCP_DETECT_THRESHOLD:
+        return
+
+    # Threshold reached — change state
+    old_state = _dhcp_auto_detected
+    _dhcp_auto_detected = dhcp_in_use
+    _dhcp_detect_counter = 0
+
+    # Persist to settings file
+    _system_settings["dhcp_failover"] = dhcp_in_use
+    _save_system_settings(_system_settings)
+
+    state_label = "active" if dhcp_in_use else "not in use"
+    logger.info(f"DHCP auto-detection changed: {old_state} -> {dhcp_in_use} (DHCP {state_label})")
+    await log_event(
+        "info",
+        f"DHCP failover auto-detected as {state_label} — "
+        f"updating keepalived configuration on Pi-holes"
+    )
+
+    # Push to Pi-holes
+    pushed = await _push_dhcp_config(dhcp_in_use)
+    if not pushed:
+        await log_event(
+            "warning",
+            "Failed to push DHCP config to Pi-holes via SSH — will retry on next detection change"
+        )
+
 
 @app.get("/api/settings/system", tags=["System"])
 async def get_system_settings(api_key: str = Depends(verify_api_key)):
-    """Return current system settings (DHCP failover toggle etc.)."""
-    return _system_settings
-
-
-@app.post("/api/settings/system", tags=["System"])
-async def save_system_settings(
-    request: Request,
-    settings: dict,
-    api_key: str = Depends(verify_api_key),
-    _rate_limit: bool = Depends(write_rate_limit_check),
-):
-    """Save system settings and return keepalived restart instructions."""
-    global _system_settings
-
-    allowed_keys = {"dhcp_failover"}
-    filtered = {k: v for k, v in settings.items() if k in allowed_keys}
-
-    if "dhcp_failover" in filtered:
-        filtered["dhcp_failover"] = bool(filtered["dhcp_failover"])
-
-    merged = {**_system_settings, **filtered}
-    _save_system_settings(merged)
-    _system_settings = merged
-    logger.info(f"System settings updated: {merged}")
-
-    dhcp_val = "true" if merged["dhcp_failover"] else "false"
-    instructions = (
-        f"To apply DHCP failover changes on your Pi-holes, run on BOTH nodes:\n"
-        f"  sudo sed -i 's/^DHCP_ENABLED=.*/DHCP_ENABLED={dhcp_val}/' /etc/keepalived/.env\n"
-        f"  sudo systemctl restart keepalived"
-    )
-
+    """Return current system settings including DHCP auto-detection state."""
     return {
-        "status": "success",
-        "message": "System settings saved",
-        "instructions": instructions,
+        "dhcp_failover": _dhcp_auto_detected,
+        "dhcp_auto_detected": True,
+        "ssh_available": _ssh_key_available(),
     }
 
 class CommandRequest(BaseModel):

@@ -1,3 +1,39 @@
+## [0.16.0] - 2026-04-12
+
+### New
+- **Automatic DHCP failover detection** — Monitor now auto-detects whether DHCP
+  is in use by polling both Pi-holes' API. No manual toggle needed. State changes
+  require 3 consecutive identical readings (30s debounce) to prevent flip-flopping.
+- **SSH push of DHCP config** — When DHCP detection state changes, monitor pushes
+  `DHCP_ENABLED=true/false` to `/etc/keepalived/.env` on both Pi-holes via SSH.
+  No keepalived restart needed (scripts source .env dynamically).
+- **DHCP status indicator** — Dashboard toggle replaced with read-only indicator
+  showing "DHCP Active" (green) or "DHCP Not Used" (grey), auto-detected from
+  Pi-hole API responses.
+- **SSH key deployment** — `setup.py` copies SSH key to monitor server and adds
+  SSH environment variables to `.env` for automated DHCP config push.
+- **Always include DHCP scripts** — Keepalived config now always includes DHCP
+  health check scripts (they exit 0 gracefully when DHCP is disabled), allowing
+  DHCP to be enabled later without regenerating keepalived.conf.
+
+### Fixed
+- **Bug: Dashboard stats showing 0** — Fixed Pi-hole v5 API field names
+  (`dns_queries_today`, `ads_blocked_today`, `unique_clients`) replaced with
+  Pi-hole v6 field names (`queries.total`, `queries.blocked`, `clients.total`).
+
+### Security
+- **Shell injection in setup.py** — Replaced `bash -c "echo '...'"` patterns in
+  both local and remote deploy with safe alternatives (`sudo tee` with stdin,
+  `tempfile` + `remote_copy`).
+- **SSH key exposure in /tmp/** — SSH key now gets `chmod 600` immediately after
+  copy to staging directory, and is removed right after placement in final
+  location. Added `finally` block for cleanup on deployment failure.
+- **Generated configs world-readable** — Config files containing passwords and
+  API keys are now created with `os.open(..., 0o600)` instead of `open()`,
+  preventing other system users from reading credentials.
+- **DoS via /api/history** — Hours parameter capped to 720 (30 days) to prevent
+  memory exhaustion from unbounded database queries.
+
 ## [0.15.0] - 2026-04-12
 
 ### New

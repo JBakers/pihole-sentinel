@@ -1076,12 +1076,12 @@ vrrp_script chk_pihole_service {{
     rise 3
 }}
 
-{f'''vrrp_script chk_dhcp_service {{
+vrrp_script chk_dhcp_service {{
     script "/usr/local/bin/check_dhcp_service.sh"
     interval 5
     fall 2
     rise 1
-}}''' if self.config.get('dhcp_enabled', False) else ''}
+}}
 
 vrrp_instance VI_1 {{
     state MASTER
@@ -1101,7 +1101,7 @@ vrrp_instance VI_1 {{
     
     track_script {{
         chk_pihole_service weight -60
-        {'''chk_dhcp_service weight -40''' if self.config.get('dhcp_enabled', False) else ''}
+        chk_dhcp_service weight -40
     }}
     
     notify_master "/usr/local/bin/keepalived_notify.sh MASTER"
@@ -1164,6 +1164,13 @@ DB_PATH=/opt/pihole-monitor/monitor.db
 
 # API Security
 API_KEY={api_key}
+
+# SSH Access to Pi-holes (for DHCP failover auto-push)
+SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
+PRIMARY_SSH_USER={self.config.get('primary_ssh_user', 'root')}
+PRIMARY_SSH_PORT={self.config.get('primary_ssh_port', '22')}
+SECONDARY_SSH_USER={self.config.get('secondary_ssh_user', 'root')}
+SECONDARY_SSH_PORT={self.config.get('secondary_ssh_port', '22')}
 """
 
         # Create environment files
@@ -1199,7 +1206,9 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
 
         os.makedirs('generated_configs', mode=0o700, exist_ok=True)
         for filename, content in configs.items():
-            with open(f"generated_configs/{filename}", 'w') as f:
+            filepath = f"generated_configs/{filename}"
+            fd = os.open(filepath, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, 'w') as f:
                 f.write(content)
 
         print("\nConfiguration files generated in 'generated_configs/' directory:")
@@ -1271,7 +1280,30 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
             subprocess.run(["sudo", "chown", "-R", "pihole-monitor:pihole-monitor", 
                           "/opt/pihole-monitor/venv"], check=True)
             subprocess.run(["sudo", "chmod", "-R", "755", "/opt/pihole-monitor/venv"], check=True)
-            
+
+            # Deploy SSH key for DHCP failover auto-push
+            ssh_key_src = os.path.expanduser("~/.ssh/id_pihole_sentinel")
+            if os.path.exists(ssh_key_src):
+                print("Setting up SSH key for monitor service...")
+                subprocess.run(["sudo", "mkdir", "-p", "/opt/pihole-monitor/.ssh"], check=True)
+                subprocess.run(["sudo", "cp", ssh_key_src, "/opt/pihole-monitor/.ssh/id_pihole_sentinel"], check=True)
+                subprocess.run(["sudo", "chown", "-R", "pihole-monitor:pihole-monitor", "/opt/pihole-monitor/.ssh"], check=True)
+                subprocess.run(["sudo", "chmod", "700", "/opt/pihole-monitor/.ssh"], check=True)
+                subprocess.run(["sudo", "chmod", "600", "/opt/pihole-monitor/.ssh/id_pihole_sentinel"], check=True)
+
+            # Write initial DHCP state to system settings
+            if not self.config.get('dhcp_enabled', True):
+                settings_path = "/opt/pihole-monitor/notify_settings.json"
+                settings_data = json.dumps({"system": {"dhcp_failover": False}}, indent=2)
+                subprocess.run(
+                    ["sudo", "tee", settings_path],
+                    input=settings_data.encode(),
+                    stdout=subprocess.DEVNULL,
+                    check=True,
+                )
+                subprocess.run(["sudo", "chown", "pihole-monitor:pihole-monitor", settings_path], check=True)
+                subprocess.run(["sudo", "chmod", "600", settings_path], check=True)
+
             # Service file: 644 root:root
             subprocess.run(["sudo", "chown", "root:root", 
                           "/etc/systemd/system/pihole-monitor.service"], check=True)
@@ -1395,6 +1427,38 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
                     password)
                 print("│  → API key configured successfully")
 
+            # Deploy SSH key for DHCP failover auto-push
+            ssh_key_src = os.path.expanduser("~/.ssh/id_pihole_sentinel")
+            if os.path.exists(ssh_key_src):
+                print("├─ Setting up SSH key for monitor service...")
+                self.remote_copy(ssh_key_src, host, user, port, "/tmp/pihole-sentinel-deploy/id_pihole_sentinel", password)
+                # Immediately restrict permissions on the temp copy
+                self.remote_exec(host, user, port,
+                    f"{S}chmod 600 /tmp/pihole-sentinel-deploy/id_pihole_sentinel",
+                    password)
+                self.remote_exec(host, user, port,
+                    f"{S}mkdir -p /opt/pihole-monitor/.ssh && "
+                    f"{S}cp /tmp/pihole-sentinel-deploy/id_pihole_sentinel /opt/pihole-monitor/.ssh/id_pihole_sentinel && "
+                    f"{S}rm -f /tmp/pihole-sentinel-deploy/id_pihole_sentinel",
+                    password)
+
+            # Write initial DHCP state to system settings (if DHCP not used)
+            if not self.config.get('dhcp_enabled', True):
+                print("├─ Configuring initial DHCP state (disabled)...")
+                import tempfile
+                settings_json = json.dumps({"system": {"dhcp_failover": False}}, indent=2)
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
+                    tmp.write(settings_json)
+                    tmp_path = tmp.name
+                try:
+                    self.remote_copy(tmp_path, host, user, port,
+                        "/tmp/pihole-sentinel-deploy/notify_settings.json", password)
+                    self.remote_exec(host, user, port,
+                        f"{S}cp /tmp/pihole-sentinel-deploy/notify_settings.json /opt/pihole-monitor/notify_settings.json",
+                        password)
+                finally:
+                    os.unlink(tmp_path)
+
             print("├─ Setting permissions...")
             perms_commands = [
                 f"{S}chown -R pihole-monitor:pihole-monitor /opt/pihole-monitor",
@@ -1402,6 +1466,8 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
                 f"{S}chmod 644 /opt/pihole-monitor/*.py /opt/pihole-monitor/*.html",
                 f"{S}chmod 600 /opt/pihole-monitor/.env",
                 f"{S}chmod 755 -R /opt/pihole-monitor/venv",
+                f"{S}chmod 700 /opt/pihole-monitor/.ssh",
+                f"{S}chmod 600 /opt/pihole-monitor/.ssh/id_pihole_sentinel",
                 f"{S}chown root:root /etc/systemd/system/pihole-monitor.service",
                 f"{S}chmod 644 /etc/systemd/system/pihole-monitor.service",
                 f"{S}chown pihole-monitor:pihole-monitor /etc/pihole-sentinel",
@@ -1423,6 +1489,12 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
         except subprocess.CalledProcessError as e:
             print(f"✗ Error deploying monitor to {host}: {e}")
             return False
+        finally:
+            # Always clean up temp directory (may contain SSH key)
+            try:
+                self.remote_exec(host, user, port, "rm -rf /tmp/pihole-sentinel-deploy", password)
+            except Exception:
+                pass
 
     def deploy_keepalived(self, node_type="primary"):
         """Deploy keepalived configuration to a node."""
