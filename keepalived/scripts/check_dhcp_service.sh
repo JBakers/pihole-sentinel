@@ -4,6 +4,12 @@
 
 # Source the environment file for configuration
 if [ -f /etc/keepalived/.env ]; then
+    # Reject world-writable .env to prevent arbitrary code execution
+    _perms=$(stat -c %a /etc/keepalived/.env 2>/dev/null)
+    if [ -n "$_perms" ] && [ "${_perms: -1}" -ge 2 ] 2>/dev/null; then
+        echo "ERROR: /etc/keepalived/.env is world-writable — refusing to source" >&2
+        exit 1
+    fi
     source /etc/keepalived/.env
 fi
 

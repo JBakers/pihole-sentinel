@@ -332,9 +332,18 @@ write_rate_limit_store = defaultdict(list)
 WRITE_RATE_LIMIT_REQUESTS = 20  # Max 20 requests
 WRITE_RATE_LIMIT_WINDOW = 60  # Per 60 seconds
 
+def _get_client_ip(request: Request) -> str:
+    """Extract client IP, respecting X-Forwarded-For behind a reverse proxy."""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        # Take the first (leftmost) IP — the original client
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 async def rate_limit_check(request: Request):
     """Rate limiting: max 3 requests per 60 seconds per IP."""
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _get_client_ip(request)
     now = datetime.now()
 
     # Clean old entries
@@ -357,7 +366,7 @@ async def rate_limit_check(request: Request):
 
 async def write_rate_limit_check(request: Request):
     """Rate limiting for general write endpoints: max 20 requests per 60 seconds per IP."""
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _get_client_ip(request)
     now = datetime.now()
     write_rate_limit_store[client_ip] = [
         ts for ts in write_rate_limit_store[client_ip]
@@ -599,6 +608,16 @@ async def send_notification(event_type: str, template_vars: dict, is_reminder: b
         template = f"Pi-hole Sentinel Alert: {event_type}"
 
     try:
+        # Validate template placeholders — only allow simple {varname} to prevent
+        # attribute access ({x.y}), indexing ({x[0]}), or format specs ({x!r})
+        import re as _re
+        _placeholders = _re.findall(r'\{([^}]*)\}', template)
+        for ph in _placeholders:
+            if not _re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', ph):
+                logger.warning(f"Rejected unsafe template placeholder: {{{ph}}}")
+                await log_event("warning", f"⚠️ Notification template blocked: unsafe placeholder '{{{ph}}}'")
+                return
+
         message = template.format_map(defaultdict(lambda: "[unknown]", template_vars))
         # Add reminder prefix if this is a repeat notification
         if is_reminder:

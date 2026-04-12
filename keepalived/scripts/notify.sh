@@ -11,8 +11,14 @@ NOTIFY_RECOVERY="${NOTIFY_RECOVERY:-true}"
 NOTIFY_FAULT="${NOTIFY_FAULT:-true}"
 NOTIFY_STARTUP="${NOTIFY_STARTUP:-false}"
 
-# Load configuration
+# Load configuration (with permission validation)
 if [ -f "$CONFIG_FILE" ]; then
+    # Reject world-writable config files to prevent credential injection
+    file_perms=$(stat -c %a "$CONFIG_FILE" 2>/dev/null)
+    if [ -n "$file_perms" ] && [ "${file_perms: -1}" -ge 2 ] 2>/dev/null; then
+        echo "ERROR: $CONFIG_FILE is world-writable — refusing to load" >&2
+        exit 1
+    fi
     source "$CONFIG_FILE"
 fi
 
@@ -36,9 +42,9 @@ send_telegram() {
         local encoded_message
         encoded_message=$(printf '%s' "$message" | curl -Gso /dev/null -w %{url_effective} --data-urlencode @- "" | cut -c 3-)
         curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${TELEGRAM_CHAT_ID}" \
-            -d "text=${message}" \
-            -d "parse_mode=HTML" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${message}" \
+            --data-urlencode "parse_mode=HTML" \
             > /dev/null 2>&1
     fi
 }
@@ -80,11 +86,11 @@ send_pushover() {
     
     if [ -n "$PUSHOVER_USER_KEY" ] && [ -n "$PUSHOVER_APP_TOKEN" ]; then
         curl -s -X POST https://api.pushover.net/1/messages.json \
-            -d "token=${PUSHOVER_APP_TOKEN}" \
-            -d "user=${PUSHOVER_USER_KEY}" \
-            -d "message=${message}" \
-            -d "title=Pi-hole Sentinel" \
-            -d "priority=${priority}" \
+            --data-urlencode "token=${PUSHOVER_APP_TOKEN}" \
+            --data-urlencode "user=${PUSHOVER_USER_KEY}" \
+            --data-urlencode "message=${message}" \
+            --data-urlencode "title=Pi-hole Sentinel" \
+            --data-urlencode "priority=${priority}" \
             > /dev/null 2>&1
     fi
 }
@@ -100,7 +106,7 @@ send_ntfy() {
             -H "Title: Pi-hole Sentinel Alert" \
             -H "Priority: ${priority}" \
             -H "Tags: shield,pihole" \
-            -d "${message}" \
+            --data-raw "${message}" \
             > /dev/null 2>&1
     fi
 }

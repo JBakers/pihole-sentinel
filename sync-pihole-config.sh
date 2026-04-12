@@ -96,6 +96,18 @@ if [ -z "$PRIMARY_IP" ] || [ -z "$SECONDARY_IP" ]; then
     exit 1
 fi
 
+# Validate IP format (prevent injection via malformed values)
+validate_ip() {
+    local ip="$1"
+    local label="$2"
+    if ! [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        echo -e "${RED}[ERROR] ${label} is not a valid IP address: ${ip}${NC}"
+        exit 1
+    fi
+}
+validate_ip "$PRIMARY_IP" "PRIMARY_IP"
+validate_ip "$SECONDARY_IP" "SECONDARY_IP"
+
 # Convert to lowercase
 NODE_TYPE=$(echo "$NODE_TYPE" | tr '[:upper:]' '[:lower:]')
 

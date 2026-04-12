@@ -8,8 +8,14 @@ timestamp() {
 
 # Load environment (contains DHCP_ENABLED, VIP_ADDRESS, etc.)
 if [ -f /etc/keepalived/.env ]; then
-    # shellcheck source=/dev/null
-    source /etc/keepalived/.env
+    # Reject world-writable .env to prevent arbitrary code execution
+    _perms=$(stat -c %a /etc/keepalived/.env 2>/dev/null)
+    if [ -n "$_perms" ] && [ "${_perms: -1}" -ge 2 ] 2>/dev/null; then
+        echo "$(timestamp) - ERROR: /etc/keepalived/.env is world-writable — refusing to source" >> "$LOGFILE"
+    else
+        # shellcheck source=/dev/null
+        source /etc/keepalived/.env
+    fi
 fi
 
 # Helper: run dhcp_control.sh only when DHCP failover is enabled

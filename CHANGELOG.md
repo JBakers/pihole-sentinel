@@ -1,3 +1,24 @@
+## [0.16.1] - 2026-04-12
+
+### Security
+- **Shell injection prevention in sync script** — Added `validate_ip()` function
+  with regex validation for `PRIMARY_IP` and `SECONDARY_IP` in
+  `sync-pihole-config.sh`. Rejects malformed values before they reach rsync/ssh
+  commands.
+- **Config file permission validation** — `notify.sh`, `keepalived_notify.sh`,
+  and `check_dhcp_service.sh` now refuse to source configuration files that are
+  world-writable, preventing arbitrary code execution via tampered `.env` or
+  `notify.conf` files.
+- **Safe curl parameter encoding** — Notification script (`notify.sh`) now uses
+  `--data-urlencode` for Telegram and Pushover API calls, and `--data-raw` for
+  Ntfy, preventing shell metacharacter injection via notification messages.
+- **Template injection prevention** — Notification templates are validated before
+  `format_map()` processing. Only simple `{varname}` placeholders are allowed;
+  attribute access (`{x.y}`), indexing (`{x[0]}`), and format specs are blocked.
+- **Proxy-aware rate limiting** — Rate limiter now checks `X-Forwarded-For`
+  header to correctly identify clients behind reverse proxies. Previously all
+  proxied requests counted as one IP, making rate limiting ineffective.
+
 ## [0.16.0] - 2026-04-12
 
 ### New
