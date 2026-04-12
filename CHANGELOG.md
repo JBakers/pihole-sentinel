@@ -1,3 +1,26 @@
+## [0.14.3] - 2026-04-12
+
+### Fixed
+- **Event debounce for sync-related flapping** — When the config sync timer
+  restarts Pi-hole FTL on the secondary (~12-32 s), the monitor no longer
+  floods the event log with "went OFFLINE / is back ONLINE / Pi-hole is back
+  UP" events.  A node must stay offline for 30 seconds before an event is
+  logged.  Transient outages (< 30 s) are suppressed silently.
+- **Orphaned "Pi-hole service is back UP" events** — When a node goes offline,
+  `pihole=False` is a side-effect of unreachability.  Recovery no longer
+  generates a spurious "Pi-hole service is back UP" event unless a
+  corresponding "Pi-hole service is DOWN" was actually logged.
+- **False pihole/DNS state transitions** — `previous_pihole` and
+  `previous_dns` tracking variables are now only updated when the node is
+  online, preventing false transitions from offline→online recovery.
+
+### Improved
+- **Unified event + notification debounce** — Events and notifications now
+  share the same debounce pipeline: 30 s event debounce + 30 s notification
+  delay = ~60 s total (previously: events were immediate, notifications
+  delayed 60 s).  This eliminates dashboard event spam while keeping the
+  same total notification delay.
+
 ## [0.14.2] - 2026-03-30
 
 ### Security

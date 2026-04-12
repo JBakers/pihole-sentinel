@@ -494,13 +494,23 @@ notification_state = {
     "last_vars": {},  # {event_type: dict} - template vars from last real notification for reminders
 }
 
-# Fault notification debounce ─────────────────────────────────────────────────
-# Brief Pi-hole FTL restarts (e.g. DHCP config changes, ~12 s) should not spam
-# notifications.  A fault alert fires only when the fault persists longer than
-# FAULT_NOTIFICATION_DELAY seconds.  Recovery before the delay cancels silently.
-FAULT_NOTIFICATION_DELAY = 60  # seconds
+# Event & notification debounce ────────────────────────────────────────────────
+# Brief Pi-hole FTL restarts (e.g. config sync, ~12-32 s) should not spam the
+# event log or notifications.  A node must stay offline for at least
+# EVENT_DEBOUNCE_SECONDS before an event is logged.  Notifications fire after
+# an additional FAULT_NOTIFICATION_DELAY seconds (total ≈ 60 s).
+# Recovery before the debounce window expires is suppressed silently.
+EVENT_DEBOUNCE_SECONDS = 30   # seconds before logging an offline/down event
+FAULT_NOTIFICATION_DELAY = 30  # additional seconds before sending notification
 _fault_tasks: dict = {}     # key → asyncio.Task (pending debounce timer)
 _fault_notified: set = set()  # keys where a fault notification was actually sent
+
+# Event debounce state — tracks when nodes first went offline so transient
+# outages (e.g. FTL restart during config sync) are suppressed.
+_offline_since: dict = {}           # "primary"/"secondary" → datetime
+_offline_event_logged: set = set()  # nodes where "went OFFLINE" was logged
+_pihole_down_since: dict = {}       # "primary"/"secondary" → datetime
+_pihole_down_event_logged: set = set()  # nodes where "service DOWN" was logged
 
 def is_snoozed(settings: dict) -> bool:
     """Check if notifications are currently snoozed."""
@@ -809,10 +819,10 @@ def _cancel_fault_pending(key: str) -> bool:
 async def _cancel_fault(key: str, recovery_vars: dict) -> None:
     """Handle fault recovery for *key*.
 
-    - If the fault timer is still pending (< 60 s): cancel silently — no
-      notification was sent so no recovery message is needed.
-    - If the fault notification was already sent (≥ 60 s): send a recovery
-      notification so the user knows the issue is resolved.
+    - If the fault timer is still pending (< 30 s after event): cancel
+      silently — no notification was sent so no recovery message is needed.
+    - If the fault notification was already sent (≥ 30 s after event): send a
+      recovery notification so the user knows the issue is resolved.
     """
     was_pending = _cancel_fault_pending(key)
     if not was_pending and key in _fault_notified:
@@ -1501,127 +1511,134 @@ async def monitor_loop():
                 })
                 startup = False
             
-            # Detect online/offline changes
-            if previous_primary_online is not None:
-                if previous_primary_online and not primary_data["online"]:
-                    await log_event("warning", "Primary went OFFLINE")
-                    logger.warning("Primary went OFFLINE")
-                    _arm_fault("primary_offline", {
-                        "node": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "node_name": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "reason": f"{CONFIG.get('primary', {}).get('name', 'Primary Pi-hole')} is unreachable",
-                        "vip": CONFIG['vip'],
-                        "vip_address": CONFIG['vip'],
-                        "time": datetime.now().strftime("%H:%M:%S"),
-                        "date": datetime.now().strftime("%Y-%m-%d"),
-                    })
-                elif not previous_primary_online and primary_data["online"]:
-                    await _cancel_fault("primary_offline", {
-                        "node": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "master": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "backup": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "reason": f"{CONFIG.get('primary', {}).get('name', 'Primary Pi-hole')} is back online",
-                        "vip": CONFIG['vip'], "vip_address": CONFIG['vip'],
-                        "time": datetime.now().strftime("%H:%M:%S"),
-                        "date": datetime.now().strftime("%Y-%m-%d"),
-                    })
-                    await log_event("success", "Primary is back ONLINE")
-                    logger.info("Primary is back ONLINE")
+            # Detect online/offline changes (with debounce)
+            # A node must stay offline for EVENT_DEBOUNCE_SECONDS before an
+            # event is logged.  This suppresses transient outages caused by
+            # config-sync FTL restarts (~12-32 s).
+            for node in ("primary", "secondary"):
+                node_data = primary_data if node == "primary" else secondary_data
+                node_label = "Primary" if node == "primary" else "Secondary"
+                previous_online = previous_primary_online if node == "primary" else previous_secondary_online
+                fault_key = f"{node}_offline"
 
-            if previous_secondary_online is not None:
-                if previous_secondary_online and not secondary_data["online"]:
-                    await log_event("warning", "Secondary went OFFLINE")
-                    logger.warning("Secondary went OFFLINE")
-                    _arm_fault("secondary_offline", {
-                        "node": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "node_name": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "reason": f"{CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole')} is unreachable",
-                        "vip": CONFIG['vip'],
-                        "vip_address": CONFIG['vip'],
-                        "time": datetime.now().strftime("%H:%M:%S"),
-                        "date": datetime.now().strftime("%Y-%m-%d"),
-                    })
-                elif not previous_secondary_online and secondary_data["online"]:
-                    await _cancel_fault("secondary_offline", {
-                        "node": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "master": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "backup": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "reason": f"{CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole')} is back online",
-                        "vip": CONFIG['vip'], "vip_address": CONFIG['vip'],
-                        "time": datetime.now().strftime("%H:%M:%S"),
-                        "date": datetime.now().strftime("%Y-%m-%d"),
-                    })
-                    await log_event("success", "Secondary is back ONLINE")
-                    logger.info("Secondary is back ONLINE")
+                if node_data["online"]:
+                    # Node is online — clear any pending offline state
+                    if node in _offline_since:
+                        was_logged = node in _offline_event_logged
+                        _offline_since.pop(node, None)
+                        _offline_event_logged.discard(node)
+                        if was_logged:
+                            # Offline event was sent earlier → log recovery
+                            await _cancel_fault(fault_key, {
+                                "node": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
+                                "master": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
+                                "backup": CONFIG.get('secondary' if node == 'primary' else 'primary', {}).get('name', f'{"Secondary" if node == "primary" else "Primary"} Pi-hole'),
+                                "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                                "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                                "reason": f"{CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole')} is back online",
+                                "vip": CONFIG['vip'], "vip_address": CONFIG['vip'],
+                                "time": datetime.now().strftime("%H:%M:%S"),
+                                "date": datetime.now().strftime("%Y-%m-%d"),
+                            })
+                            await log_event("success", f"{node_label} is back ONLINE")
+                            logger.info(f"{node_label} is back ONLINE")
+                        else:
+                            # Recovered before debounce expired → suppress silently
+                            _cancel_fault_pending(fault_key)
+                            logger.debug(f"{node_label} recovered within debounce window, suppressing event")
+                else:
+                    # Node is offline
+                    if previous_online is not None and node not in _offline_since:
+                        # First detection of offline state
+                        _offline_since[node] = datetime.now()
+                        logger.debug(f"{node_label} went offline, starting {EVENT_DEBOUNCE_SECONDS}s debounce")
+                    elif node in _offline_since and node not in _offline_event_logged:
+                        # Check if debounce period has elapsed
+                        elapsed = (datetime.now() - _offline_since[node]).total_seconds()
+                        if elapsed >= EVENT_DEBOUNCE_SECONDS:
+                            _offline_event_logged.add(node)
+                            await log_event("warning", f"{node_label} went OFFLINE")
+                            logger.warning(f"{node_label} went OFFLINE")
+                            _arm_fault(fault_key, {
+                                "node": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
+                                "node_name": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
+                                "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                                "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                                "reason": f"{CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole')} is unreachable",
+                                "vip": CONFIG['vip'],
+                                "vip_address": CONFIG['vip'],
+                                "time": datetime.now().strftime("%H:%M:%S"),
+                                "date": datetime.now().strftime("%Y-%m-%d"),
+                            })
 
-            # Detect Pi-hole service changes
-            if previous_primary_pihole is not None:
-                if previous_primary_pihole and not primary_data["pihole"] and primary_data["online"]:
-                    await log_event("warning", "Pi-hole service on Primary is DOWN")
-                    logger.warning("Primary Pi-hole service is DOWN")
-                    _arm_fault("primary_pihole_down", {
-                        "node": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "node_name": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "reason": f"Pi-hole service on {CONFIG.get('primary', {}).get('name', 'Primary Pi-hole')} is down",
-                        "vip": CONFIG['vip'],
-                        "vip_address": CONFIG['vip'],
-                        "time": datetime.now().strftime("%H:%M:%S"),
-                        "date": datetime.now().strftime("%Y-%m-%d"),
-                    })
-                elif not previous_primary_pihole and primary_data["pihole"]:
-                    await _cancel_fault("primary_pihole_down", {
-                        "node": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "master": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "backup": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "reason": f"Pi-hole service on {CONFIG.get('primary', {}).get('name', 'Primary Pi-hole')} is back up",
-                        "vip": CONFIG['vip'], "vip_address": CONFIG['vip'],
-                        "time": datetime.now().strftime("%H:%M:%S"),
-                        "date": datetime.now().strftime("%Y-%m-%d"),
-                    })
-                    await log_event("success", "Pi-hole service on Primary is back UP")
-                    logger.info("Primary Pi-hole service is back UP")
+            # Detect Pi-hole service changes (with debounce)
+            # Only track pihole service state when the node is online — when a
+            # node goes offline, pihole=False is a side-effect, not a real FTL
+            # crash.  This prevents orphaned "is back UP" events on recovery.
+            for node in ("primary", "secondary"):
+                node_data = primary_data if node == "primary" else secondary_data
+                node_label = "Primary" if node == "primary" else "Secondary"
+                previous_pihole = previous_primary_pihole if node == "primary" else previous_secondary_pihole
+                fault_key = f"{node}_pihole_down"
 
-            if previous_secondary_pihole is not None:
-                if previous_secondary_pihole and not secondary_data["pihole"] and secondary_data["online"]:
-                    await log_event("warning", "Pi-hole service on Secondary is DOWN")
-                    logger.warning("Secondary Pi-hole service is DOWN")
-                    _arm_fault("secondary_pihole_down", {
-                        "node": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "node_name": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "reason": f"Pi-hole service on {CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole')} is down",
-                        "vip": CONFIG['vip'],
-                        "vip_address": CONFIG['vip'],
-                        "time": datetime.now().strftime("%H:%M:%S"),
-                        "date": datetime.now().strftime("%Y-%m-%d"),
-                    })
-                elif not previous_secondary_pihole and secondary_data["pihole"]:
-                    await _cancel_fault("secondary_pihole_down", {
-                        "node": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "master": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "backup": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                        "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                        "reason": f"Pi-hole service on {CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole')} is back up",
-                        "vip": CONFIG['vip'], "vip_address": CONFIG['vip'],
-                        "time": datetime.now().strftime("%H:%M:%S"),
-                        "date": datetime.now().strftime("%Y-%m-%d"),
-                    })
-                    await log_event("success", "Pi-hole service on Secondary is back UP")
-                    logger.info("Secondary Pi-hole service is back UP")
+                if not node_data["online"]:
+                    # Node is offline — don't track pihole state changes.
+                    # Clear any pending pihole-down debounce since the offline
+                    # debounce handles this case.
+                    _pihole_down_since.pop(node, None)
+                    continue
+
+                if node_data["pihole"]:
+                    # Pi-hole service is up
+                    if node in _pihole_down_since:
+                        was_logged = node in _pihole_down_event_logged
+                        _pihole_down_since.pop(node, None)
+                        _pihole_down_event_logged.discard(node)
+                        if was_logged:
+                            await _cancel_fault(fault_key, {
+                                "node": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
+                                "master": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
+                                "backup": CONFIG.get('secondary' if node == 'primary' else 'primary', {}).get('name', f'{"Secondary" if node == "primary" else "Primary"} Pi-hole'),
+                                "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                                "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                                "reason": f"Pi-hole service on {CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole')} is back up",
+                                "vip": CONFIG['vip'], "vip_address": CONFIG['vip'],
+                                "time": datetime.now().strftime("%H:%M:%S"),
+                                "date": datetime.now().strftime("%Y-%m-%d"),
+                            })
+                            await log_event("success", f"Pi-hole service on {node_label} is back UP")
+                            logger.info(f"{node_label} Pi-hole service is back UP")
+                        else:
+                            _cancel_fault_pending(fault_key)
+                            logger.debug(f"{node_label} Pi-hole recovered within debounce window")
+                    elif previous_pihole is False:
+                        # Was down before monitoring started or from a previous
+                        # logged cycle — but no debounce entry exists (e.g. node
+                        # was offline and came back with pihole already up).
+                        # Cancel any lingering fault silently.
+                        _cancel_fault_pending(fault_key)
+                else:
+                    # Pi-hole service is down while node is online
+                    if previous_pihole is not None and node not in _pihole_down_since:
+                        _pihole_down_since[node] = datetime.now()
+                        logger.debug(f"{node_label} Pi-hole service went down, starting {EVENT_DEBOUNCE_SECONDS}s debounce")
+                    elif node in _pihole_down_since and node not in _pihole_down_event_logged:
+                        elapsed = (datetime.now() - _pihole_down_since[node]).total_seconds()
+                        if elapsed >= EVENT_DEBOUNCE_SECONDS:
+                            _pihole_down_event_logged.add(node)
+                            await log_event("warning", f"Pi-hole service on {node_label} is DOWN")
+                            logger.warning(f"{node_label} Pi-hole service is DOWN")
+                            _arm_fault(fault_key, {
+                                "node": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
+                                "node_name": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
+                                "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
+                                "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
+                                "reason": f"Pi-hole service on {CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole')} is down",
+                                "vip": CONFIG['vip'],
+                                "vip_address": CONFIG['vip'],
+                                "time": datetime.now().strftime("%H:%M:%S"),
+                                "date": datetime.now().strftime("%Y-%m-%d"),
+                            })
             
             # Detect VIP changes (not during failover)
             if previous_primary_has_vip is not None and previous_secondary_has_vip is not None:
@@ -1722,9 +1739,15 @@ async def monitor_loop():
             previous_state = current_master
             previous_primary_online = primary_data["online"]
             previous_secondary_online = secondary_data["online"]
-            previous_primary_pihole = primary_data["pihole"]
-            previous_secondary_pihole = secondary_data["pihole"]
-            previous_primary_dns = primary_dns
+            # Only update pihole/dns previous state when the node is online.
+            # When offline, pihole=False is a side-effect, not a real state
+            # change.  Preserving the last-known-good value prevents false
+            # "is back UP" events when the node comes back online.
+            if primary_data["online"]:
+                previous_primary_pihole = primary_data["pihole"]
+                previous_primary_dns = primary_dns
+            if secondary_data["online"]:
+                previous_secondary_pihole = secondary_data["pihole"]
             previous_primary_has_vip = primary_has_vip
             previous_secondary_has_vip = secondary_has_vip
             
