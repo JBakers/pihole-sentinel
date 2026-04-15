@@ -2236,11 +2236,12 @@ def _load_system_settings() -> dict:
 
     System settings are stored under the ``system`` key inside
     ``notify_settings.json`` to avoid creating a separate config file.
-    Missing keys fall back to safe defaults (DHCP failover enabled).
+    Missing keys fall back to safe defaults (DHCP failover disabled until
+    auto-detection confirms DHCP is in use on at least one Pi-hole).
     """
     import json
 
-    defaults = {"dhcp_failover": True}
+    defaults = {"dhcp_failover": False}
     config_path = CONFIG["notify_config_path"]
     if not os.path.exists(config_path):
         return defaults
@@ -2249,7 +2250,7 @@ def _load_system_settings() -> dict:
             data = json.load(f)
         system = data.get("system", {})
         return {
-            "dhcp_failover": system.get("dhcp_failover", True),
+            "dhcp_failover": system.get("dhcp_failover", False),
         }
     except Exception:
         return defaults
@@ -2285,7 +2286,7 @@ _system_settings: dict = _load_system_settings()
 # ============================================================================
 
 # Auto-detected DHCP state — derived from Pi-hole API responses
-_dhcp_auto_detected: bool = _system_settings.get("dhcp_failover", True)
+_dhcp_auto_detected: bool = _system_settings.get("dhcp_failover", False)
 _dhcp_detect_counter: int = 0
 _DHCP_DETECT_THRESHOLD: int = 3  # require 3 consecutive identical readings
 

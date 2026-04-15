@@ -1,3 +1,13 @@
+## [0.16.4] - 2026-04-15
+
+### Fixed
+- **DHCP failover default changed from `True` to `False`** — new installations
+  and upgraded setups without a saved `dhcp_failover` setting no longer assume
+  DHCP is in use. This eliminates false "DHCP Misconfigured ⚠️" warnings on
+  startup for users who do not use DHCP on their Pi-holes. The auto-detection
+  system (3 consecutive polls, ~30s) will automatically enable DHCP monitoring
+  when it detects DHCP is active on at least one Pi-hole.
+
 ## [0.16.3] - 2026-04-12
 
 ### New
