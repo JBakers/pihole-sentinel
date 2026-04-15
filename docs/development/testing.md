@@ -265,6 +265,8 @@ to simulate failures and verify monitor responses.
 | `test_leases_present` | Fake clients active | leases >= 3 |
 | `test_full_recovery` | Offline → reset → check | All systems healthy |
 | `test_history_has_entries` | After polling | History not empty |
+| `test_vip_status_present` | Healthy state | VIP field present in status |
+| `test_history_entries_have_fields` | After polling | History entries include expected fields |
 
 ### Visual Checklist (Manual)
 

@@ -1,3 +1,41 @@
+## [0.16.8] - 2026-04-15
+
+### Security
+- **DHCP disabled on world-writable .env** — when `keepalived_notify.sh`
+  detects a world-writable `/etc/keepalived/.env` and refuses to source it,
+  `DHCP_ENABLED` is now explicitly set to `false` instead of falling through
+  to the `true` default. Prevents DHCP from running with a potentially
+  compromised configuration.
+
+### Fixed
+- **Octal-safe IP validation in sync script** — `validate_ip()` now uses
+  `10#$octet` to force base-10 arithmetic, preventing bash from interpreting
+  leading-zero octets (e.g., `08`, `09`) as invalid octal numbers.
+- **SSH known_hosts atomic updates** — `systemd/pihole-monitor.service`
+  `ReadWritePaths` now grants write access to the `.ssh` directory (not just
+  the `known_hosts` file), allowing OpenSSH’s temp-file + rename pattern to work.
+  Private key remains protected via `ReadOnlyPaths`.
+- **Defensive JSON parsing for notify_settings.json** — `setup.py` now validates
+  that `existing` and `existing["system"]` are dicts before assigning
+  `dhcp_failover`, preventing `TypeError` on corrupt but valid JSON files.
+  Applied to both local and remote deploy paths.
+- **SSH port respected for remote settings read** — the direct `ssh` call
+  in remote deploy now includes `-p port` and `StrictHostKeyChecking=no`,
+  matching the behavior of `remote_exec()`.
+- **Curl failures now logged** — all 5 notification curl calls in
+  `keepalived/scripts/notify.sh` now log failures via `logger -t pihole-sentinel`
+  instead of silently discarding errors.
+- **Test module loader guard** — `test_mock_pihole_dns.py` now asserts that
+  `spec_from_file_location` returns a valid spec before using it.
+- **Integration test robustness** — `_docker_is_running()` now catches
+  `requests.RequestException` (not just `ConnectionError`) and `reset_mocks`
+  fixture explicitly depends on `require_docker` to guarantee execution order.
+
+### Documentation
+- **TODO_USER.md** version reference updated.
+- **Testing docs** — added missing `test_vip_status_present` and
+  `test_history_entries_have_fields` to integration test table.
+
 ## [0.16.7] - 2026-04-15
 
 ### Fixed

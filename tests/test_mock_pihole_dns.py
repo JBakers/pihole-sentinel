@@ -10,6 +10,10 @@ from pathlib import Path
 
 _MOCK_PATH = Path(__file__).resolve().parent.parent / "docker" / "mock-pihole" / "mock_pihole.py"
 _spec = importlib.util.spec_from_file_location("mock_pihole", _MOCK_PATH)
+assert _spec is not None and _spec.loader is not None, (
+    f"Failed to load mock_pihole module from {_MOCK_PATH}: "
+    "spec_from_file_location returned no spec or loader"
+)
 mock_pihole = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(mock_pihole)
 

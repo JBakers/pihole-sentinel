@@ -42,7 +42,8 @@ send_telegram() {
             --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
             --data-urlencode "text=${message}" \
             --data-urlencode "parse_mode=HTML" \
-            > /dev/null 2>&1
+            > /dev/null 2>&1 \
+            || logger -t pihole-sentinel "WARNING: Telegram notification failed (exit $?)"
     fi
 }
 
@@ -72,7 +73,8 @@ EOF
         curl -sS --fail -H "Content-Type: application/json" \
             -X POST -d "$json_payload" \
             "$DISCORD_WEBHOOK_URL" \
-            > /dev/null 2>&1
+            > /dev/null 2>&1 \
+            || logger -t pihole-sentinel "WARNING: Discord notification failed (exit $?)"
     fi
 }
 
@@ -88,7 +90,8 @@ send_pushover() {
             --data-urlencode "message=${message}" \
             --data-urlencode "title=Pi-hole Sentinel" \
             --data-urlencode "priority=${priority}" \
-            > /dev/null 2>&1
+            > /dev/null 2>&1 \
+            || logger -t pihole-sentinel "WARNING: Pushover notification failed (exit $?)"
     fi
 }
 
@@ -104,7 +107,8 @@ send_ntfy() {
             -H "Priority: ${priority}" \
             -H "Tags: shield,pihole" \
             --data-raw "${message}" \
-            > /dev/null 2>&1
+            > /dev/null 2>&1 \
+            || logger -t pihole-sentinel "WARNING: Ntfy notification failed (exit $?)"
     fi
 }
 
@@ -132,7 +136,8 @@ EOF
         curl -sS --fail -H "Content-Type: application/json" \
             -X POST -d "$json_payload" \
             "$CUSTOM_WEBHOOK_URL" \
-            > /dev/null 2>&1
+            > /dev/null 2>&1 \
+            || logger -t pihole-sentinel "WARNING: Webhook notification failed (exit $?)"
     fi
 }
 
