@@ -35,7 +35,7 @@ def _docker_is_running() -> bool:
     try:
         r = requests.get(f"{MONITOR_URL}/", timeout=3)
         return r.status_code == 200
-    except requests.ConnectionError:
+    except requests.RequestException:
         return False
 
 
@@ -129,7 +129,7 @@ def require_docker():
 
 
 @pytest.fixture(autouse=True)
-def reset_mocks():
+def reset_mocks(require_docker):
     """Reset both mocks to clean state before and after each test."""
     mock_reset("primary")
     mock_reset("secondary")

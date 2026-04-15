@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-04-15
 
-**Version:** 0.16.6
+**Version:** 0.16.8
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
@@ -650,9 +650,10 @@ pihole-sentinel/
 - `GET /api/status` - Current status JSON
 - `GET /api/history?hours=24` - Historical data
 - `GET /api/events?limit=50` - Event timeline
-- `GET /api/notification_settings` - Notification config
-- `POST /api/notification_settings` - Update notifications
-- `POST /api/test_notification` - Test notification delivery
+- `GET /api/notifications/settings` - Notification config
+- `POST /api/notifications/settings` - Update notifications
+- `POST /api/notifications/test` - Test notification delivery
+- `GET /api/settings/system` - System settings (DHCP state)
 
 **Database Schema:**
 ```sql

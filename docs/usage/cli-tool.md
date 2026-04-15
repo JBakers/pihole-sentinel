@@ -5,16 +5,18 @@ High Availability setup. It is installed to `/usr/local/bin/pisen` during deploy
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `pisen status` | Show service status (monitor + keepalived) |
-| `pisen logs` | Tail monitor service logs (live) |
-| `pisen vip` | Check VIP location (which node is MASTER) |
-| `pisen dashboard` | Show dashboard access URL and monitor IP |
-| `pisen health` | Comprehensive health check of all components |
-| `pisen test` | Interactive failover testing guide |
-| `pisen --version` | Show installed version |
-| `pisen --help` | Show help |
+| Command | Short | Description |
+|---------|-------|-------------|
+| `pisen status` | `pisen -s` | Show service status (monitor + keepalived) |
+| `pisen logs` | `pisen -l` | Tail monitor service logs (live) |
+| `pisen vip` | `pisen -v` | Check VIP location (which node is MASTER) |
+| `pisen dashboard` | `pisen -d` | Show dashboard access URL and monitor IP |
+| `pisen health` | `pisen -H` | Comprehensive health check of all components |
+| `pisen test` | `pisen -t` | Interactive failover testing guide |
+| `pisen sync` | `pisen -S` | Show sync status, config, and last run |
+| `pisen sync --run` | | Trigger an immediate configuration sync |
+| `pisen --version` | | Show installed version |
+| `pisen --help` | | Show help |
 
 ## Examples
 
@@ -39,6 +41,14 @@ $ pisen health
 ✅ Secondary Pi-hole: Online
 ✅ VIP: Active on Primary
 ✅ DNS: Resolving
+
+# View sync status
+$ pisen sync
+  ● pihole-sync.timer  → active
+  Next run: Wed 2026-04-16 06:00:00
+
+# Trigger immediate sync
+$ pisen sync --run
 ```
 
 ## Installation
@@ -53,4 +63,5 @@ sudo chmod +x /usr/local/bin/pisen
 ## See Also
 
 - [Quick Start Guide](../installation/quick-start.md)
+- [Configuration Sync](../maintenance/sync.md)
 - [API Documentation](../api/README.md)

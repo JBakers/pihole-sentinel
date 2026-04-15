@@ -213,7 +213,7 @@ curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/status  # -> 200
 # Core endpoints
 curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/events?limit=10
 curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/history?hours=1
-curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/notification_settings
+curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/notifications/settings
 ```
 
 ### Test Sign-Off Criteria (testing -> main)
@@ -265,6 +265,8 @@ to simulate failures and verify monitor responses.
 | `test_leases_present` | Fake clients active | leases >= 3 |
 | `test_full_recovery` | Offline → reset → check | All systems healthy |
 | `test_history_has_entries` | After polling | History not empty |
+| `test_vip_status_present` | Healthy state | VIP field present in status |
+| `test_history_entries_have_fields` | After polling | History entries include expected fields |
 
 ### Visual Checklist (Manual)
 

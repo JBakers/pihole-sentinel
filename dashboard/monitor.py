@@ -1785,9 +1785,13 @@ async def monitor_loop():
             # Check DHCP misconfiguration (with debounce)
             # Only warn every 5 minutes to avoid log spam
             # Skip entirely when DHCP failover is disabled
+            # Initialize last_dhcp_warning to current_time so the first
+            # warning is suppressed for 5 minutes after startup — this
+            # gives keepalived time to complete VRRP negotiation and
+            # enable/disable DHCP before we flag a misconfiguration.
             current_time = time.time()
             if not hasattr(monitor_loop, "_state"):
-                monitor_loop._state = {"last_dhcp_warning": 0}
+                monitor_loop._state = {"last_dhcp_warning": current_time}
 
             # Auto-detect DHCP usage from Pi-hole API responses
             primary_dhcp = primary_data.get("dhcp_enabled")

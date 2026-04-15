@@ -1305,7 +1305,13 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
                         existing = json.loads(result.stdout)
                 except (json.JSONDecodeError, Exception):
                     pass
-                existing.setdefault("system", {})["dhcp_failover"] = False
+                if not isinstance(existing, dict):
+                    existing = {}
+                system = existing.get("system")
+                if not isinstance(system, dict):
+                    system = {}
+                    existing["system"] = system
+                system["dhcp_failover"] = False
                 settings_data = json.dumps(existing, indent=2)
                 subprocess.run(
                     ["sudo", "tee", settings_path],
@@ -1462,7 +1468,10 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
                 existing = {}
                 try:
                     result = subprocess.run(
-                        ["ssh", "-i", self.config.get('ssh_key_path', ''), f"{user}@{host}",
+                        ["ssh", "-i", self.config.get('ssh_key_path', ''),
+                         "-p", str(port),
+                         "-o", "StrictHostKeyChecking=no",
+                         f"{user}@{host}",
                          "cat /opt/pihole-monitor/notify_settings.json 2>/dev/null || echo '{}'"],
                         capture_output=True, text=True, timeout=10
                     )
@@ -1470,7 +1479,13 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
                         existing = json.loads(result.stdout.strip())
                 except (json.JSONDecodeError, Exception):
                     pass
-                existing.setdefault("system", {})["dhcp_failover"] = False
+                if not isinstance(existing, dict):
+                    existing = {}
+                system = existing.get("system")
+                if not isinstance(system, dict):
+                    system = {}
+                    existing["system"] = system
+                system["dhcp_failover"] = False
                 settings_json = json.dumps(existing, indent=2)
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
                     tmp.write(settings_json)

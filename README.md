@@ -40,7 +40,7 @@
 
 > [!NOTE]
 > **Current development status (2026-04-15):**
-> - Version: `0.16.6` (see [VERSION](VERSION))
+> - Version: `0.16.8` (see [VERSION](VERSION))
 > - Default test suite: 220+ tests (`make test`)
 > - Docker integration suite: 18 integration tests (`make docker-integration`)
 ---
@@ -111,8 +111,7 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 
 **1. Download Pi-hole Sentinel and run the setup:**
 ```bash
-curl -sLO https://github.com/JBakers/pihole-sentinel/releases/latest/download/pihole-sentinel.tar.gz
-tar xzf pihole-sentinel.tar.gz
+git clone https://github.com/JBakers/pihole-sentinel.git
 cd pihole-sentinel/
 sudo python3 setup.py
 ```
@@ -291,10 +290,10 @@ sudo systemctl restart keepalived
 
 ### Uninstalling
 
-**Run the setup wizard and choose option 6:**
+**Run the setup wizard and choose option 4:**
 ```bash
 sudo python3 setup.py
-# Choose: 6. Uninstall Pi-hole Sentinel from all servers
+# Choose: 4. Uninstall Pi-hole Sentinel from all servers
 ```
 
 The uninstaller will:

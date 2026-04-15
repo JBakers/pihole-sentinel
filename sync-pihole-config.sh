@@ -108,7 +108,7 @@ validate_ip() {
     local IFS='.'
     read -ra octets <<< "$ip"
     for octet in "${octets[@]}"; do
-        if (( octet < 0 || octet > 255 )); then
+        if (( 10#$octet < 0 || 10#$octet > 255 )); then
             echo -e "${RED}[ERROR] ${label} has invalid octet '${octet}': ${ip}${NC}"
             exit 1
         fi

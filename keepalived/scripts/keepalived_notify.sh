@@ -12,6 +12,9 @@ if [ -f /etc/keepalived/.env ]; then
     _perms=$(stat -c %a /etc/keepalived/.env 2>/dev/null)
     if [ -n "$_perms" ] && [ "${_perms: -1}" -ge 2 ] 2>/dev/null; then
         echo "$(timestamp) - ERROR: /etc/keepalived/.env is world-writable — refusing to source" >> "$LOGFILE"
+        # Explicitly disable DHCP when .env is untrusted to prevent running
+        # with a potentially compromised configuration
+        DHCP_ENABLED="false"
     else
         # shellcheck source=/dev/null
         source /etc/keepalived/.env

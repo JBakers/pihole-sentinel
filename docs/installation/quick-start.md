@@ -19,17 +19,6 @@ Before you begin, make sure you have:
 On your **local machine** or **monitor server**:
 
 ```bash
-# From a release
-curl -sL https://api.github.com/repos/JBakers/pihole-sentinel/releases \
-  | grep -m1 tarball_url | cut -d'"' -f4 | xargs curl -sL -o pihole-sentinel.tar.gz
-tar xzf pihole-sentinel.tar.gz
-mv JBakers-pihole-sentinel-* pihole-sentinel
-cd pihole-sentinel/
-```
-
-Or clone the repository directly:
-
-```bash
 git clone https://github.com/JBakers/pihole-sentinel.git
 cd pihole-sentinel/
 ```
@@ -78,14 +67,15 @@ Secondary Pi-hole web password: ********
 Select the deployment option:
 
 ```
-Select deployment option:
-1) Generate configs only
-2) Generate and deploy to all servers via SSH [RECOMMENDED]
-3) Deploy to monitor server only
-4) Deploy to primary Pi-hole only
-5) Deploy to secondary Pi-hole only
+Choose deployment mode:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Full deploy via SSH (recommended — deploys everything to all servers)
+2. Generate configuration files only (manual deployment)
+3. Advanced: deploy single component (monitor/primary/secondary only)
+4. Uninstall Pi-hole Sentinel from all servers
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Choice [2]: 2
+Enter your choice (1-4): 1
 ```
 
 The setup script will **automatically**:
