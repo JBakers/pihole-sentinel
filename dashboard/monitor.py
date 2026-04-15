@@ -181,6 +181,7 @@ class StatusResponse(BaseModel):
     secondary: PiHoleStatus = Field(..., description="Secondary Pi-hole status")
     vip: str = Field(..., description="Virtual IP address")
     dhcp_leases: int = Field(0, description="Number of active DHCP leases")
+    dhcp_failover: bool = Field(False, description="Whether DHCP failover monitoring is enabled")
 
 
 class HistoryEntry(BaseModel):
@@ -336,11 +337,12 @@ WRITE_RATE_LIMIT_REQUESTS = 20  # Max 20 requests
 WRITE_RATE_LIMIT_WINDOW = 60  # Per 60 seconds
 
 def _get_client_ip(request: Request) -> str:
-    """Extract client IP, respecting X-Forwarded-For behind a reverse proxy."""
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        # Take the first (leftmost) IP — the original client
-        return forwarded.split(",")[0].strip()
+    """Extract client IP. Only honour X-Forwarded-For when TRUST_PROXY_HEADERS=true
+    is explicitly set, to prevent header spoofing and unbounded rate-limit store growth."""
+    if os.environ.get("TRUST_PROXY_HEADERS", "false").lower() == "true":
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
 

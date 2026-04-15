@@ -1291,10 +1291,22 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
                 subprocess.run(["sudo", "chmod", "700", "/opt/pihole-monitor/.ssh"], check=True)
                 subprocess.run(["sudo", "chmod", "600", "/opt/pihole-monitor/.ssh/id_pihole_sentinel"], check=True)
 
-            # Write initial DHCP state to system settings
+            # Write initial DHCP state to system settings (merge, never overwrite)
             if not self.config.get('dhcp_enabled', True):
                 settings_path = "/opt/pihole-monitor/notify_settings.json"
-                settings_data = json.dumps({"system": {"dhcp_failover": False}}, indent=2)
+                # Load existing settings to preserve notification config
+                existing = {}
+                try:
+                    result = subprocess.run(
+                        ["sudo", "cat", settings_path],
+                        capture_output=True, text=True
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        existing = json.loads(result.stdout)
+                except (json.JSONDecodeError, Exception):
+                    pass
+                existing.setdefault("system", {})["dhcp_failover"] = False
+                settings_data = json.dumps(existing, indent=2)
                 subprocess.run(
                     ["sudo", "tee", settings_path],
                     input=settings_data.encode(),
@@ -1442,11 +1454,24 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
                     f"{S}rm -f /tmp/pihole-sentinel-deploy/id_pihole_sentinel",
                     password)
 
-            # Write initial DHCP state to system settings (if DHCP not used)
+            # Write initial DHCP state to system settings (merge, never overwrite)
             if not self.config.get('dhcp_enabled', True):
                 print("├─ Configuring initial DHCP state (disabled)...")
                 import tempfile
-                settings_json = json.dumps({"system": {"dhcp_failover": False}}, indent=2)
+                # Read existing remote settings to preserve notification config (Telegram/Discord/etc)
+                existing = {}
+                try:
+                    result = subprocess.run(
+                        ["ssh", "-i", self.config.get('ssh_key_path', ''), f"{user}@{host}",
+                         "cat /opt/pihole-monitor/notify_settings.json 2>/dev/null || echo '{}'"],
+                        capture_output=True, text=True, timeout=10
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        existing = json.loads(result.stdout.strip())
+                except (json.JSONDecodeError, Exception):
+                    pass
+                existing.setdefault("system", {})["dhcp_failover"] = False
+                settings_json = json.dumps(existing, indent=2)
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
                     tmp.write(settings_json)
                     tmp_path = tmp.name

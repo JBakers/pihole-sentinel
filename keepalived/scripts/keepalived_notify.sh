@@ -18,6 +18,9 @@ if [ -f /etc/keepalived/.env ]; then
     fi
 fi
 
+# Default DHCP_ENABLED to true for backward compatibility with pre-.env installs
+DHCP_ENABLED="${DHCP_ENABLED:-true}"
+
 # Helper: run dhcp_control.sh only when DHCP failover is enabled
 dhcp_action() {
     local action="$1"

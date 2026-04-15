@@ -1,3 +1,43 @@
+## [0.16.5] - 2026-04-15
+
+### Fixed
+- **`StatusResponse` missing `dhcp_failover` field** — `/api/status` returned
+  `dhcp_failover` in the dict but `StatusResponse` did not define it, causing
+  FastAPI to strip it from every response. Dashboard DHCP toggle state now
+  persists correctly across page reloads.
+- **Rate limiter trusted `X-Forwarded-For` unconditionally** — clients could
+  spoof the header to bypass rate limits and cause unbounded memory growth in
+  the rate-limit store. Header is now only honoured when `TRUST_PROXY_HEADERS=true`
+  is explicitly set in `.env`.
+- **`setup.py` overwrote `notify_settings.json` on re-deploy** — existing
+  Telegram, Discord, and other notification settings were wiped when re-running
+  setup with DHCP disabled. Now merges only `system.dhcp_failover` and preserves
+  all other keys (local and remote deploy).
+- **SSH `known_hosts` blocked by `ReadOnlyPaths` in systemd unit** — the
+  `.ssh` directory was made fully read-only, preventing SSH from writing
+  `known_hosts` on first connection. Now only the private key file is protected;
+  `known_hosts` has a dedicated `ReadWritePaths` entry.
+- **`validate_ip` in `sync-pihole-config.sh` accepted invalid octets** —
+  `999.999.999.999` passed validation. Each octet is now checked against the
+  0-255 range after the regex match.
+- **`DHCP_ENABLED` had no default in `keepalived_notify.sh`** — if
+  `/etc/keepalived/.env` was missing or the variable unset (pre-existing
+  installs), DHCP control was silently skipped. Default is now `true` for
+  backward compatibility.
+- **Unconditional "Preserved" log messages in sync script** — `sync-pihole-config.sh`
+  logged "Preserved secondary pwhash/domain/cert" even when no matching line was
+  found in the live config. Log messages are now gated on actual replacements.
+- **Unused `encoded_message` variable in `keepalived/scripts/notify.sh`** —
+  the Telegram send function computed a URL-encoded message via an extra `curl`
+  call but never used it. Removed; `--data-urlencode` handles encoding already.
+
+### Changed
+- **`_get_client_ip()` now requires opt-in for proxy header trust** — set
+  `TRUST_PROXY_HEADERS=true` in `.env` if the monitor runs behind a reverse proxy.
+
+### Documentation
+- **`requirements-dev.txt`** — added `requests>=2.31.0` for integration tests.
+
 ## [0.16.4] - 2026-04-15
 
 ### Fixed
