@@ -1,8 +1,8 @@
 # PLAN.md — Pi-hole Sentinel Development Plan
 
-**Last Updated:** 2026-03-29
+**Last Updated:** 2026-04-15
 **Branch:** `develop`
-**Current Version:** 0.12.7
+**Current Version:** 0.16.5
 
 > **📌 This is the central planning and TODO document.**
 > CLAUDE.md references this file. All open tasks, bugs, and the
@@ -23,18 +23,19 @@
 
 ## Current Status
 
-### Branch: `develop` — v0.14.1
+### Branch: `develop` — v0.16.5
 
 | Item | Status |
 |------|--------|
 | Core monitoring service (monitor.py) | ✅ Stable |
 | Dashboard + Settings UI | ✅ Up to date |
 | setup.py deployment (bare-metal) | ✅ Fully working (tested 2026-03-28) |
-| setup.py non-root SSH user support | ✅ Working (beta.4–beta.5) |
-| Config sync backup rotation | ✅ Fixed (beta.6) |
+| Config sync (pihole.toml + gravity) | ✅ Stable |
 | Notifications (Telegram/Discord/Pushover/Ntfy) | ✅ Working |
 | System Commands panel | ✅ Working |
 | Fault debounce + recovery notifications | ✅ Working |
+| DHCP auto-detection | ✅ Working (3-poll debounce) |
+| Docker integration test suite (16 tests) | ✅ Working (`make docker-integration`) |
 | Unit tests | ⚠️ ~20% coverage — needs expansion |
 | Container architecture (v2.0) | 🔲 Separate branch: `feature/container-architecture` |
 
@@ -42,19 +43,11 @@
 
 ## Open Bugs
 
-### 🔴 High Priority
+### � Medium Priority
 
 | ID | Bug | Location | Impact |
 |----|-----|----------|--------|
-| B1 | Duplicate "Monitor started" event | `dashboard/monitor.py` L201+1206 | Two events logged on every restart |
-| B2 | `dhcp_leases` always 0 when no MASTER | `dashboard/monitor.py` ~L1266 | Dashboard shows 0 leases |
-| B3 | Dashboard API key hardcoded `YOUR_API_KEY_HERE` | `dashboard/index.html` L1226, `settings.html` L1101 | 403 on every API call in Docker test |
-
-### 🟡 Medium Priority
-
-| ID | Bug | Location | Impact |
-|----|-----|----------|--------|
-| B4 | LOCAL_SETUP.md references old subnet / Docker v1 setup | `LOCAL_SETUP.md` | Misleading docs for contributors |
+| F4 | DNS mock only binds TCP:53, not UDP | `docker/mock-pihole/mock_pihole.py` | `dig` checks fail in Docker test (uses UDP) |
 
 ---
 
@@ -62,15 +55,10 @@
 
 | ID | Improvement | Priority |
 |----|-------------|----------|
-| F1 | API key runtime injection for Docker (`serve_index` replaces placeholder) | Medium |
-| F2 | Debounce DHCP misconfiguration warnings in monitor.py | Medium |
-| F3 | Fallback `dhcp_leases` when no MASTER node | Low |
-| F4 | DNS mock in mock_pihole.py (answer UDP:53 queries) | Low |
-| D1 | Rewrite LOCAL_SETUP.md for current Docker setup | Medium |
 | D2 | Expand test coverage (currently ~20%, target 60%+) | High |
 | D3 | HTTPS/reverse proxy documentation (nginx/Caddy example) | Low |
-| P1 | `pisen` CLI: fix hardcoded VERSION path | Medium |
 | P2 | `pisen` CLI: make copyright year dynamic | Low |
+| P3 | `pisen` CLI: add `--api` mode (HTTP client to monitor API) | Low |
 
 ---
 
@@ -80,19 +68,52 @@
 |------|---------|
 | Prometheus metrics endpoint | `GET /metrics` in monitor.py |
 | HTTPS / TLS support | Self-signed cert or Let's Encrypt integration |
-| `pisen` CLI `--api` mode | HTTP client to monitor API (works in Docker) |
+
 | Database auto-cleanup | Delete status_history older than 30 days |
 
 ---
 
 ## Completed Items
 
-### v0.12.5-beta.4 – beta.7 (2026-03-29)
+### v0.16.5 (2026-04-15) — Copilot PR review fixes
+
+- [x] `StatusResponse` missing `dhcp_failover` field — added to Pydantic model
+- [x] Rate limiter trusted `X-Forwarded-For` unconditionally — requires `TRUST_PROXY_HEADERS=true`
+- [x] `setup.py` overwrote `notify_settings.json` on re-deploy — now merges, preserves notification config
+- [x] SSH `known_hosts` blocked by `ReadOnlyPaths` in systemd unit — fixed (protect only private key)
+- [x] `validate_ip` accepted invalid octets (e.g. 999.x.x.x) — added 0–255 range check
+- [x] `DHCP_ENABLED` had no default in `keepalived_notify.sh` — default `true` for backward compat
+- [x] Unconditional "Preserved" log messages in sync script — now gated on actual replacement
+- [x] Unused `encoded_message` in `notify.sh` — removed dead curl encoding call
+- [x] `requests` missing from `requirements-dev.txt` — added for integration tests
+
+### v0.16.2 – v0.16.4 (2026-04-12 – 2026-04-15)
+
+- [x] DHCP auto-detection disabled failover during Pi-hole outage (critical fix)
+- [x] Docker integration test suite — 16 e2e tests via `make docker-integration`
+- [x] `EVENT_DEBOUNCE_SECONDS` env var configurable (default: 30s)
+- [x] DHCP failover default changed from `True` to `False`
+- [x] `PiHoleStatus` Pydantic model missing stats fields (queries/blocked/clients)
+- [x] Mock Pi-hole reset incomplete — state bleed between tests fixed
+
+### v0.14.1 – v0.16.1 (2026-03-29 – 2026-04-12)
+
+- [x] B1: Duplicate "Monitor started" event — fixed (single log point in monitor_loop)
+- [x] B2: `dhcp_leases` always 0 when no MASTER — fallback `max()` of both nodes
+- [x] B3: Dashboard API key hardcoded — runtime injection via `<meta>` tag
+- [x] B10: LOCAL_SETUP.md completely outdated — rewritten for current Docker setup
+- [x] F1: API key runtime injection — `serve_index`/`serve_settings` inject key via meta
+- [x] F2: Fallback `dhcp_leases` when no MASTER — implemented
+- [x] F5: `/api/commands` endpoint — 6 system commands implemented
+- [x] P1: `pisen` CLI hardcoded VERSION path — fixed
+- [x] pwhash / upstreams preservation via Python heredocs (no process arg exposure)
+- [x] Section-scoped TOML sync (domain, cert, listeningMode)
+
+### v0.12.5-beta.4 – v0.14.0 (2026-03-29)
 
 - [x] SSH deployment with non-root user — all privileged remote commands now use `sudo`
 - [x] `_s(user)` helper with `sudo -n` — fails fast instead of hanging without NOPASSWD
 - [x] MITM warning printed when SSH keys are generated (StrictHostKeyChecking=no)
-- [x] apt-get update error visibility — stderr no longer suppressed
 - [x] Config sync backup rotation fixed on secondary node (disk full bug)
 - [x] `SYNC_MAX_BACKUPS` variable added (default: 3, configurable in sync.conf)
 
@@ -104,19 +125,16 @@
 - [x] System Commands panel in dashboard
 - [x] ANSI colour rendering in command output modal
 - [x] Offline indicators (Pi-hole / VIP / DNS / DHCP)
-- [x] Failover History shows recovery events as well
-- [x] Test notification response Pydantic mismatch fixed
-- [x] All Dutch UI strings translated to English
 
 ### Earlier (develop branch)
 
 - [x] Repository cleanup: .gitignore, dead links, stale versions
 - [x] License corrected: MIT → GPLv3
 - [x] Docker test environment (mock Pi-holes + fake clients)
-- [x] 141 unit tests passing
+- [x] 217 unit tests passing
 - [x] Makefile with full development workflow
 - [x] API key authentication on all endpoints
-- [x] Rate limiting on test-notification endpoint
+- [x] Rate limiting on all write endpoints
 - [x] VIP detection retry logic (3×)
 
 ### Container Architecture (feature branch)
@@ -147,8 +165,9 @@ make docker-up        # Start environment (mock Pi-holes + clients)
 make docker-down      # Stop + cleanup
 make docker-status    # Status overview
 make docker-logs      # Live logs
-make docker-failover  # Simulate primary failure
-make docker-recover   # Restore primary
+make docker-failover        # Simulate primary failure
+make docker-recover         # Restore primary
+make docker-integration     # Run integration tests (requires docker-up)
 ```
 
 ### Container architecture PoC (feature branch)
