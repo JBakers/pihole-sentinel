@@ -1,3 +1,22 @@
+## [0.16.6] - 2026-04-15
+
+### Fixed
+- **`pisen` shell command hardening** — removed dynamic shell interpolation for
+  VIP output display and now print matching lines directly from `ip addr`
+  command output. This reduces command-injection surface from config-derived values.
+- **Notification HTTP failures no longer silently ignored** — all `curl` calls
+  in `keepalived/scripts/notify.sh` now use `--fail -sS` so 4xx/5xx responses
+  return non-zero status and expose failures to script-level error handling.
+
+### Improved
+- **Docker security intent made explicit** — added clear comments in Dockerfiles
+  that production `sentinel-node` requires root for keepalived/VRRP networking,
+  while mock/fake-client images are test-only.
+
+### Documentation
+- **API docs example cleanup** — removed stale beta-style release URL examples
+  to keep update-check documentation aligned with current versioning strategy.
+
 ## [0.16.5] - 2026-04-15
 
 ### Fixed

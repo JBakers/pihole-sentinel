@@ -41,6 +41,10 @@ RUN chmod +x /scripts/*.sh
 # 5000 = Sync Agent API
 EXPOSE 5000
 
+# NOTE: This container intentionally runs as root.
+# keepalived/VRRP requires NET_ADMIN-level networking operations
+# (VIP assignment, interface state updates, ARP announcements).
+
 # ── Default environment ─────────────────────────────────────
 ENV KEEPALIVED_STATE="BACKUP" \
     KEEPALIVED_PRIORITY="100" \

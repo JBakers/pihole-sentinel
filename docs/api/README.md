@@ -168,7 +168,7 @@ X-API-Key: your-api-key
   "current_version": "<current version>",
   "latest_version": "<latest version>",
   "update_available": true,
-  "release_url": "https://github.com/JBakers/pihole-sentinel/releases/tag/0.13.0-beta.1",
+  "release_url": "https://github.com/JBakers/pihole-sentinel/releases/latest",
   "cached": false
 }
 ```
