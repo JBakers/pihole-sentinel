@@ -1,3 +1,33 @@
+## [0.16.6] - 2026-04-15
+
+### New
+- **UDP DNS mock responder** — `docker/mock-pihole/mock_pihole.py` now serves
+  real DNS A-record responses on UDP:53 via `build_dns_response()`. Monitor
+  `dig` checks now pass in the Docker test environment (closes F4).
+- **DNS integration tests** — 2 new integration tests validating monitor DNS
+  status (resolving + failure) and 3 unit tests for the DNS response builder.
+
+### Fixed
+- **`pisen` shell command hardening** — removed dynamic shell interpolation for
+  VIP output display and now print matching lines directly from `ip addr`
+  command output. This reduces command-injection surface from config-derived values.
+- **Notification HTTP failures no longer silently ignored** — all `curl` calls
+  in `keepalived/scripts/notify.sh` now use `--fail -sS` so 4xx/5xx responses
+  return non-zero status and expose failures to script-level error handling.
+
+### Improved
+- **Docker security intent made explicit** — added clear comments in Dockerfiles
+  that production `sentinel-node` requires root for keepalived/VRRP networking,
+  while mock/fake-client images are test-only.
+
+### Documentation
+- **HTTPS / reverse proxy guidance** — Nginx and Caddy example configs added to
+  README with `TRUST_PROXY_HEADERS` opt-in explanation (closes D3).
+- **Testing guide refreshed** — updated to 243 tests across 12 files, coverage
+  targets updated (monitor.py 24%, setup.py 17%, overall 20%).
+- **API docs example cleanup** — removed stale beta-style release URL examples
+  to keep update-check documentation aligned with current versioning strategy.
+
 ## [0.16.5] - 2026-04-15
 
 ### Fixed

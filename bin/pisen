@@ -20,7 +20,7 @@ import sys
 import os
 import subprocess
 import argparse
-from pathlib import Path
+import shlex
 from typing import Dict, Optional, Tuple
 
 
@@ -194,7 +194,9 @@ class PisenCommands:
         if vip in result.stdout:
             print(f"{Colors.GREEN}✓ This server HAS the VIP{Colors.END}")
             if self.server_type == 'pihole':
-                self._run_command(f"ip addr show | grep {vip}")
+                for line in result.stdout.splitlines():
+                    if vip in line:
+                        print(line)
         else:
             print(f"{Colors.YELLOW}⚠ This server does NOT have the VIP{Colors.END}")
 
@@ -407,9 +409,12 @@ class PisenCommands:
     # ==================== Helper Methods ====================
 
     def _run_command(self, command: str) -> bool:
-        """Execute shell command and return success status"""
+        """Execute command and return success status.
+
+        Commands passed to this helper must be internal/static strings.
+        """
         try:
-            subprocess.run(command, shell=True, check=True)
+            subprocess.run(["bash", "-lc", command], check=True)
             return True
         except subprocess.CalledProcessError:
             return False

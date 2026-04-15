@@ -38,7 +38,7 @@ escape_json() {
 send_telegram() {
     local message="$1"
     if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
-        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+        curl -sS --fail -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
             --data-urlencode "text=${message}" \
             --data-urlencode "parse_mode=HTML" \
@@ -69,7 +69,7 @@ send_discord() {
 }
 EOF
 )
-        curl -s -H "Content-Type: application/json" \
+        curl -sS --fail -H "Content-Type: application/json" \
             -X POST -d "$json_payload" \
             "$DISCORD_WEBHOOK_URL" \
             > /dev/null 2>&1
@@ -82,7 +82,7 @@ send_pushover() {
     local priority="$2"  # -2 to 2 (2 requires acknowledgment)
     
     if [ -n "$PUSHOVER_USER_KEY" ] && [ -n "$PUSHOVER_APP_TOKEN" ]; then
-        curl -s -X POST https://api.pushover.net/1/messages.json \
+        curl -sS --fail -X POST https://api.pushover.net/1/messages.json \
             --data-urlencode "token=${PUSHOVER_APP_TOKEN}" \
             --data-urlencode "user=${PUSHOVER_USER_KEY}" \
             --data-urlencode "message=${message}" \
@@ -99,7 +99,7 @@ send_ntfy() {
     
     if [ -n "$NTFY_TOPIC" ]; then
         local ntfy_server="${NTFY_SERVER:-https://ntfy.sh}"
-        curl -s -X POST "${ntfy_server}/${NTFY_TOPIC}" \
+        curl -sS --fail -X POST "${ntfy_server}/${NTFY_TOPIC}" \
             -H "Title: Pi-hole Sentinel Alert" \
             -H "Priority: ${priority}" \
             -H "Tags: shield,pihole" \
@@ -129,7 +129,7 @@ send_webhook() {
 }
 EOF
 )
-        curl -s -H "Content-Type: application/json" \
+        curl -sS --fail -H "Content-Type: application/json" \
             -X POST -d "$json_payload" \
             "$CUSTOM_WEBHOOK_URL" \
             > /dev/null 2>&1

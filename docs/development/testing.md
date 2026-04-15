@@ -1,8 +1,8 @@
 # Testing Guide
 
-**Last Updated:** 2026-03-28
-**Current Tests:** 176 (7 test files)
-**Coverage:** ~4% (unit tests only, no async/DB coverage yet)
+**Last Updated:** 2026-04-15
+**Current Tests:** 243 collected (`pytest --collect-only`)
+**Coverage:** ~20% (default suite); integration tests available via Docker
 
 > This document consolidates the former TESTING_WORKFLOW.md and TEST_COVERAGE_PLAN.md
 > into a single testing reference.
@@ -27,13 +27,18 @@ make format           # Auto-format (black, isort)
 
 | File | Tests | Coverage Area |
 |------|-------|---------------|
-| `test_validation.py` | 24 | Input validation, injection prevention |
-| `test_api_handlers.py` | 26 | Pi-hole API calls, response handling |
-| `test_dhcp_parsing.py` | 26 | DHCP config parsing, state detection |
-| `test_vip_detection.py` | 16 | VIP location, MAC extraction, ARP |
-| `test_error_handling.py` | — | Custom exceptions, error handlers |
-| `test_notification_transitions.py` | — | Notification state machine |
+| `test_validation.py` | 18 | Input validation, injection prevention |
+| `test_api_handlers.py` | 2 | Pi-hole API calls, response handling |
+| `test_dhcp_parsing.py` | 29 | DHCP config parsing, state detection |
+| `test_dhcp_auto_detection.py` | 2 | DHCP auto-detection and SSH push behaviour |
+| `test_system_settings.py` | 11 | Settings loading/saving and defaults |
+| `test_event_debounce.py` | 17 | Event/fault debounce timing |
+| `test_vip_detection.py` | 6 | VIP location, MAC extraction, ARP |
+| `test_error_handling.py` | 30 | Custom exceptions and error handlers |
+| `test_notification_transitions.py` | 5 | Notification state machine |
 | `test_setup.py` | 30 | setup.py deployment logic |
+| `test_mock_pihole_dns.py` | 3 | UDP DNS mock response builder |
+| `test_integration.py` | 18 | End-to-end Docker integration scenarios |
 
 ### Well Tested
 
@@ -43,14 +48,13 @@ make format           # Auto-format (black, isort)
 - VIP/MAC detection logic
 - Pi-hole API authentication
 
-### Not Yet Tested (Gaps)
+### Not Yet Fully Tested (Gaps)
 
-- Async operations in monitor.py (monitor loop, notifications)
-- Database operations (SQLite init, queries, cleanup)
-- API endpoint responses (Pydantic models, full HTTP cycle)
-- Configuration edge cases (missing env vars, corrupted JSON)
-- HTTP timeout and retry scenarios
-- Notification delivery (Telegram, Discord, Pushover, Ntfy)
+- Full async monitor loop branching in `dashboard/monitor.py`
+- Database operations under load (SQLite retention/cleanup scenarios)
+- Notification provider delivery behaviour with real remote APIs
+- Reverse proxy / forwarded-header deployment paths
+- Long-running failover soak tests (multi-day)
 
 ---
 
@@ -64,8 +68,8 @@ make format           # Auto-format (black, isort)
                 / Integration    \   API endpoints, async ops, DB
                /  Tests          \
               ▲                   ▼
-             / Unit Tests         \   Validation, models, handlers
-            / (176 tests)          \
+            / Unit Tests         \   Validation, models, handlers
+           / (220+ default tests) \
            ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▼
            Automated & Fast (CI/CD)
 ```
@@ -146,9 +150,9 @@ Located in `.github/scripts/`:
 
 | Module | Current | Target |
 |--------|---------|--------|
-| `dashboard/monitor.py` | ~4% | 60% |
-| `setup.py` | ~4% | 60% |
-| Overall | ~4% | 60%+ |
+| `dashboard/monitor.py` | ~24% | 60% |
+| `setup.py` | ~17% | 60% |
+| Overall | ~20% | 60%+ |
 
 ### Test Infrastructure
 
@@ -229,11 +233,14 @@ curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/notification_settings
 ### Setup
 
 ```bash
-make docker-up              # Start mock environment (15 containers)
+make docker-up              # Start mock environment
 make docker-integration     # Run automated integration tests
 make docker-status          # Manual status overview
 make docker-down            # Cleanup
 ```
+
+> Integration tests are marked with `@pytest.mark.integration` and excluded
+> from `make test` by default to keep the default suite fast.
 
 ### Automated Tests (pytest)
 
@@ -250,8 +257,10 @@ to simulate failures and verify monitor responses.
 | `test_secondary_dhcp_state_reported` | Steady state | DHCP field exists in response |
 | `test_primary_stats_nonzero` | Healthy state | queries, blocked, clients > 0 |
 | `test_secondary_stats_nonzero` | Healthy state | queries > 0 |
-| `test_primary_dhcp_enabled_as_master` | MASTER config | DHCP=true |
-| `test_secondary_dhcp_disabled_as_backup` | BACKUP config | DHCP=false |
+| `test_primary_mock_has_dhcp_enabled` | MASTER config | DHCP=true |
+| `test_secondary_dhcp_disabled` | BACKUP config | DHCP=false |
+| `test_primary_dns_resolving_when_healthy` | Healthy DNS mock | `primary.dns=true` |
+| `test_primary_dns_failure_detected` | DNS disabled via control API | `primary.dns=false` |
 | `test_failure_and_recovery_events` | Failure + recovery | Both events logged |
 | `test_leases_present` | Fake clients active | leases >= 3 |
 | `test_full_recovery` | Offline → reset → check | All systems healthy |

@@ -38,6 +38,11 @@
 >
 > **Your feedback and testing help make Pi-hole Sentinel production-ready!** Please [report any issues](https://github.com/JBakers/pihole-sentinel/issues) you encounter.
 
+> [!NOTE]
+> **Current development status (2026-04-15):**
+> - Version: `0.16.6` (see [VERSION](VERSION))
+> - Default test suite: 220+ tests (`make test`)
+> - Docker integration suite: 18 integration tests (`make docker-integration`)
 ---
 
 ## Introduction
@@ -435,6 +440,53 @@ tail -f /var/log/keepalived-notify.log
 - Regular system updates (`apt update && apt upgrade`)
 - Monitor logs weekly
 - Backup configurations
+
+---
+
+## HTTPS / Reverse Proxy
+
+Running the dashboard behind HTTPS is recommended for remote/admin access.
+
+### Nginx Example
+
+```nginx
+server {
+   listen 443 ssl http2;
+   server_name sentinel.example.lan;
+
+   ssl_certificate /etc/letsencrypt/live/sentinel.example.lan/fullchain.pem;
+   ssl_certificate_key /etc/letsencrypt/live/sentinel.example.lan/privkey.pem;
+
+   location / {
+      proxy_pass http://127.0.0.1:8080;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+   }
+}
+```
+
+### Caddy Example
+
+```caddy
+sentinel.example.lan {
+   reverse_proxy 127.0.0.1:8080 {
+      header_up X-Forwarded-For {remote_host}
+      header_up X-Forwarded-Proto {scheme}
+   }
+}
+```
+
+### Important: Proxy Header Trust
+
+By default, Pi-hole Sentinel ignores `X-Forwarded-For` to prevent spoofing.
+If you run behind a trusted reverse proxy, set this in monitor `.env`:
+
+```bash
+TRUST_PROXY_HEADERS=true
+```
+
+Only enable this when requests are guaranteed to come through your own proxy.
 
 ---
 

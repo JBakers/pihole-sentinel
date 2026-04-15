@@ -15,4 +15,6 @@ EXPOSE 80 53
 HEALTHCHECK --interval=5s --timeout=2s --retries=3 --start-period=3s \
     CMD curl -sf http://localhost/api/version || exit 1
 
+# NOTE: Test-only container. Running as root is acceptable for the
+# local Docker test environment.
 CMD ["python3", "-u", "mock_pihole.py"]
