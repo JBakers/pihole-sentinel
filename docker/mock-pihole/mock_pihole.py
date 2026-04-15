@@ -58,9 +58,13 @@ state = {
     "response_delay": 0,  # ms delay before response
     "sessions": {},  # active sessions
     "stats": {
-        "dns_queries_today": random.randint(5000, 50000),
-        "ads_blocked_today": random.randint(500, 5000),
-        "unique_clients": random.randint(5, 30),
+        "queries": {
+            "total": random.randint(5000, 50000),
+            "blocked": random.randint(500, 5000),
+        },
+        "clients": {
+            "total": random.randint(5, 30),
+        },
     },
     "leases": [
         {
@@ -344,9 +348,11 @@ class MockPiholeHandler(BaseHTTPRequestHandler):
             state["response_delay"] = 0
             state["online"] = True
             state["pihole_running"] = True
-            state["stats"]["dns_queries_today"] = random.randint(5000, 50000)
-            state["stats"]["ads_blocked_today"] = random.randint(500, 5000)
-            state["stats"]["unique_clients"] = random.randint(5, 30)
+            state["dns_working"] = True
+            state["dhcp_enabled"] = os.environ.get("DHCP_ENABLED", "true").lower() == "true"
+            state["stats"]["queries"]["total"] = random.randint(5000, 50000)
+            state["stats"]["queries"]["blocked"] = random.randint(500, 5000)
+            state["stats"]["clients"]["total"] = random.randint(5, 30)
             logger.info("Mock state reset to defaults")
             self._send_json({"status": "ok", "message": "State reset"})
 

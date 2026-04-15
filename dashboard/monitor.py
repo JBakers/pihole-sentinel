@@ -169,6 +169,9 @@ class PiHoleStatus(BaseModel):
     pihole: bool = Field(..., description="Whether pihole-FTL service is running")
     dns: bool = Field(False, description="Whether DNS resolution is working")
     dhcp: bool = Field(False, description="Whether DHCP server is running")
+    queries: int = Field(0, description="Total DNS queries today")
+    blocked: int = Field(0, description="Blocked queries today")
+    clients: int = Field(0, description="Unique clients today")
 
 
 class StatusResponse(BaseModel):
@@ -516,7 +519,7 @@ notification_state = {
 # EVENT_DEBOUNCE_SECONDS before an event is logged.  Notifications fire after
 # an additional FAULT_NOTIFICATION_DELAY seconds (total ≈ 60 s).
 # Recovery before the debounce window expires is suppressed silently.
-EVENT_DEBOUNCE_SECONDS = 30   # seconds before logging an offline/down event
+EVENT_DEBOUNCE_SECONDS = int(os.getenv("EVENT_DEBOUNCE_SECONDS", "30"))
 FAULT_NOTIFICATION_DELAY = 30  # additional seconds before sending notification
 _fault_tasks: dict = {}     # key → asyncio.Task (pending debounce timer)
 _fault_notified: set = set()  # keys where a fault notification was actually sent
@@ -2233,11 +2236,12 @@ def _load_system_settings() -> dict:
 
     System settings are stored under the ``system`` key inside
     ``notify_settings.json`` to avoid creating a separate config file.
-    Missing keys fall back to safe defaults (DHCP failover enabled).
+    Missing keys fall back to safe defaults (DHCP failover disabled until
+    auto-detection confirms DHCP is in use on at least one Pi-hole).
     """
     import json
 
-    defaults = {"dhcp_failover": True}
+    defaults = {"dhcp_failover": False}
     config_path = CONFIG["notify_config_path"]
     if not os.path.exists(config_path):
         return defaults
@@ -2246,7 +2250,7 @@ def _load_system_settings() -> dict:
             data = json.load(f)
         system = data.get("system", {})
         return {
-            "dhcp_failover": system.get("dhcp_failover", True),
+            "dhcp_failover": system.get("dhcp_failover", False),
         }
     except Exception:
         return defaults
@@ -2282,7 +2286,7 @@ _system_settings: dict = _load_system_settings()
 # ============================================================================
 
 # Auto-detected DHCP state — derived from Pi-hole API responses
-_dhcp_auto_detected: bool = _system_settings.get("dhcp_failover", True)
+_dhcp_auto_detected: bool = _system_settings.get("dhcp_failover", False)
 _dhcp_detect_counter: int = 0
 _DHCP_DETECT_THRESHOLD: int = 3  # require 3 consecutive identical readings
 

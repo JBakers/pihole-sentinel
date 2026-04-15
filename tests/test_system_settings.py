@@ -41,18 +41,18 @@ class TestLoadSystemSettings:
     """Test system settings loading from JSON config."""
 
     def test_default_when_file_missing(self, monitor):
-        """When config file doesn't exist, default to dhcp_failover=True."""
+        """When config file doesn't exist, default to dhcp_failover=False."""
         result = monitor._load_system_settings()
-        assert result["dhcp_failover"] is True
+        assert result["dhcp_failover"] is False
 
     def test_default_when_system_key_missing(self, monitor, tmp_path):
-        """When JSON exists but has no 'system' key, default to True."""
+        """When JSON exists but has no 'system' key, default to False."""
         config_path = tmp_path / "notify_settings.json"
         config_path.write_text(json.dumps({"telegram": {"enabled": False}}))
         monitor.CONFIG["notify_config_path"] = str(config_path)
 
         result = monitor._load_system_settings()
-        assert result["dhcp_failover"] is True
+        assert result["dhcp_failover"] is False
 
     def test_reads_dhcp_failover_false(self, monitor, tmp_path):
         """When system.dhcp_failover is false, return False."""
@@ -83,7 +83,7 @@ class TestLoadSystemSettings:
         monitor.CONFIG["notify_config_path"] = str(config_path)
 
         result = monitor._load_system_settings()
-        assert result["dhcp_failover"] is True
+        assert result["dhcp_failover"] is False
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -139,7 +139,7 @@ class TestBackwardCompatibility:
     """Existing installations without system settings should work unchanged."""
 
     def test_existing_config_without_system_key(self, monitor, tmp_path):
-        """Old configs without 'system' key default to dhcp_failover=True."""
+        """Old configs without 'system' key default to dhcp_failover=False."""
         config_path = tmp_path / "notify_settings.json"
         config_path.write_text(json.dumps({
             "telegram": {"enabled": False},
@@ -148,14 +148,14 @@ class TestBackwardCompatibility:
         monitor.CONFIG["notify_config_path"] = str(config_path)
 
         result = monitor._load_system_settings()
-        assert result["dhcp_failover"] is True
+        assert result["dhcp_failover"] is False
 
     def test_cached_settings_available(self, monitor):
         """Module-level _system_settings cache is populated."""
         assert hasattr(monitor, '_system_settings')
         assert "dhcp_failover" in monitor._system_settings
 
-    def test_default_is_enabled(self, monitor):
-        """Default system settings have DHCP failover enabled."""
-        # Fresh import with no config file → should default to True
-        assert monitor._system_settings.get("dhcp_failover", True) is True
+    def test_default_is_disabled(self, monitor):
+        """Default system settings have DHCP failover disabled (auto-detected later)."""
+        # Fresh import with no config file → should default to False
+        assert monitor._system_settings.get("dhcp_failover") is False

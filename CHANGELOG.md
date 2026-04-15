@@ -1,3 +1,39 @@
+## [0.16.4] - 2026-04-15
+
+### Fixed
+- **DHCP failover default changed from `True` to `False`** — new installations
+  and upgraded setups without a saved `dhcp_failover` setting no longer assume
+  DHCP is in use. This eliminates false "DHCP Misconfigured ⚠️" warnings on
+  startup for users who do not use DHCP on their Pi-holes. The auto-detection
+  system (3 consecutive polls, ~30s) will automatically enable DHCP monitoring
+  when it detects DHCP is active on at least one Pi-hole.
+
+## [0.16.3] - 2026-04-12
+
+### New
+- **Docker integration test suite** — 16 end-to-end tests validating the full
+  monitoring pipeline (mock Pi-hole → monitor polling → status API → event
+  logging). Tests cover: FTL failure/recovery, DHCP state, stats reporting,
+  VIP fields, event debounce, DHCP leases, and history endpoint.
+- **`make docker-integration` target** — runs integration tests against Docker
+  mock environment (`docker-compose.test.yml`).
+- **`EVENT_DEBOUNCE_SECONDS` env var** — event debounce delay now configurable
+  (default: 30s). Docker test environment uses 5s for faster test cycles.
+- **Visual testing checklist** in `docs/development/testing.md` — V1-V5
+  verification procedures for Docker test environment.
+
+### Fixed
+- **`PiHoleStatus` Pydantic model missing stats fields** — `queries`, `blocked`,
+  and `clients` were computed in the status endpoint but stripped by the response
+  model. Now included in the schema and visible in `/api/status`.
+- **Mock Pi-hole reset incomplete** — `/mock/reset` endpoint did not restore
+  `dhcp_enabled` and `dns_working` to their environment defaults, causing state
+  bleed between tests.
+- **Docker healthcheck used removed endpoint** — `Dockerfile.dev` healthcheck
+  called `/api/version` which requires auth; changed to `GET /`.
+- **`make test` ran integration tests** — unit test target now excludes
+  `@pytest.mark.integration` tests to prevent long waits when Docker is running.
+
 ## [0.16.2] - 2026-04-12
 
 ### Fixed
