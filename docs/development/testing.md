@@ -213,7 +213,7 @@ curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/status  # -> 200
 # Core endpoints
 curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/events?limit=10
 curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/history?hours=1
-curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/notification_settings
+curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/notifications/settings
 ```
 
 ### Test Sign-Off Criteria (testing -> main)

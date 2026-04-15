@@ -1,7 +1,7 @@
 # Pi-hole Sentinel API Documentation
 
 **Version:** See [VERSION](../../VERSION) file  
-**Last Updated:** 2026-03-28  
+**Last Updated:** 2026-04-15  
 **Base URL:** `http://<monitor-ip>:8080`
 
 ---
@@ -111,6 +111,7 @@ HTTP Status: `429 Too Many Requests`
 | GET | `/api/notifications/snooze` | Yes | Get snooze status |
 | POST | `/api/notifications/snooze` | Yes | Start snooze |
 | DELETE | `/api/notifications/snooze` | Yes | Cancel snooze |
+| GET | `/api/settings/system` | Yes | Get system settings (DHCP state) |
 | POST | `/api/commands/{command_name}` | Yes | Run a system command |
 
 ---
@@ -190,27 +191,36 @@ X-API-Key: your-api-key
 **Response:**
 ```json
 {
-  "master": "Primary Pi-hole",
-  "backup": "Secondary Pi-hole",
-  "vip_address": "192.168.1.100",
+  "timestamp": "2025-12-07T14:32:15",
   "primary": {
+    "ip": "10.10.100.10",
     "name": "Primary Pi-hole",
-    "ip": "192.168.1.10",
-    "ftl_running": true,
-    "dns_working": true,
-    "dhcp_running": true,
-    "last_check": "2025-12-07T14:32:15.123456"
+    "state": "MASTER",
+    "has_vip": true,
+    "online": true,
+    "pihole": true,
+    "dns": true,
+    "dhcp": true,
+    "queries": 12345,
+    "blocked": 1234,
+    "clients": 42
   },
   "secondary": {
+    "ip": "10.10.100.20",
     "name": "Secondary Pi-hole",
-    "ip": "192.168.1.11",
-    "ftl_running": true,
-    "dns_working": true,
-    "dhcp_running": false,
-    "last_check": "2025-12-07T14:32:15.123456"
+    "state": "BACKUP",
+    "has_vip": false,
+    "online": true,
+    "pihole": true,
+    "dns": true,
+    "dhcp": false,
+    "queries": 10000,
+    "blocked": 900,
+    "clients": 38
   },
-  "uptime_seconds": 86400,
-  "last_check": "2025-12-07T14:32:15.123456"
+  "vip": "10.10.100.2",
+  "dhcp_leases": 42,
+  "dhcp_failover": false
 }
 ```
 
@@ -233,15 +243,20 @@ X-API-Key: your-api-key
   {
     "time": "2025-12-07T00:00:00",
     "primary": 1,
-    "secondary": 0
-  },
-  {
-    "time": "2025-12-07T01:00:00",
-    "primary": 0,
-    "secondary": 1
+    "secondary": 0,
+    "primary_online": 1,
+    "secondary_online": 1,
+    "primary_pihole": 1,
+    "secondary_pihole": 1,
+    "primary_dns": 1,
+    "secondary_dns": 1,
+    "dhcp_leases": 42
   }
 ]
 ```
+
+> **Note:** Values are integers (1/0) rather than booleans. `primary`/`secondary`
+> indicate MASTER state (1 = this node is MASTER).
 
 #### Get Events
 ```http
@@ -264,16 +279,16 @@ X-API-Key: your-api-key
     {
       "timestamp": "2025-12-07T14:30:00",
       "event_type": "failover",
-      "description": "Secondary Pi-hole is now MASTER",
-      "details": {
-        "reason": "Primary service stopped",
-        "vip_moved_to": "192.168.1.11"
-      }
+      "description": "FAILOVER: Secondary is now MASTER (Primary → Secondary)",
+      "details": null
     }
   ],
   "failover_count": 3,
   "last_failover": "2025-12-07T14:30:00"
 }
+```
+
+**Event Types:** `info`, `warning`, `failover`, `error`
 ```
 
 ---
@@ -537,11 +552,36 @@ HTTP Status: `400 Bad Request`
 
 ---
 
+### System Settings
 
-- Historical graphs (1h/6h/24h/7d/30d)
-- Event timeline
-- Dark mode support
-- Mobile responsive
+#### Get System Settings
+```http
+GET /api/settings/system
+X-API-Key: your-api-key
+```
+
+**Description:** Get current system settings including DHCP auto-detection state
+
+**Authentication:** Yes
+
+**Response:**
+```json
+{
+  "dhcp_failover": false,
+  "dhcp_auto_detected": true,
+  "ssh_available": true
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `dhcp_failover` | boolean | Whether DHCP failover is currently active |
+| `dhcp_auto_detected` | boolean | Whether DHCP state was auto-detected |
+| `ssh_available` | boolean | Whether SSH key is available for remote commands |
+
+---
+
+## Web Pages
 
 ---
 
@@ -562,385 +602,6 @@ GET /settings.html
 - Test notification buttons
 - Sensitive field masking
 - Dark mode support
-
----
-
-## Status & Monitoring
-
-### Get Current Status
-
-```http
-GET /api/status
-```
-
-**Description:** Returns current status of both Pi-hole servers, VIP location, and DHCP state
-
-**Authentication:** Required
-
-**Response:**
-
-```json
-{
-  "timestamp": "2025-12-07T14:30:00",
-  "primary": {
-    "ip": "10.10.100.10",
-    "name": "Primary Pi-hole",
-    "state": "MASTER",
-    "has_vip": true,
-    "online": true,
-    "pihole": true,
-    "dns": true,
-    "dhcp": true
-  },
-  "secondary": {
-    "ip": "10.10.100.20",
-    "name": "Secondary Pi-hole",
-    "state": "BACKUP",
-    "has_vip": false,
-    "online": true,
-    "pihole": true,
-    "dns": true,
-    "dhcp": false
-  },
-  "vip": {
-    "address": "10.10.100.2",
-    "location": "primary"
-  },
-  "dhcp": {
-    "total_leases": 42,
-    "misconfigured": false
-  }
-}
-```
-
-**Field Descriptions:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `timestamp` | string | ISO 8601 timestamp of status check |
-| `primary.state` | string | Keepalived state: `MASTER`, `BACKUP`, or `FAULT` |
-| `primary.has_vip` | boolean | Whether this server currently has the VIP |
-| `primary.online` | boolean | TCP connectivity (port 80) |
-| `primary.pihole` | boolean | Pi-hole FTL service responding |
-| `primary.dns` | boolean | DNS resolution working |
-| `primary.dhcp` | boolean | DHCP service enabled |
-| `vip.location` | string | Which server has VIP: `primary`, `secondary`, or `unknown` |
-| `dhcp.misconfigured` | boolean | DHCP enabled on wrong server |
-
----
-
-### Get Historical Data
-
-```http
-GET /api/history?hours=24
-```
-
-**Description:** Returns historical status data for graphing
-
-**Authentication:** Required
-
-**Query Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `hours` | float | 24 | Number of hours of history to return |
-
-**Example Request:**
-
-```bash
-curl -H "X-API-Key: your-key" \
-  "http://10.10.100.30:8080/api/history?hours=6"
-```
-
-**Response:**
-
-```json
-{
-  "data": [
-    {
-      "timestamp": "2025-12-07T08:00:00",
-      "primary_online": true,
-      "secondary_online": true,
-      "primary_pihole": true,
-      "secondary_pihole": true,
-      "primary_dns": true,
-      "secondary_dns": true,
-      "primary_has_vip": true,
-      "secondary_has_vip": false,
-      "dhcp_leases": 42
-    },
-    {
-      "timestamp": "2025-12-07T08:10:00",
-      "primary_online": true,
-      "secondary_online": true,
-      ...
-    }
-  ]
-}
-```
-
-**Data Points:**
-- Interval: Every 10 seconds (configurable via `CHECK_INTERVAL`)
-- Retention: 30 days (configurable via `RETENTION_DAYS_HISTORY`)
-- Automatic cleanup: Daily
-
----
-
-### Get Event Timeline
-
-```http
-GET /api/events?limit=50
-```
-
-**Description:** Returns event log (failovers, state changes, errors)
-
-**Authentication:** Required
-
-**Query Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `limit` | int | 50 | Maximum number of events to return |
-
-**Example Request:**
-
-```bash
-curl -H "X-API-Key: your-key" \
-  "http://10.10.100.30:8080/api/events?limit=100"
-```
-
-**Response:**
-
-```json
-{
-  "events": [
-    {
-      "id": 123,
-      "timestamp": "2025-12-07T14:25:33",
-      "event_type": "failover",
-      "message": "FAILOVER: Secondary is now MASTER (Primary → Secondary)"
-    },
-    {
-      "id": 122,
-      "timestamp": "2025-12-07T12:00:00",
-      "event_type": "info",
-      "message": "Monitor started"
-    },
-    {
-      "id": 121,
-      "timestamp": "2025-12-07T10:15:42",
-      "event_type": "warning",
-      "message": "DHCP misconfigured: BACKUP has DHCP enabled"
-    }
-  ]
-}
-```
-
-**Event Types:**
-- `info` - Informational messages (startup, normal events)
-- `warning` - Warning conditions (DHCP misconfiguration)
-- `failover` - Failover/failback events
-- `error` - Error conditions
-
-**Retention:** 90 days (configurable via `RETENTION_DAYS_EVENTS`)
-
----
-
-## Notification Management
-
-### Get Notification Settings
-
-```http
-GET /api/notifications/settings
-```
-
-**Description:** Returns current notification configuration (with masked sensitive data)
-
-**Authentication:** Required
-
-**Response:**
-
-```json
-{
-  "telegram": {
-    "enabled": true,
-    "bot_token": "***MASKED***",
-    "chat_id": "***MASKED***"
-  },
-  "discord": {
-    "enabled": false,
-    "webhook_url": null
-  },
-  "pushover": {
-    "enabled": false,
-    "user_key": null,
-    "app_token": null
-  },
-  "ntfy": {
-    "enabled": true,
-    "topic": "pihole-sentinel",
-    "server": "https://ntfy.sh"
-  },
-  "webhook": {
-    "enabled": false,
-    "url": null
-  },
-  "events": {
-    "on_failover": true,
-    "on_failback": true,
-    "on_fault": true,
-    "on_dhcp_misconfigured": true,
-    "on_startup": false
-  },
-  "repeat_alerts": {
-    "enabled": true,
-    "interval_minutes": 30
-  },
-  "snooze": {
-    "active": false,
-    "until": null
-  }
-}
-```
-
-**Sensitive Data Masking:**
-- `***MASKED***` - Field has a value but is hidden for security
-- `null` - Field is not configured
-
----
-
-### Update Notification Settings
-
-```http
-POST /api/notifications/settings
-```
-
-**Description:** Update notification configuration
-
-**Authentication:** Required
-
-**Request Body:**
-
-```json
-{
-  "telegram": {
-    "enabled": true,
-    "bot_token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
-    "chat_id": "987654321"
-  },
-  "events": {
-    "on_failover": true,
-    "on_failback": true,
-    "on_fault": true,
-    "on_dhcp_misconfigured": true,
-    "on_startup": false
-  },
-  "repeat_alerts": {
-    "enabled": true,
-    "interval_minutes": 30
-  }
-}
-```
-
-**Notes:**
-- Only include fields you want to update
-- Masked values (`***MASKED***`) are preserved if sent
-- `null` values clear the field
-- Partial updates supported
-
-**Success Response:**
-
-```json
-{
-  "status": "success",
-  "message": "Settings saved successfully"
-}
-```
-HTTP Status: `200 OK`
-
-**Error Response:**
-
-```json
-{
-  "detail": "Invalid settings format"
-}
-```
-HTTP Status: `400 Bad Request`
-
----
-
-### Test Notification
-
-```http
-POST /api/notifications/test
-```
-
-**Description:** Send a test notification via a specific service
-
-**Authentication:** Required
-
-**Rate Limit:** 3 requests per 60 seconds per IP
-
-**Request Body:**
-
-```json
-{
-  "service": "telegram"
-}
-```
-
-**Supported Services:**
-- `telegram`
-- `discord`
-- `pushover`
-- `ntfy`
-- `webhook`
-
-**Example Request:**
-
-```bash
-curl -X POST \
-  -H "X-API-Key: your-key" \
-  -H "Content-Type: application/json" \
-  -d '{"service":"telegram"}' \
-  http://10.10.100.30:8080/api/notifications/test
-```
-
-**Success Response:**
-
-```json
-{
-  "status": "success",
-  "message": "Test notification sent successfully via telegram"
-}
-```
-HTTP Status: `200 OK`
-
-**Error Responses:**
-
-**Service Not Configured:**
-```json
-{
-  "detail": "telegram is not configured or enabled"
-}
-```
-HTTP Status: `400 Bad Request`
-
-**Service Failed:**
-```json
-{
-  "detail": "Failed to send test notification: Connection timeout"
-}
-```
-HTTP Status: `500 Internal Server Error`
-
-**Rate Limit Exceeded:**
-```json
-{
-  "detail": "Rate limit exceeded. Try again in 60 seconds."
-}
-```
-HTTP Status: `429 Too Many Requests`
 
 ---
 
@@ -983,7 +644,7 @@ response = requests.get(f"{API_BASE}/api/status", headers=HEADERS)
 if response.status_code == 200:
     status = response.json()
     print(f"Primary: {status['primary']['state']}")
-    print(f"VIP on: {status['vip']['location']}")
+    print(f"VIP: {status['vip']}")
 else:
     print(f"Error: {response.status_code} - {response.json()['detail']}")
 
@@ -994,7 +655,7 @@ response = requests.get(
     params={"hours": 6}
 )
 history = response.json()
-print(f"Data points: {len(history['data'])}")
+print(f"Data points: {len(history)}")
 
 # Update notification settings
 settings = {
@@ -1004,8 +665,8 @@ settings = {
         "chat_id": "987654321"
     },
     "events": {
-        "on_failover": True,
-        "on_failback": True
+        "failover": True,
+        "recovery": True
     }
 }
 
@@ -1053,8 +714,8 @@ curl -X POST \
       "chat_id": "your-chat-id"
     },
     "events": {
-      "on_failover": true,
-      "on_failback": true
+      "failover": true,
+      "recovery": true
     }
   }' \
   "$API_BASE/api/notifications/settings"
@@ -1084,7 +745,7 @@ async function getStatus() {
   const status = await response.json();
 
   console.log(`Primary: ${status.primary.state}`);
-  console.log(`VIP on: ${status.vip.location}`);
+  console.log(`VIP: ${status.vip}`);
 
   return status;
 }
@@ -1126,8 +787,8 @@ async function testNotification(service) {
 
 // Usage
 getStatus().then(status => {
-  if (status.dhcp.misconfigured) {
-    console.warn('DHCP is misconfigured!');
+  if (!status.primary.online) {
+    console.warn('Primary Pi-hole is offline!');
   }
 });
 ```
@@ -1214,6 +875,6 @@ For questions or issues:
 
 ---
 
-**Last Updated:** 2026-03-28
+**Last Updated:** 2026-04-15
 **Version:** See [VERSION](../../VERSION) file
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole

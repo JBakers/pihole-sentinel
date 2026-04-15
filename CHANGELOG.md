@@ -35,6 +35,23 @@
 - **TODO_USER.md** version reference updated.
 - **Testing docs** — added missing `test_vip_status_present` and
   `test_history_entries_have_fields` to integration test table.
+- **API docs full rewrite** — removed duplicate/conflicting `/api/status`,
+  `/api/history`, and `/api/events` sections. Fixed response schemas to
+  match actual code output. Added missing `/api/settings/system` endpoint.
+- **Setup menu options** — corrected quick-start.md (was 5 options, now 4)
+  and README.md (uninstall is option 4, not 6) to match actual setup.py.
+- **CLAUDE.md endpoint paths** — fixed 3 incorrect API paths
+  (`/api/notification_settings` → `/api/notifications/settings`, etc.).
+- **testing.md** — fixed curl example using wrong endpoint path.
+- **CLI tool docs** — added `pisen sync`, `pisen sync --run`, and short
+  flags (`-s`, `-l`, `-v`, `-d`, `-H`, `-t`, `-S`) to cli-tool.md.
+- **Download commands** — unified to `git clone` across README, quick-start,
+  and existing-setup guides (removed fragile GitHub API tarball method).
+- **README.md** — updated version reference from 0.16.6 to 0.16.8.
+- **.env.example** — added `TRUST_PROXY_HEADERS`, `EVENT_DEBOUNCE_SECONDS`,
+  and `NOTIFY_CONFIG_PATH` advanced settings.
+- **API code examples** — fixed Python, Bash, and JavaScript examples to
+  use correct field names (`vip` string, `dhcp_leases`, event keys).
 
 ## [0.16.7] - 2026-04-15
 
