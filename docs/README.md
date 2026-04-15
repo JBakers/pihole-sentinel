@@ -1,6 +1,6 @@
 # Pi-hole Sentinel Documentation
 
-**Latest version:** see [VERSION](../VERSION) — **Last Updated:** 2026-03-28
+**Latest version:** see [VERSION](../VERSION) — **Last Updated:** 2026-04-15
 
 > [!WARNING]
 > **Beta Software:** Pi-hole Sentinel is in active development. While stable enough for testing, expect potential breaking changes before v1.0.0. See [main README](../README.md) for details.
@@ -23,7 +23,7 @@
 
 ### ⚙️ Configuration
 
-- **[Remote Dashboard Access](../CLAUDE.md#remote-dashboard-access--cors-issues)** - CORS and remote access setup
+- **[HTTPS / Reverse Proxy](../README.md#https--reverse-proxy)** - Nginx/Caddy setup and proxy header guidance
 
 ### 🔧 Maintenance
 

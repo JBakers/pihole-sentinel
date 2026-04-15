@@ -339,6 +339,31 @@ class TestRecoveryAfterFailure:
 
 
 # ─────────────────────────────────────────────────────────────────────
+# T11b. DNS resolver checks
+# ─────────────────────────────────────────────────────────────────────
+
+@pytest.mark.integration
+class TestDnsResolution:
+
+    def test_primary_dns_resolving_when_healthy(self):
+        """Primary DNS check should be true in healthy mock state."""
+        assert wait_for_condition(
+            lambda: monitor_status()["primary"]["dns"] is True,
+            timeout=20,
+            interval=2,
+        ), "Monitor did not detect primary DNS as resolving"
+
+    def test_primary_dns_failure_detected(self):
+        """When mock DNS is disabled, monitor should report dns=False."""
+        mock_set_state("primary", {"dns_working": False})
+        assert wait_for_condition(
+            lambda: monitor_status()["primary"]["dns"] is False,
+            timeout=25,
+            interval=2,
+        ), "Monitor did not detect primary DNS failure"
+
+
+# ─────────────────────────────────────────────────────────────────────
 # T11. History endpoint
 # ─────────────────────────────────────────────────────────────────────
 

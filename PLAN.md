@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-04-15
 **Branch:** `develop`
-**Current Version:** 0.16.5
+**Current Version:** 0.16.6
 
 > **📌 This is the central planning and TODO document.**
 > CLAUDE.md references this file. All open tasks, bugs, and the
@@ -23,7 +23,7 @@
 
 ## Current Status
 
-### Branch: `develop` — v0.16.5
+### Branch: `develop` — v0.16.6
 
 | Item | Status |
 |------|--------|
@@ -35,7 +35,7 @@
 | System Commands panel | ✅ Working |
 | Fault debounce + recovery notifications | ✅ Working |
 | DHCP auto-detection | ✅ Working (3-poll debounce) |
-| Docker integration test suite (16 tests) | ✅ Working (`make docker-integration`) |
+| Docker integration test suite (20 tests) | ✅ Working (`make docker-integration`) |
 | Unit tests | ⚠️ ~20% coverage — needs expansion |
 | Container architecture (v2.0) | 🔲 Separate branch: `feature/container-architecture` |
 
@@ -43,11 +43,7 @@
 
 ## Open Bugs
 
-### � Medium Priority
-
-| ID | Bug | Location | Impact |
-|----|-----|----------|--------|
-| F4 | DNS mock only binds TCP:53, not UDP | `docker/mock-pihole/mock_pihole.py` | `dig` checks fail in Docker test (uses UDP) |
+No open bugs.
 
 ---
 
@@ -56,7 +52,6 @@
 | ID | Improvement | Priority |
 |----|-------------|----------|
 | D2 | Expand test coverage (currently ~20%, target 60%+) | High |
-| D3 | HTTPS/reverse proxy documentation (nginx/Caddy example) | Low |
 | P2 | `pisen` CLI: make copyright year dynamic | Low |
 | P3 | `pisen` CLI: add `--api` mode (HTTP client to monitor API) | Low |
 
@@ -74,6 +69,14 @@
 ---
 
 ## Completed Items
+
+### v0.16.6 (2026-04-15) — Security audit + F4/D3
+
+- [x] F4: UDP DNS mock — `build_dns_response()` serves real A-record replies on UDP:53
+- [x] D3: HTTPS/reverse proxy documentation — Nginx + Caddy examples + `TRUST_PROXY_HEADERS` guidance in README
+- [x] Security audit: `pisen` shell hardening, `curl --fail` in notify.sh, Docker root documentation
+- [x] 3 new unit tests for DNS response builder, 2 new integration tests for DNS status
+- [x] Testing guide refreshed (243 tests, 12 test files, coverage targets updated)
 
 ### v0.16.5 (2026-04-15) — Copilot PR review fixes
 

@@ -1,5 +1,12 @@
 ## [0.16.6] - 2026-04-15
 
+### New
+- **UDP DNS mock responder** — `docker/mock-pihole/mock_pihole.py` now serves
+  real DNS A-record responses on UDP:53 via `build_dns_response()`. Monitor
+  `dig` checks now pass in the Docker test environment (closes F4).
+- **DNS integration tests** — 2 new integration tests validating monitor DNS
+  status (resolving + failure) and 3 unit tests for the DNS response builder.
+
 ### Fixed
 - **`pisen` shell command hardening** — removed dynamic shell interpolation for
   VIP output display and now print matching lines directly from `ip addr`
@@ -14,6 +21,10 @@
   while mock/fake-client images are test-only.
 
 ### Documentation
+- **HTTPS / reverse proxy guidance** — Nginx and Caddy example configs added to
+  README with `TRUST_PROXY_HEADERS` opt-in explanation (closes D3).
+- **Testing guide refreshed** — updated to 243 tests across 12 files, coverage
+  targets updated (monitor.py 24%, setup.py 17%, overall 20%).
 - **API docs example cleanup** — removed stale beta-style release URL examples
   to keep update-check documentation aligned with current versioning strategy.
 

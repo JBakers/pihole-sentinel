@@ -402,8 +402,71 @@ def main():
         server.shutdown()
 
 
+def build_dns_response(query: bytes) -> bytes:
+    """Build a minimal DNS response for A queries.
+
+    Returns a NOERROR response with A record 1.2.3.4 when dns_working is True,
+    otherwise returns SERVFAIL without answers.
+    """
+    if len(query) < 12:
+        return b""
+
+    transaction_id = query[:2]
+    qdcount = query[4:6]
+
+    # Parse first question section to mirror it in the response.
+    idx = 12
+    max_len = len(query)
+    while idx < max_len:
+        label_len = query[idx]
+        idx += 1
+        if label_len == 0:
+            break
+        idx += label_len
+    # Need QTYPE + QCLASS
+    if idx + 4 > max_len:
+        return b""
+    question = query[12:idx + 4]
+
+    if not state["dns_working"]:
+        # Standard query response + recursion available + SERVFAIL
+        flags = b"\x81\x82"
+        return transaction_id + flags + qdcount + b"\x00\x00\x00\x00\x00\x00" + question
+
+    # Standard query response + recursion available + NOERROR
+    flags = b"\x81\x80"
+    ancount = b"\x00\x01"
+    header = transaction_id + flags + qdcount + ancount + b"\x00\x00\x00\x00"
+
+    # Name pointer to question (0xC00C), A, IN, TTL 60, RDLENGTH 4, RDATA 1.2.3.4
+    answer = b"\xC0\x0C\x00\x01\x00\x01\x00\x00\x00\x3C\x00\x04\x01\x02\x03\x04"
+    return header + question + answer
+
+
 def start_mock_dns():
-    """Start a dummy TCP listener on port 53 to satisfy health checks."""
+    """Start DNS listeners on port 53 (UDP + TCP).
+
+    - UDP serves minimal DNS responses for `dig` checks used by monitor.py
+    - TCP keeps compatibility with previous basic health checks
+    """
+    def run_udp():
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(("0.0.0.0", 53))
+            logger.info("Mock DNS (UDP 53) listening")
+            while True:
+                data, addr = sock.recvfrom(512)
+                if not state["online"] or not state["pihole_running"]:
+                    continue
+                if state["response_delay"] > 0:
+                    time.sleep(state["response_delay"] / 1000)
+                response = build_dns_response(data)
+                if response:
+                    sock.sendto(response, addr)
+        except Exception as e:
+            logger.error(f"Failed to bind UDP 53: {e}")
+
     def run_tcp():
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -416,6 +479,9 @@ def start_mock_dns():
                 conn.close()
         except Exception as e:
             logger.error(f"Failed to bind TCP 53: {e}")
+
+    t_udp = threading.Thread(target=run_udp, daemon=True)
+    t_udp.start()
 
     t = threading.Thread(target=run_tcp, daemon=True)
     t.start()

@@ -2,7 +2,7 @@
 
 ## Current Status
 - **Branch:** develop
-- **Version:** 0.16.5
+- **Version:** 0.16.6
 - **Last updated:** 2026-04-15
 - **Setup status:** ✅ Full deployment works without errors (tested 2026-03-28)
 
@@ -10,22 +10,16 @@
 
 ---
 
-## � BUGS — Medium Priority
+## ✅ Bugs — All Resolved
 
-### F4. DNS mock only uses TCP:53, not UDP
-**Location:** `docker/mock-pihole/mock_pihole.py`
-**Problem:** Mock Pi-hole binds a TCP listener on port 53, but `monitor.py` uses `dig @{ip} example.com` which defaults to UDP. DNS checks therefore always fail in the Docker test environment.
-**Impact:** DNS check shown as failing in Docker test. Not an issue in production.
+No open bugs. See [CHANGELOG.md](CHANGELOG.md) for history.
 
 ---
 
 ## 🔵 Improvements — Documentation & Tooling
 
 ### D2. Expand test coverage
-**Current coverage:** ~20% (unit tests only). Missing: async operations, database, notifications, API handlers with real HTTP.
-
-### D3. Document HTTPS/reverse proxy setup
-Nginx/Caddy example for production HTTPS.
+**Current coverage:** ~20% (243 tests, 12 files). Missing: async monitor loop, database load, notification providers.
 
 ---
 
@@ -44,12 +38,11 @@ Nginx/Caddy example for production HTTPS.
 
 ### Current status (working)
 - Containers: 2 mock Pi-holes, 1 monitor, fake clients
-- 16 integration tests available via `make docker-integration`
+- 20 integration tests available via `make docker-integration`
 - API key injection works (runtime meta tag)
 
 ### Known Docker limitations (expected, not bugs)
 - Both nodes BACKUP — no keepalived = no VIP
-- DNS checks fail — mock uses TCP:53, `dig` needs UDP (see F4 above)
 
 ### Useful commands
 ```bash
