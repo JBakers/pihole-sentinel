@@ -1,3 +1,13 @@
+## [0.16.7] - 2026-04-15
+
+### Fixed
+- **DHCP misconfiguration false positive at startup** — the DHCP warning
+  debounce timer now initializes to current time instead of zero, giving
+  keepalived 5 minutes after monitor startup to complete VRRP negotiation
+  before flagging DHCP misconfigurations. Prevents the spurious
+  "DHCP misconfiguration: Primary is MASTER but DHCP is DISABLED" warning
+  that appeared in the event list on every fresh start.
+
 ## [0.16.6] - 2026-04-15
 
 ### New
