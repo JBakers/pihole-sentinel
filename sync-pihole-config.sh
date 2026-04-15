@@ -104,6 +104,15 @@ validate_ip() {
         echo -e "${RED}[ERROR] ${label} is not a valid IP address: ${ip}${NC}"
         exit 1
     fi
+    # Validate each octet is in range 0-255
+    local IFS='.'
+    read -ra octets <<< "$ip"
+    for octet in "${octets[@]}"; do
+        if (( octet < 0 || octet > 255 )); then
+            echo -e "${RED}[ERROR] ${label} has invalid octet '${octet}': ${ip}${NC}"
+            exit 1
+        fi
+    done
 }
 validate_ip "$PRIMARY_IP" "PRIMARY_IP"
 validate_ip "$SECONDARY_IP" "SECONDARY_IP"
@@ -474,7 +483,7 @@ fi
 # 3. Preserve DNS upstreams (e.g. local unbound 127.0.0.1#5335)
 if [ "$SYNC_DNS" = "true" ] && [ "$SYNC_DNS_EXCL_UP" = "true" ]; then
     # Read live upstreams directly from file (never expose in process args)
-    python3 << 'PYPRESERVE_UPSTREAMS'
+    if python3 << 'PYPRESERVE_UPSTREAMS'
 import sys
 LIVE = "/etc/pihole/pihole.toml"
 STAGED = "/tmp/pihole.toml.new"
@@ -492,7 +501,7 @@ with open(LIVE) as f:
             up_line = line
             break
 if up_line is None:
-    sys.exit(0)
+    sys.exit(1)
 with open(STAGED) as f:
     lines = f.readlines()
 in_dns = False
@@ -508,7 +517,9 @@ with open(STAGED, "w") as f:
         else:
             f.write(line)
 PYPRESERVE_UPSTREAMS
-    echo "$(ts) - Preserved secondary DNS upstreams" >> "$LOGFILE"
+    then
+        echo "$(ts) - Preserved secondary DNS upstreams" >> "$LOGFILE"
+    fi
 fi
 
 # 4. Preserve DNS listeningMode
@@ -522,29 +533,34 @@ fi
 
 # 5. Preserve webserver domain (indented key, e.g. 'pihole2.home')
 # SECURITY: read directly from file, not via process args
-python3 << 'PYPRESERVE_DOMAIN'
+if python3 << 'PYPRESERVE_DOMAIN'
 LIVE, STAGED = "/etc/pihole/pihole.toml", "/tmp/pihole.toml.new"
+import sys
 domain_line = None
 with open(LIVE) as f:
     for line in f:
         if line.lstrip().startswith("domain = "):
             domain_line = line
             break
-if domain_line is not None:
-    with open(STAGED) as f:
-        lines = f.readlines()
-    with open(STAGED, "w") as f:
-        for line in lines:
-            if line.lstrip().startswith("domain = "):
-                f.write(domain_line)
-            else:
-                f.write(line)
+if domain_line is None:
+    sys.exit(1)
+with open(STAGED) as f:
+    lines = f.readlines()
+with open(STAGED, "w") as f:
+    for line in lines:
+        if line.lstrip().startswith("domain = "):
+            f.write(domain_line)
+        else:
+            f.write(line)
 PYPRESERVE_DOMAIN
-echo "$(ts) - Preserved secondary webserver domain" >> "$LOGFILE"
+then
+    echo "$(ts) - Preserved secondary webserver domain" >> "$LOGFILE"
+fi
 
 # 6. Preserve TLS certificate path (indented key under [webserver.tls])
 # SECURITY: read directly from file, not via process args
-python3 << 'PYPRESERVE_CERT'
+if python3 << 'PYPRESERVE_CERT'
+import sys
 LIVE, STAGED = "/etc/pihole/pihole.toml", "/tmp/pihole.toml.new"
 cert_line = None
 with open(LIVE) as f:
@@ -552,17 +568,20 @@ with open(LIVE) as f:
         if line.lstrip().startswith("cert = "):
             cert_line = line
             break
-if cert_line is not None:
-    with open(STAGED) as f:
-        lines = f.readlines()
-    with open(STAGED, "w") as f:
-        for line in lines:
-            if line.lstrip().startswith("cert = "):
-                f.write(cert_line)
-            else:
-                f.write(line)
+if cert_line is None:
+    sys.exit(1)
+with open(STAGED) as f:
+    lines = f.readlines()
+with open(STAGED, "w") as f:
+    for line in lines:
+        if line.lstrip().startswith("cert = "):
+            f.write(cert_line)
+        else:
+            f.write(line)
 PYPRESERVE_CERT
-echo "$(ts) - Preserved secondary TLS cert path" >> "$LOGFILE"
+then
+    echo "$(ts) - Preserved secondary TLS cert path" >> "$LOGFILE"
+fi
 
 echo "$(ts) - All node-specific values preserved" >> "$LOGFILE"
 REMOTE_PRESERVE

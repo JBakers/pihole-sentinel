@@ -17,8 +17,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/pihole-monitor /etc/pihole-sentinel
-ReadOnlyPaths=/opt/pihole-monitor/.ssh
+ReadWritePaths=/opt/pihole-monitor /etc/pihole-sentinel /opt/pihole-monitor/.ssh/known_hosts
+ReadOnlyPaths=/opt/pihole-monitor/.ssh/id_pihole_sentinel
 
 [Install]
 WantedBy=multi-user.target
