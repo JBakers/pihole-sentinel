@@ -2597,10 +2597,9 @@ async def get_commands_available(api_key: str = Depends(verify_api_key)):
     import subprocess
     import os as _os
 
-    def _cmd_exists(name: str) -> bool:
-        return subprocess.run(["which", name], capture_output=True).returncode == 0
-
-    keepalived_installed = _cmd_exists("keepalived") or _os.path.exists("/usr/sbin/keepalived")
+    keepalived_active = subprocess.run(
+        ["systemctl", "is-active", "keepalived"], capture_output=True
+    ).returncode == 0
     keepalived_log = _os.path.exists("/var/log/keepalived-notify.log")
 
     return {
@@ -2608,8 +2607,8 @@ async def get_commands_available(api_key: str = Depends(verify_api_key)):
         "monitor_logs":      True,
         "vip_check":         True,
         "db_recent_events":  True,
-        "keepalived_status": keepalived_installed,
-        "keepalived_logs":   keepalived_installed or keepalived_log,
+        "keepalived_status": keepalived_active,
+        "keepalived_logs":   keepalived_active or keepalived_log,
     }
 
 
@@ -2664,8 +2663,8 @@ async def execute_command(command_name: str, request: Request, api_key: str = De
 
         if command_name == "vip_check":
             vip = CONFIG.get("vip", "")
-            primary_ip = CONFIG.get("primary_ip", "")
-            secondary_ip = CONFIG.get("secondary_ip", "")
+            primary_ip = CONFIG.get("primary", {}).get("ip", "")
+            secondary_ip = CONFIG.get("secondary", {}).get("ip", "")
             parts = []
 
             # VIP summary
@@ -2739,8 +2738,8 @@ async def execute_command(command_name: str, request: Request, api_key: str = De
             proc = _run(["systemctl", "status", "keepalived", "--no-pager", "-l"], env=colored_env)
             combined = (proc.stdout + proc.stderr).lower()
             if proc.returncode == 4 or "could not be found" in combined or "not-found" in combined:
-                primary_ip = CONFIG.get("primary_ip", "<primary-ip>")
-                secondary_ip = CONFIG.get("secondary_ip", "<secondary-ip>")
+                primary_ip = CONFIG.get("primary", {}).get("ip", "<primary-ip>")
+                secondary_ip = CONFIG.get("secondary", {}).get("ip", "<secondary-ip>")
                 msg = (
                     "ℹ️  keepalived is not installed on this monitor server.\n\n"
                     "This is expected — keepalived runs on the Pi-hole nodes, not here.\n\n"
@@ -2767,8 +2766,8 @@ async def execute_command(command_name: str, request: Request, api_key: str = De
         if command_name == "keepalived_logs":
             log_path = "/var/log/keepalived-notify.log"
             if not _os.path.exists(log_path):
-                primary_ip = CONFIG.get("primary_ip", "<primary-ip>")
-                secondary_ip = CONFIG.get("secondary_ip", "<secondary-ip>")
+                primary_ip = CONFIG.get("primary", {}).get("ip", "<primary-ip>")
+                secondary_ip = CONFIG.get("secondary", {}).get("ip", "<secondary-ip>")
                 msg = (
                     f"ℹ️  Log file not found: {log_path}\n\n"
                     "This is expected — keepalived logs are on the Pi-hole nodes,\n"

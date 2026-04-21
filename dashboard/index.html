@@ -960,11 +960,14 @@
             line-height: 1.3;
         }
 
-        .command-btn:disabled,
-        .command-btn.unavailable {
+        .command-btn:disabled {
             opacity: 0.4;
             cursor: not-allowed;
             pointer-events: none;
+        }
+
+        .command-btn.unavailable {
+            display: none;
         }
 
         .command-btn.unavailable .command-label::after {
@@ -1374,7 +1377,8 @@
             <div class="collapsible-content" id="commands-content">
                 <p class="section-description">Execute common system commands directly from the dashboard</p>
                 <div class="commands-grid">
-                    <button class="command-btn" data-command="monitor_status" onclick="executeCommand('monitor_status')">
+                    <button class="command-btn" data-command="monitor_status"
+                        onclick="executeCommand('monitor_status')">
                         <span class="command-icon">📊</span>
                         <span class="command-label">Monitor Status</span>
                     </button>
@@ -1382,11 +1386,13 @@
                         <span class="command-icon">📄</span>
                         <span class="command-label">Monitor Logs</span>
                     </button>
-                    <button class="command-btn" data-command="keepalived_status" onclick="executeCommand('keepalived_status')">
+                    <button class="command-btn" data-command="keepalived_status"
+                        onclick="executeCommand('keepalived_status')">
                         <span class="command-icon">🔄</span>
                         <span class="command-label">Keepalived Status</span>
                     </button>
-                    <button class="command-btn" data-command="keepalived_logs" onclick="executeCommand('keepalived_logs')">
+                    <button class="command-btn" data-command="keepalived_logs"
+                        onclick="executeCommand('keepalived_logs')">
                         <span class="command-icon">📜</span>
                         <span class="command-label">Keepalived Logs</span>
                     </button>
@@ -1394,7 +1400,8 @@
                         <span class="command-icon">🌐</span>
                         <span class="command-label">VIP Check</span>
                     </button>
-                    <button class="command-btn" data-command="db_recent_events" onclick="executeCommand('db_recent_events')">
+                    <button class="command-btn" data-command="db_recent_events"
+                        onclick="executeCommand('db_recent_events')">
                         <span class="command-icon">📊</span>
                         <span class="command-label">Recent Events</span>
                     </button>

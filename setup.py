@@ -349,14 +349,23 @@ class SetupConfig:
             print(f"{Colors.RED}├─ ✗ Failed to configure timezone: {e}{Colors.END}")
             return False
     
-    def install_remote_dependencies(self, host, user, port, password=None, packages=None):
-        """Install system dependencies on remote host."""
+    def install_remote_dependencies(self, host, user, port, password=None, packages=None, role="pihole"):
+        """Install system dependencies on remote host.
+
+        Args:
+            role: "pihole" (includes keepalived) or "monitor" (excludes keepalived —
+                  the monitor service does not participate in VRRP and does not need it).
+        """
         if packages is None:
-            packages = [
+            base_packages = [
                 "build-essential", "python3-dev", "python3-pip",
-                "keepalived", "arping", "iproute2", "iputils-ping",
+                "arping", "iproute2", "iputils-ping",
                 "sqlite3", "python3-venv", "sshpass", "dnsutils"
             ]
+            if role == "pihole":
+                packages = ["keepalived"] + base_packages
+            else:
+                packages = base_packages
         
         print(f"\n┌─ Installing system dependencies on {host}")
         print(f"│  Packages: {len(packages)} total")
@@ -1355,8 +1364,8 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
         try:
             print(f"\nDeploying monitor to {host} via SSH...")
 
-            # Install system dependencies first
-            if not self.install_remote_dependencies(host, user, port, password):
+            # Install system dependencies first (keepalived excluded — monitor does not participate in VRRP)
+            if not self.install_remote_dependencies(host, user, port, password, role="monitor"):
                 return False
 
             # Configure timezone and NTP
@@ -1607,8 +1616,8 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
         try:
             print(f"\nDeploying {node_type} keepalived to {host} via SSH...")
 
-            # Install system dependencies first
-            if not self.install_remote_dependencies(host, user, port, password):
+            # Install system dependencies first (keepalived included — Pi-hole nodes run VRRP)
+            if not self.install_remote_dependencies(host, user, port, password, role="pihole"):
                 return False
             
             # Configure timezone and NTP
