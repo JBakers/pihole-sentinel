@@ -111,10 +111,12 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 
 **1. Download Pi-hole Sentinel and run the setup:**
 ```bash
-git clone https://github.com/JBakers/pihole-sentinel.git
+curl -sL https://github.com/JBakers/pihole-sentinel/releases/latest/download/pihole-sentinel.tar.gz | tar -xz
 cd pihole-sentinel/
 sudo python3 setup.py
 ```
+
+> **Developers:** use `git clone https://github.com/JBakers/pihole-sentinel.git` to get the full repository including tests and tooling.
 
 **2. Follow the interactive wizard:**
 
