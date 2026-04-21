@@ -1,3 +1,20 @@
+## [0.18.5] - 2026-04-21
+
+### Fixed
+- **VIP Check showed "(not configured)" for Primary/Secondary** — `execute_command()`
+  used flat keys `CONFIG.get("primary_ip")` but `CONFIG` is nested as
+  `CONFIG["primary"]["ip"]`. Fixed in `vip_check`, `keepalived_status`, and
+  `keepalived_logs` handlers.
+- **Keepalived buttons visible on monitor server despite being non-functional** —
+  availability check used `which keepalived` (installed but inactive), now uses
+  `systemctl is-active keepalived` (exit 0 only when actually running). CSS
+  changed from `opacity: 0.4` to `display: none` so buttons are fully hidden.
+- **Keepalived installed on dedicated monitor server by `setup.py`** — monitor
+  does not participate in VRRP and has no need for keepalived. Added `role`
+  parameter to `install_remote_dependencies()`: `role="monitor"` excludes
+  keepalived from the package list; `role="pihole"` keeps it. Both call-sites
+  updated accordingly.
+
 ## [0.18.4] - 2026-04-21
 
 ### Improved
