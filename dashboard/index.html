@@ -960,6 +960,27 @@
             line-height: 1.3;
         }
 
+        .command-btn:disabled,
+        .command-btn.unavailable {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .command-btn.unavailable .command-label::after {
+            content: 'Pi-hole node only';
+            display: block;
+            font-size: 0.72em;
+            color: #94a3b8;
+            font-weight: 400;
+            margin-top: 3px;
+        }
+
+        .events-scrollable {
+            max-height: 420px;
+            overflow-y: auto;
+        }
+
         /* Command Modal */
         .modal-overlay {
             position: fixed;
@@ -1339,7 +1360,7 @@
             </div>
             <div class="summary-info" id="events-summary"></div>
             <div class="collapsible-content" id="events-content">
-                <div id="events-list"></div>
+                <div id="events-list" class="events-scrollable"></div>
             </div>
         </div>
 
@@ -1353,27 +1374,27 @@
             <div class="collapsible-content" id="commands-content">
                 <p class="section-description">Execute common system commands directly from the dashboard</p>
                 <div class="commands-grid">
-                    <button class="command-btn" onclick="executeCommand('monitor_status')">
+                    <button class="command-btn" data-command="monitor_status" onclick="executeCommand('monitor_status')">
                         <span class="command-icon">📊</span>
                         <span class="command-label">Monitor Status</span>
                     </button>
-                    <button class="command-btn" onclick="executeCommand('monitor_logs')">
+                    <button class="command-btn" data-command="monitor_logs" onclick="executeCommand('monitor_logs')">
                         <span class="command-icon">📄</span>
                         <span class="command-label">Monitor Logs</span>
                     </button>
-                    <button class="command-btn" onclick="executeCommand('keepalived_status')">
+                    <button class="command-btn" data-command="keepalived_status" onclick="executeCommand('keepalived_status')">
                         <span class="command-icon">🔄</span>
                         <span class="command-label">Keepalived Status</span>
                     </button>
-                    <button class="command-btn" onclick="executeCommand('keepalived_logs')">
+                    <button class="command-btn" data-command="keepalived_logs" onclick="executeCommand('keepalived_logs')">
                         <span class="command-icon">📜</span>
                         <span class="command-label">Keepalived Logs</span>
                     </button>
-                    <button class="command-btn" onclick="executeCommand('vip_check')">
+                    <button class="command-btn" data-command="vip_check" onclick="executeCommand('vip_check')">
                         <span class="command-icon">🌐</span>
                         <span class="command-label">VIP Check</span>
                     </button>
-                    <button class="command-btn" onclick="executeCommand('db_recent_events')">
+                    <button class="command-btn" data-command="db_recent_events" onclick="executeCommand('db_recent_events')">
                         <span class="command-icon">📊</span>
                         <span class="command-label">Recent Events</span>
                     </button>
@@ -2323,6 +2344,24 @@
             });
         }
 
+        async function loadCommandAvailability() {
+            try {
+                const resp = await fetch(`${API_BASE}/api/commands/available`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                if (!resp.ok) return;
+                const avail = await resp.json();
+                for (const [cmd, available] of Object.entries(avail)) {
+                    if (available) continue;
+                    const btn = document.querySelector(`[data-command="${cmd}"]`);
+                    if (!btn) continue;
+                    btn.disabled = true;
+                    btn.classList.add('unavailable');
+                    btn.title = 'Keepalived runs on the Pi-hole nodes, not on this monitor server';
+                }
+            } catch (_) { /* ignore — buttons remain enabled */ }
+        }
+
         async function initializeApp() {
             await loadClientConfig();
             await waitForChart();
@@ -2336,6 +2375,7 @@
             loadHistory(24, null);
             loadEvents();
             initCollapseState();
+            loadCommandAvailability();
             setTimeout(checkForUpdates, 5000);
 
             let statusInterval = setInterval(fetchStatus, 10000);

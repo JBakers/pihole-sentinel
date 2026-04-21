@@ -2585,6 +2585,34 @@ async def get_system_settings(api_key: str = Depends(verify_api_key)):
 class CommandRequest(BaseModel):
     command: str
 
+@app.get("/api/commands/available", tags=["System"])
+async def get_commands_available(api_key: str = Depends(verify_api_key)):
+    """
+    Return which system commands are available on this server.
+
+    Commands that require keepalived (status/logs) are only meaningful on
+    Pi-hole nodes. This endpoint lets the dashboard disable those buttons
+    when the monitor server doesn't have keepalived installed.
+    """
+    import subprocess
+    import os as _os
+
+    def _cmd_exists(name: str) -> bool:
+        return subprocess.run(["which", name], capture_output=True).returncode == 0
+
+    keepalived_installed = _cmd_exists("keepalived") or _os.path.exists("/usr/sbin/keepalived")
+    keepalived_log = _os.path.exists("/var/log/keepalived-notify.log")
+
+    return {
+        "monitor_status":    True,
+        "monitor_logs":      True,
+        "vip_check":         True,
+        "db_recent_events":  True,
+        "keepalived_status": keepalived_installed,
+        "keepalived_logs":   keepalived_installed or keepalived_log,
+    }
+
+
 @app.post("/api/commands/{command_name}", tags=["System"])
 async def execute_command(command_name: str, request: Request, api_key: str = Depends(verify_api_key), _rate_limit: bool = Depends(write_rate_limit_check)):
     """
