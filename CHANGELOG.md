@@ -1,3 +1,11 @@
+## [0.16.9] - 2026-04-21
+
+### Improved
+- **Dashboard metric labels clarified** — header lease pill now explicitly
+  shows `DHCP Leases (MASTER)` and node metric label now shows
+  `Clients Today`, making clear that DHCP lease count and DNS client count
+  represent different data sources.
+
 ## [0.16.8] - 2026-04-15
 
 ### Security
