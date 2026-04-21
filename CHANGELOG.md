@@ -1,3 +1,12 @@
+## [0.18.3] - 2026-04-21
+
+### Fixed
+- **`dnsWarnMs is not defined` crash in dashboard** — `dnsWarnMs` was declared
+  as a local variable inside `updateStatus()` but referenced inside `updateNode()`
+  which has a separate scope, causing a `ReferenceError` on every poll cycle and
+  leaving the dashboard blank. Fixed by passing `dnsWarnMs` as an explicit
+  parameter to `updateNode()`.
+
 ## [0.18.2] - 2026-04-21
 
 ### Fixed

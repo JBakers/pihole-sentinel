@@ -1606,6 +1606,7 @@
 
         function updateStatus(data) {
             const dnsWarnMs = data.dns_latency_warn_ms || 500;
+            window._dnsWarnMs = dnsWarnMs;
             document.getElementById('vip-ip').textContent = data.vip;
             document.getElementById('dhcp-leases').textContent = data.dhcp_leases;
 
@@ -1635,11 +1636,11 @@
                 second: '2-digit'
             });
 
-            updateNode('primary', data.primary);
-            updateNode('secondary', data.secondary);
+            updateNode('primary', data.primary, dnsWarnMs);
+            updateNode('secondary', data.secondary, dnsWarnMs);
         }
 
-        function updateNode(nodeType, nodeData) {
+        function updateNode(nodeType, nodeData, dnsWarnMs) {
             const card = document.getElementById(`${nodeType}-card`);
             const badge = document.getElementById(`${nodeType}-badge`);
             const status = document.getElementById(`${nodeType}-status`);
