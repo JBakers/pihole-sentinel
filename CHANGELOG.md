@@ -1,4 +1,28 @@
-## [0.17.0] - 2026-04-21
+## [0.18.0] - 2026-04-21
+
+### New
+- **`pisen api` command** — new `pisen api` / `pisen -A` subcommand fetches live status
+  directly from the monitor API over HTTP, displaying VIP, MASTER/BACKUP state,
+  FTL + DNS health, DNS latency, query stats and DHCP lease count per node.
+  Reads `API_KEY` automatically from the deployed `.env`. Requires no extra
+  dependencies (uses stdlib `urllib` only).
+
+### Improved
+- **Dynamic copyright year in `pisen --version`** — copyright string now shows
+  `© 2025-YYYY` with the current year instead of a hardcoded static year.
+
+### Documentation
+- **CLI docs updated** — `docs/usage/cli-tool.md` now lists `pisen api` (`-A`) with
+  an example output block.
+
+### Tests
+- **`tests/test_dns_latency.py`** — 10 unit tests covering `check_dns()` return type,
+  success paths (latency rounded, multiple IPs), and all failure paths (nonzero exit,
+  empty stdout, whitespace-only, timeout, OS error, unexpected exception).
+- **`tests/test_debug_override.py`** — 12 unit tests covering debug override constants,
+  state dict mutation (set, pop, clear, independent nodes), and TTL expiry logic.
+
+
 
 ### New
 - **DNS latency health check** — `check_dns()` now measures response time in addition
