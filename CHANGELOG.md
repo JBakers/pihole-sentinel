@@ -1,3 +1,15 @@
+## [0.18.4] - 2026-04-21
+
+### Improved
+- **System Commands panel: disabled unavailable buttons** — the dashboard now
+  calls `GET /api/commands/available` on startup and disables the
+  `Keepalived Status` and `Keepalived Logs` buttons (with label *Pi-hole node
+  only*) when keepalived is not installed on the monitor server. A new
+  backend endpoint checks for the `keepalived` binary and log file.
+- **Recent System Events is now scrollable** — the events list is capped at
+  420 px with `overflow-y: auto` so long event histories no longer push
+  the rest of the page down.
+
 ## [0.18.3] - 2026-04-21
 
 ### Fixed
