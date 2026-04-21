@@ -19,7 +19,7 @@ Before you begin, make sure you have:
 On your **local machine** or **monitor server**:
 
 ```bash
-curl -sL https://github.com/JBakers/pihole-sentinel/releases/latest/download/pihole-sentinel.tar.gz | tar -xz
+curl -fsSL https://github.com/JBakers/pihole-sentinel/releases/latest/download/pihole-sentinel.tar.gz | tar -xz
 cd pihole-sentinel/
 ```
 

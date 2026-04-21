@@ -17,7 +17,7 @@ You already have working Pi-holes and want to add:
 ### Step 1: Download Pi-hole Sentinel (5 min)
 
 ```bash
-curl -sL https://github.com/JBakers/pihole-sentinel/releases/latest/download/pihole-sentinel.tar.gz | tar -xz
+curl -fsSL https://github.com/JBakers/pihole-sentinel/releases/latest/download/pihole-sentinel.tar.gz | tar -xz
 cd pihole-sentinel/
 ```
 
