@@ -1328,7 +1328,7 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
     
     return result
 
-async def check_dns(ip: str) -> tuple:
+async def check_dns(ip: str) -> Tuple[bool, Optional[float]]:
     """Check if DNS resolver is working and measure response latency.
 
     Uses asyncio subprocess to avoid blocking the event loop.
@@ -1530,16 +1530,17 @@ async def monitor_loop():
             secondary_data = await check_pihole_simple(CONFIG["secondary"]["ip"], CONFIG["secondary"]["password"])
 
             # Apply debug overrides (test mode) — only when DEBUG_MODE=true
-            now_ts = asyncio.get_event_loop().time()
-            for node, node_data in (("primary", primary_data), ("secondary", secondary_data)):
-                override = _debug_overrides.get(node)
-                if override and now_ts < override["expires"]:
-                    # Force all health fields to offline state
-                    node_data.update({"online": False, "pihole": False,
-                                       "dns": False, "dhcp_enabled": None})
-                elif override:
-                    # Expired — clean up silently
-                    _debug_overrides.pop(node, None)
+            if DEBUG_MODE:
+                now_ts = asyncio.get_event_loop().time()
+                for node, node_data in (("primary", primary_data), ("secondary", secondary_data)):
+                    override = _debug_overrides.get(node)
+                    if override and now_ts < override["expires"]:
+                        # Force all health fields to offline state
+                        node_data.update({"online": False, "pihole": False,
+                                           "dns": False, "dhcp_enabled": None})
+                    elif override:
+                        # Expired — clean up silently
+                        _debug_overrides.pop(node, None)
             
             # Update Pi-hole stats cache
             for key in ("queries", "blocked", "clients"):
@@ -1566,10 +1567,13 @@ async def monitor_loop():
                         _dns_degraded.add(node)
                         await log_event("warning", f"DNS latency degraded on {node_label}: {latency:.0f} ms (threshold {DNS_LATENCY_WARN_MS:.0f} ms)")
                         logger.warning(f"{node_label} DNS latency degraded: {latency:.0f} ms")
-                elif node in _dns_degraded and (not dns_ok or latency is None or latency <= DNS_LATENCY_WARN_MS):
+                elif node in _dns_degraded and dns_ok and latency is not None and latency <= DNS_LATENCY_WARN_MS:
                     _dns_degraded.discard(node)
-                    await log_event("success", f"DNS latency restored on {node_label}" + (f": {latency:.0f} ms" if latency is not None else ""))
+                    await log_event("success", f"DNS latency restored on {node_label}: {latency:.0f} ms")
                     logger.info(f"{node_label} DNS latency restored")
+                elif node in _dns_degraded and (not dns_ok or latency is None):
+                    _dns_degraded.discard(node)
+                    # DNS is offline/failing — clear degraded flag silently
             
             primary_has_vip, secondary_has_vip = await check_who_has_vip(CONFIG["vip"], CONFIG["primary"]["ip"], CONFIG["secondary"]["ip"])
             
@@ -2016,6 +2020,7 @@ async def get_status(api_key: str = Depends(verify_api_key)):
                 "vip": CONFIG["vip"],
                 "dhcp_leases": row[12] if len(row) > 12 else row[10],  # Adjust for new column
                 "dhcp_failover": _dhcp_auto_detected,
+                "dns_latency_warn_ms": DNS_LATENCY_WARN_MS,
             }
 
 @app.get("/api/history", response_model=List[dict], tags=["History"])

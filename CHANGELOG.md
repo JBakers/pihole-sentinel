@@ -1,3 +1,27 @@
+## [0.18.1] - 2026-04-21
+
+### Fixed
+- **test-mode-banner can't get stuck visible** — when the debug override status
+  request returns non-2xx (e.g. 403 when `DEBUG_MODE` is disabled) or throws
+  (network error, endpoint not found), the dashboard now explicitly hides the
+  `#test-mode-banner` instead of leaving the previous display state in place.
+- **DNS slow threshold uses server-side value** — the dashboard no longer
+  hard-codes `500 ms` as the "DNS Slow" threshold. The configured
+  `DNS_LATENCY_WARN_MS` value is now returned by `/api/status` as
+  `dns_latency_warn_ms` and used for all tooltip, status-dot, and label
+  comparisons in the frontend.
+- **DNS "restored" event no longer fires on failure** — when a node was
+  latency-degraded and DNS then goes offline (`dns_ok=False` or
+  `latency=None`), the degraded flag is now cleared silently instead of
+  logging a misleading "DNS latency restored" success event.
+- **Debug overrides gated by `DEBUG_MODE`** — the override-application block
+  in the polling loop now only runs when `DEBUG_MODE=True`, preventing stale
+  entries in `_debug_overrides` from affecting health state when debug mode
+  is disabled.
+- **`check_dns()` return type annotation** — return type updated from the
+  untyped `tuple` to the concrete `Tuple[bool, Optional[float]]` matching the
+  docstring and actual return values.
+
 ## [0.18.0] - 2026-04-21
 
 ### New
@@ -6,25 +30,6 @@
   FTL + DNS health, DNS latency, query stats and DHCP lease count per node.
   Reads `API_KEY` automatically from the deployed `.env`. Requires no extra
   dependencies (uses stdlib `urllib` only).
-
-### Improved
-- **Dynamic copyright year in `pisen --version`** — copyright string now shows
-  `© 2025-YYYY` with the current year instead of a hardcoded static year.
-
-### Documentation
-- **CLI docs updated** — `docs/usage/cli-tool.md` now lists `pisen api` (`-A`) with
-  an example output block.
-
-### Tests
-- **`tests/test_dns_latency.py`** — 10 unit tests covering `check_dns()` return type,
-  success paths (latency rounded, multiple IPs), and all failure paths (nonzero exit,
-  empty stdout, whitespace-only, timeout, OS error, unexpected exception).
-- **`tests/test_debug_override.py`** — 12 unit tests covering debug override constants,
-  state dict mutation (set, pop, clear, independent nodes), and TTL expiry logic.
-
-
-
-### New
 - **DNS latency health check** — `check_dns()` now measures response time in addition
   to success/failure. A configurable threshold (`DNS_LATENCY_WARN_MS`, default 500 ms)
   triggers a `warning` event when DNS is slow but still resolving. The dashboard
@@ -39,10 +44,25 @@
   `GET /api/debug/override/status` shows active overrides and remaining TTL.
   Dashboard shows a warning banner while any override is active.
 
+### Improved
+- **Dynamic copyright year in `pisen --version`** — copyright string now shows
+  `© 2025-YYYY` with the current year instead of a hardcoded static year.
+
 ### Fixed
 - **curl flags in install docs** — replaced `curl -sL` (silently ignores HTTP errors)
   with `curl -fsSL` / `curl -fL --show-error` across README and installation guides,
   so download failures produce a clear error instead of a confusing tar/gzip message.
+
+### Documentation
+- **CLI docs updated** — `docs/usage/cli-tool.md` now lists `pisen api` (`-A`) with
+  an example output block.
+
+### Tests
+- **`tests/test_dns_latency.py`** — 10 unit tests covering `check_dns()` return type,
+  success paths (latency rounded, multiple IPs), and all failure paths (nonzero exit,
+  empty stdout, whitespace-only, timeout, OS error, unexpected exception).
+- **`tests/test_debug_override.py`** — 12 unit tests covering debug override constants,
+  state dict mutation (set, pop, clear, independent nodes), and TTL expiry logic.
 
 ## [0.16.9] - 2026-04-21
 
