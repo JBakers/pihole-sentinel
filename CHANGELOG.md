@@ -8,6 +8,12 @@
   Latency is also exposed via `dns_latency_ms` in `/api/status` per node.
   Recovery is logged automatically when latency drops back below the threshold.
   Configurable via `DNS_LATENCY_WARN_MS` in `.env`.
+- **Test / simulate-outage mode** — new `POST /api/debug/override` endpoint lets
+  operators force a node to appear offline without touching real Pi-holes. Useful
+  for safely testing failover logic. Gated behind `DEBUG_MODE=true` in `.env`
+  (disabled by default), requires API key, and auto-expires after 10 minutes.
+  `GET /api/debug/override/status` shows active overrides and remaining TTL.
+  Dashboard shows a warning banner while any override is active.
 
 ### Fixed
 - **curl flags in install docs** — replaced `curl -sL` (silently ignores HTTP errors)

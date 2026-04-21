@@ -1205,6 +1205,11 @@
             <button class="update-dismiss" onclick="dismissUpdate()">✕</button>
         </div>
 
+        <!-- Test Mode Banner (visible only when debug override is active) -->
+        <div id="test-mode-banner" style="display:none; background:#b45309; color:#fff; padding:8px 18px; border-radius:8px; margin-bottom:10px; font-weight:600; text-align:center;">
+            ⚠️ TEST MODE ACTIVE — one or more nodes are simulated as offline
+        </div>
+
         <div class="header">
             <h1>
                 <svg class="logo" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
@@ -1578,6 +1583,15 @@
                 });
                 const data = await response.json();
                 updateStatus(data);
+                // Poll test-mode banner separately (lightweight GET)
+                try {
+                    const dbgResp = await fetch(`${API_BASE}/api/debug/override/status`, { headers: { 'X-API-Key': API_KEY } });
+                    if (dbgResp.ok) {
+                        const dbg = await dbgResp.json();
+                        const anyActive = dbg.debug_mode && Object.values(dbg.overrides || {}).some(o => o.active);
+                        document.getElementById('test-mode-banner').style.display = anyActive ? 'block' : 'none';
+                    }
+                } catch (_) { /* debug endpoint may be disabled — ignore */ }
             } catch (error) {
                 console.error('Error fetching status:', error);
             }

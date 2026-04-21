@@ -1506,6 +1506,13 @@ _pihole_stats = {
 # Track previous latency-degraded state per node for event dedup
 _dns_degraded: set = set()  # "primary"/"secondary" when latency > DNS_LATENCY_WARN_MS
 
+# ── Test / simulate-outage mode ──────────────────────────────────────────────
+# Only active when DEBUG_MODE=true in .env. Lets operators force a node
+# offline without touching the real Pi-holes (auto-expires after 10 min).
+DEBUG_MODE: bool = os.getenv("DEBUG_MODE", "false").lower() == "true"
+_OVERRIDE_TTL_SECONDS = 600  # 10 minutes safety auto-expire
+_debug_overrides: dict = {}  # "primary"/"secondary" → {"state": "offline", "expires": float}
+
 async def monitor_loop():
     previous_state = None
     previous_primary_online = None
@@ -1521,6 +1528,18 @@ async def monitor_loop():
         try:
             primary_data = await check_pihole_simple(CONFIG["primary"]["ip"], CONFIG["primary"]["password"])
             secondary_data = await check_pihole_simple(CONFIG["secondary"]["ip"], CONFIG["secondary"]["password"])
+
+            # Apply debug overrides (test mode) — only when DEBUG_MODE=true
+            now_ts = asyncio.get_event_loop().time()
+            for node, node_data in (("primary", primary_data), ("secondary", secondary_data)):
+                override = _debug_overrides.get(node)
+                if override and now_ts < override["expires"]:
+                    # Force all health fields to offline state
+                    node_data.update({"online": False, "pihole": False,
+                                       "dns": False, "dhcp_enabled": None})
+                elif override:
+                    # Expired — clean up silently
+                    _debug_overrides.pop(node, None)
             
             # Update Pi-hole stats cache
             for key in ("queries", "blocked", "clients"):
@@ -1863,6 +1882,84 @@ async def monitor_loop():
             logger.error(f"Error in monitor loop: {e}", exc_info=True)
             await log_event("error", f"Monitor error: {str(e)}")
         await asyncio.sleep(CONFIG["check_interval"])
+
+
+# ============================================================================
+# Debug / Test-mode endpoints  (only active when DEBUG_MODE=true)
+# ============================================================================
+
+class DebugOverrideRequest(BaseModel):
+    """Request body for test-mode node override."""
+    node: str = Field(..., description="Which node to override: 'primary' or 'secondary'")
+    force_state: str = Field(..., description="'offline' to simulate outage, 'reset' to clear override")
+
+
+@app.post("/api/debug/override", tags=["Debug"])
+async def set_debug_override(
+    request: DebugOverrideRequest,
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Simulate a node outage for testing failover without touching real Pi-holes.
+
+    Security:
+        - Requires DEBUG_MODE=true in .env (disabled by default in production)
+        - Requires X-API-Key header
+        - Override auto-expires after 10 minutes
+
+    Args:
+        request: node ('primary'/'secondary') and force_state ('offline'/'reset')
+
+    Returns:
+        JSON with active status and expiry time
+    """
+    if not DEBUG_MODE:
+        raise HTTPException(status_code=403, detail="Debug mode is disabled. Set DEBUG_MODE=true in .env to enable.")
+
+    if request.node not in ("primary", "secondary"):
+        raise HTTPException(status_code=422, detail="node must be 'primary' or 'secondary'")
+
+    if request.force_state == "offline":
+        expires_at = asyncio.get_event_loop().time() + _OVERRIDE_TTL_SECONDS
+        _debug_overrides[request.node] = {"state": "offline", "expires": expires_at}
+        expires_iso = (datetime.now() + timedelta(seconds=_OVERRIDE_TTL_SECONDS)).isoformat()
+        await log_event("warning", f"[TEST MODE] {request.node.capitalize()} forced offline via debug override (expires {expires_iso})")
+        logger.warning(f"[TEST MODE] {request.node} forced offline (expires {expires_iso})")
+        return {"active": True, "node": request.node, "state": "offline", "expires": expires_iso}
+
+    elif request.force_state == "reset":
+        removed = _debug_overrides.pop(request.node, None)
+        if removed:
+            await log_event("info", f"[TEST MODE] {request.node.capitalize()} debug override cleared")
+            logger.info(f"[TEST MODE] {request.node} override cleared")
+        return {"active": False, "node": request.node, "state": "reset"}
+
+    raise HTTPException(status_code=422, detail="force_state must be 'offline' or 'reset'")
+
+
+@app.get("/api/debug/override/status", tags=["Debug"])
+async def get_debug_override_status(api_key: str = Depends(verify_api_key)):
+    """
+    Get current test-mode override status for all nodes.
+
+    Security:
+        - Requires DEBUG_MODE=true in .env
+        - Requires X-API-Key header
+    """
+    if not DEBUG_MODE:
+        raise HTTPException(status_code=403, detail="Debug mode is disabled. Set DEBUG_MODE=true in .env to enable.")
+
+    now_ts = asyncio.get_event_loop().time()
+    result = {}
+    for node in ("primary", "secondary"):
+        override = _debug_overrides.get(node)
+        if override and now_ts < override["expires"]:
+            remaining = int(override["expires"] - now_ts)
+            result[node] = {"active": True, "state": override["state"], "remaining_seconds": remaining}
+        else:
+            result[node] = {"active": False}
+    return {"debug_mode": DEBUG_MODE, "overrides": result}
+
 
 @app.get("/api/status", response_model=StatusResponse, tags=["Status"])
 async def get_status(api_key: str = Depends(verify_api_key)):
