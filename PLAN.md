@@ -36,7 +36,7 @@
 | Fault debounce + recovery notifications | ✅ Working |
 | DHCP auto-detection | ✅ Working (3-poll debounce) |
 | Docker integration test suite (20 tests) | ✅ Working (`make docker-integration`) |
-| Unit tests | ⚠️ ~20% coverage — needs expansion |
+| Unit tests | ⚠️ 54% monitor.py coverage (399 tests, 17 files) — target 60%+ |
 | Container architecture (v2.0) | 🔲 Separate branch: `feature/container-architecture` |
 
 ---
@@ -51,7 +51,7 @@ No open bugs.
 
 | ID | Improvement | Priority |
 |----|-------------|----------|
-| D2 | Expand test coverage (currently ~20%, target 60%+) | High |
+| D2 | Expand test coverage (currently 54% monitor.py, target 60%+) | Medium |
 | P2 | `pisen` CLI: make copyright year dynamic | Low |
 | P3 | `pisen` CLI: add `--api` mode (HTTP client to monitor API) | Low |
 

@@ -1,3 +1,15 @@
+## [0.18.6] - 2026-04-22
+
+### Tests
+- Added 6 new test files covering previously untested functions in `dashboard/monitor.py`
+- `test_check_pihole_simple` — 17 tests: TCP connectivity, API auth, stats, DHCP config, lease count, logout
+- `test_send_notification` — 29 tests: Telegram, Discord, Pushover, Ntfy, Webhook, template security, snooze, reminders
+- `test_cleanup_db` — 7 tests: retention-based database cleanup, error handling
+- `test_update_check` — 20 tests: GitHub API, update caching, `_is_newer_version` edge cases
+- `test_monitor_helpers` — 46 tests: `validate_webhook_url`, `is_snoozed`, `should_send_reminder`, `collect_node_issues`, `describe_master_transition`, `init_db`, `log_event`, fault debounce helpers
+- `test_additional_coverage` — 33 tests: `mask_sensitive_data`, `merge_settings`, snooze API endpoints, `check_and_send_reminders`, `check_who_has_vip`
+- Total: 399 tests (153 new), monitor.py unit coverage increased from 24% to 54%
+
 ## [0.18.5] - 2026-04-21
 
 ### Fixed

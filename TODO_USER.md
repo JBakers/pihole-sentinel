@@ -19,7 +19,7 @@ No open bugs. See [CHANGELOG.md](CHANGELOG.md) for history.
 ## 🔵 Improvements — Documentation & Tooling
 
 ### D2. Expand test coverage
-**Current coverage:** ~20% (243 tests, 12 files). Missing: async monitor loop, database load, notification providers.
+**Current coverage:** 54% on monitor.py (399 tests, 17 files). Remaining gaps: async `monitor_loop`, rate-limit middleware, API endpoints (`/api/history`, `/api/events`, execute_command).
 
 ---
 
