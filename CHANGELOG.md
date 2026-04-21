@@ -1,3 +1,19 @@
+## [0.17.0] - 2026-04-21
+
+### New
+- **DNS latency health check** — `check_dns()` now measures response time in addition
+  to success/failure. A configurable threshold (`DNS_LATENCY_WARN_MS`, default 500 ms)
+  triggers a `warning` event when DNS is slow but still resolving. The dashboard
+  shows a yellow "DNS Slow (X ms)" status dot instead of the normal green dot.
+  Latency is also exposed via `dns_latency_ms` in `/api/status` per node.
+  Recovery is logged automatically when latency drops back below the threshold.
+  Configurable via `DNS_LATENCY_WARN_MS` in `.env`.
+
+### Fixed
+- **curl flags in install docs** — replaced `curl -sL` (silently ignores HTTP errors)
+  with `curl -fsSL` / `curl -fL --show-error` across README and installation guides,
+  so download failures produce a clear error instead of a confusing tar/gzip message.
+
 ## [0.16.9] - 2026-04-21
 
 ### Improved

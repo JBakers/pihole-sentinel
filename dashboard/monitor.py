@@ -168,6 +168,7 @@ class PiHoleStatus(BaseModel):
     online: bool = Field(..., description="Whether the Pi-hole is reachable")
     pihole: bool = Field(..., description="Whether pihole-FTL service is running")
     dns: bool = Field(False, description="Whether DNS resolution is working")
+    dns_latency_ms: Optional[float] = Field(None, description="DNS response latency in milliseconds (None if not measured)")
     dhcp: bool = Field(False, description="Whether DHCP server is running")
     queries: int = Field(0, description="Total DNS queries today")
     blocked: int = Field(0, description="Blocked queries today")
@@ -523,6 +524,7 @@ notification_state = {
 # Recovery before the debounce window expires is suppressed silently.
 EVENT_DEBOUNCE_SECONDS = int(os.getenv("EVENT_DEBOUNCE_SECONDS", "30"))
 FAULT_NOTIFICATION_DELAY = 30  # additional seconds before sending notification
+DNS_LATENCY_WARN_MS = float(os.getenv("DNS_LATENCY_WARN_MS", "500"))
 _fault_tasks: dict = {}     # key → asyncio.Task (pending debounce timer)
 _fault_notified: set = set()  # keys where a fault notification was actually sent
 
@@ -1326,25 +1328,32 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
     
     return result
 
-async def check_dns(ip: str) -> bool:
-    """Check if DNS resolver is working by doing actual query.
+async def check_dns(ip: str) -> tuple:
+    """Check if DNS resolver is working and measure response latency.
 
     Uses asyncio subprocess to avoid blocking the event loop.
+
+    Returns:
+        Tuple[bool, Optional[float]]: (success, latency_ms)
+            latency_ms is None on failure.
     """
     try:
+        t_start = asyncio.get_event_loop().time()
         proc = await asyncio.create_subprocess_exec(
             "/usr/bin/dig", "+short", "+time=2", f"@{ip}", "google.com",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
-        return proc.returncode == 0 and len(stdout.decode().strip()) > 0
+        latency_ms = (asyncio.get_event_loop().time() - t_start) * 1000
+        ok = proc.returncode == 0 and len(stdout.decode().strip()) > 0
+        return ok, round(latency_ms, 1) if ok else None
     except asyncio.TimeoutError:
         logger.debug(f"DNS check timeout for {ip}")
-        return False
+        return False, None
     except Exception as e:
         logger.debug(f"DNS check error for {ip}: {e}")
-        return False
+        return False, None
 
 async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str, max_retries: int = 3) -> tuple:
     """
@@ -1491,9 +1500,11 @@ def describe_master_transition(
 
 # Latest Pi-hole stats — updated every poll cycle, served via /api/status
 _pihole_stats = {
-    "primary": {"queries": 0, "blocked": 0, "clients": 0},
-    "secondary": {"queries": 0, "blocked": 0, "clients": 0},
+    "primary": {"queries": 0, "blocked": 0, "clients": 0, "dns_latency_ms": None},
+    "secondary": {"queries": 0, "blocked": 0, "clients": 0, "dns_latency_ms": None},
 }
+# Track previous latency-degraded state per node for event dedup
+_dns_degraded: set = set()  # "primary"/"secondary" when latency > DNS_LATENCY_WARN_MS
 
 async def monitor_loop():
     previous_state = None
@@ -1515,10 +1526,31 @@ async def monitor_loop():
             for key in ("queries", "blocked", "clients"):
                 _pihole_stats["primary"][key] = primary_data.get(key, 0)
                 _pihole_stats["secondary"][key] = secondary_data.get(key, 0)
+            # dns_latency_ms is updated after check_dns calls below
             
-            # Check DNS functionality separately
-            primary_dns = await check_dns(CONFIG["primary"]["ip"]) if primary_data["online"] else False
-            secondary_dns = await check_dns(CONFIG["secondary"]["ip"]) if secondary_data["online"] else False
+            # Check DNS functionality separately (returns ok + latency)
+            primary_dns_ok, primary_dns_latency = await check_dns(CONFIG["primary"]["ip"]) if primary_data["online"] else (False, None)
+            secondary_dns_ok, secondary_dns_latency = await check_dns(CONFIG["secondary"]["ip"]) if secondary_data["online"] else (False, None)
+            primary_dns = primary_dns_ok
+            secondary_dns = secondary_dns_ok
+            _pihole_stats["primary"]["dns_latency_ms"] = primary_dns_latency
+            _pihole_stats["secondary"]["dns_latency_ms"] = secondary_dns_latency
+
+            # Log DNS latency degradation / recovery events
+            for node, dns_ok, latency in (
+                ("primary", primary_dns_ok, primary_dns_latency),
+                ("secondary", secondary_dns_ok, secondary_dns_latency),
+            ):
+                node_label = node.capitalize()
+                if dns_ok and latency is not None and latency > DNS_LATENCY_WARN_MS:
+                    if node not in _dns_degraded:
+                        _dns_degraded.add(node)
+                        await log_event("warning", f"DNS latency degraded on {node_label}: {latency:.0f} ms (threshold {DNS_LATENCY_WARN_MS:.0f} ms)")
+                        logger.warning(f"{node_label} DNS latency degraded: {latency:.0f} ms")
+                elif node in _dns_degraded and (not dns_ok or latency is None or latency <= DNS_LATENCY_WARN_MS):
+                    _dns_degraded.discard(node)
+                    await log_event("success", f"DNS latency restored on {node_label}" + (f": {latency:.0f} ms" if latency is not None else ""))
+                    logger.info(f"{node_label} DNS latency restored")
             
             primary_has_vip, secondary_has_vip = await check_who_has_vip(CONFIG["vip"], CONFIG["primary"]["ip"], CONFIG["secondary"]["ip"])
             
@@ -1868,6 +1900,7 @@ async def get_status(api_key: str = Depends(verify_api_key)):
                     "queries": _pihole_stats["primary"]["queries"],
                     "blocked": _pihole_stats["primary"]["blocked"],
                     "clients": _pihole_stats["primary"]["clients"],
+                    "dns_latency_ms": _pihole_stats["primary"]["dns_latency_ms"],
                 },
                 "secondary": {
                     "ip": CONFIG["secondary"]["ip"],
@@ -1881,6 +1914,7 @@ async def get_status(api_key: str = Depends(verify_api_key)):
                     "queries": _pihole_stats["secondary"]["queries"],
                     "blocked": _pihole_stats["secondary"]["blocked"],
                     "clients": _pihole_stats["secondary"]["clients"],
+                    "dns_latency_ms": _pihole_stats["secondary"]["dns_latency_ms"],
                 },
                 "vip": CONFIG["vip"],
                 "dhcp_leases": row[12] if len(row) > 12 else row[10],  # Adjust for new column

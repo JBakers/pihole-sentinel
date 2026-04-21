@@ -1725,9 +1725,9 @@
                     <div class="status-dot ${vipStatus}"></div>
                     <span>${vipLabel}</span>
                 </div>
-                <div class="status-item" title="${serverOffline ? 'Unknown — server offline' : (nodeData.dns ? 'DNS queries are resolving' : 'DNS resolution is failing')}">
-                    <div class="status-dot ${serverOffline ? 'unknown' : (nodeData.dns ? 'online' : 'offline')}"></div>
-                    <span>${serverOffline ? 'DNS (?)' : (nodeData.dns ? 'DNS Resolving' : 'DNS Failing')}</span>
+                <div class="status-item" title="${(() => { if (serverOffline) return 'Unknown — server offline'; if (!nodeData.dns) return 'DNS resolution is failing'; const lat = nodeData.dns_latency_ms; if (lat !== null && lat !== undefined && lat > 500) return `DNS slow: ${lat} ms`; return lat !== null && lat !== undefined ? `DNS resolving (${lat} ms)` : 'DNS queries are resolving'; })()}">
+                    <div class="status-dot ${serverOffline ? 'unknown' : (!nodeData.dns ? 'offline' : (nodeData.dns_latency_ms !== null && nodeData.dns_latency_ms !== undefined && nodeData.dns_latency_ms > 500 ? 'warning' : 'online'))}"></div>
+                    <span>${serverOffline ? 'DNS (?)' : (!nodeData.dns ? 'DNS Failing' : (nodeData.dns_latency_ms !== null && nodeData.dns_latency_ms !== undefined && nodeData.dns_latency_ms > 500 ? `DNS Slow (${nodeData.dns_latency_ms} ms)` : 'DNS Resolving'))}</span>
                 </div>
                 <div class="status-item" title="${dhcpTooltip}">
                     ${dhcpDot}
