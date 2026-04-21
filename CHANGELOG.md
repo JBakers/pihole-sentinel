@@ -1,3 +1,18 @@
+## [0.18.2] - 2026-04-21
+
+### Fixed
+- **`dns_latency_warn_ms` missing from API response** — added `dns_latency_warn_ms`
+  field to `StatusResponse` Pydantic model so FastAPI no longer strips it from
+  serialized responses; the frontend now reliably receives the configured threshold.
+- **`/api/debug/override/status` returns 200 when DEBUG_MODE is disabled** — endpoint
+  no longer raises `HTTPException(403)` during dashboard polling (every 10s), which
+  caused continuous error logs and unnecessary traffic. It now always returns 200
+  with `{"debug_mode": false, "overrides": {...}}`.
+- **`asyncio.get_event_loop()` → `get_running_loop()`** — replaced all deprecated
+  `asyncio.get_event_loop().time()` calls inside async functions with
+  `asyncio.get_running_loop().time()` to avoid deprecation warnings on Python 3.10+
+  and ensure correct loop binding.
+
 ## [0.18.1] - 2026-04-21
 
 ### Fixed

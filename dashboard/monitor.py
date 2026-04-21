@@ -183,6 +183,7 @@ class StatusResponse(BaseModel):
     vip: str = Field(..., description="Virtual IP address")
     dhcp_leases: int = Field(0, description="Number of active DHCP leases")
     dhcp_failover: bool = Field(False, description="Whether DHCP failover monitoring is enabled")
+    dns_latency_warn_ms: float = Field(500.0, description="Configured DNS latency warning threshold in milliseconds")
 
 
 class HistoryEntry(BaseModel):
@@ -1338,14 +1339,14 @@ async def check_dns(ip: str) -> Tuple[bool, Optional[float]]:
             latency_ms is None on failure.
     """
     try:
-        t_start = asyncio.get_event_loop().time()
+        t_start = asyncio.get_running_loop().time()
         proc = await asyncio.create_subprocess_exec(
             "/usr/bin/dig", "+short", "+time=2", f"@{ip}", "google.com",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
-        latency_ms = (asyncio.get_event_loop().time() - t_start) * 1000
+        latency_ms = (asyncio.get_running_loop().time() - t_start) * 1000
         ok = proc.returncode == 0 and len(stdout.decode().strip()) > 0
         return ok, round(latency_ms, 1) if ok else None
     except asyncio.TimeoutError:
@@ -1531,7 +1532,7 @@ async def monitor_loop():
 
             # Apply debug overrides (test mode) — only when DEBUG_MODE=true
             if DEBUG_MODE:
-                now_ts = asyncio.get_event_loop().time()
+                now_ts = asyncio.get_running_loop().time()
                 for node, node_data in (("primary", primary_data), ("secondary", secondary_data)):
                     override = _debug_overrides.get(node)
                     if override and now_ts < override["expires"]:
@@ -1924,7 +1925,7 @@ async def set_debug_override(
         raise HTTPException(status_code=422, detail="node must be 'primary' or 'secondary'")
 
     if request.force_state == "offline":
-        expires_at = asyncio.get_event_loop().time() + _OVERRIDE_TTL_SECONDS
+        expires_at = asyncio.get_running_loop().time() + _OVERRIDE_TTL_SECONDS
         _debug_overrides[request.node] = {"state": "offline", "expires": expires_at}
         expires_iso = (datetime.now() + timedelta(seconds=_OVERRIDE_TTL_SECONDS)).isoformat()
         await log_event("warning", f"[TEST MODE] {request.node.capitalize()} forced offline via debug override (expires {expires_iso})")
@@ -1947,14 +1948,20 @@ async def get_debug_override_status(api_key: str = Depends(verify_api_key)):
     Get current test-mode override status for all nodes.
 
     Security:
-        - Requires DEBUG_MODE=true in .env
         - Requires X-API-Key header
-    """
-    if not DEBUG_MODE:
-        raise HTTPException(status_code=403, detail="Debug mode is disabled. Set DEBUG_MODE=true in .env to enable.")
 
-    now_ts = asyncio.get_event_loop().time()
+    Returns:
+        Current debug-mode status and per-node override state. When DEBUG_MODE is
+        disabled, this endpoint still returns 200 so dashboard polling does not
+        generate continuous 403 responses and warning logs.
+    """
     result = {}
+    if not DEBUG_MODE:
+        for node in ("primary", "secondary"):
+            result[node] = {"active": False}
+        return {"debug_mode": False, "overrides": result}
+
+    now_ts = asyncio.get_running_loop().time()
     for node in ("primary", "secondary"):
         override = _debug_overrides.get(node)
         if override and now_ts < override["expires"]:
