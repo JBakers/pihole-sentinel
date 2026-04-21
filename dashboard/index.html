@@ -1205,6 +1205,12 @@
             <button class="update-dismiss" onclick="dismissUpdate()">✕</button>
         </div>
 
+        <!-- Test Mode Banner (visible only when debug override is active) -->
+        <div id="test-mode-banner"
+            style="display:none; background:#b45309; color:#fff; padding:8px 18px; border-radius:8px; margin-bottom:10px; font-weight:600; text-align:center;">
+            ⚠️ TEST MODE ACTIVE — one or more nodes are simulated as offline
+        </div>
+
         <div class="header">
             <h1>
                 <svg class="logo" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
@@ -1236,7 +1242,7 @@
                     <strong id="vip-ip">-</strong>
                 </div>
                 <div class="header-pill" id="leases-pill">
-                    <span class="pill-label">Leases</span>
+                    <span class="pill-label">DHCP Leases (MASTER)</span>
                     <strong id="dhcp-leases">-</strong>
                 </div>
                 <div class="dhcp-indicator" id="dhcp-indicator" title="DHCP failover status (auto-detected)">
@@ -1578,12 +1584,28 @@
                 });
                 const data = await response.json();
                 updateStatus(data);
+                // Poll test-mode banner separately (lightweight GET)
+                try {
+                    const testModeBanner = document.getElementById('test-mode-banner');
+                    const dbgResp = await fetch(`${API_BASE}/api/debug/override/status`, { headers: { 'X-API-Key': API_KEY } });
+                    if (dbgResp.ok) {
+                        const dbg = await dbgResp.json();
+                        const anyActive = dbg.debug_mode && Object.values(dbg.overrides || {}).some(o => o.active);
+                        testModeBanner.style.display = anyActive ? 'block' : 'none';
+                    } else {
+                        testModeBanner.style.display = 'none';
+                    }
+                } catch (_) {
+                    document.getElementById('test-mode-banner').style.display = 'none';
+                    /* debug endpoint may be disabled — ignore */
+                }
             } catch (error) {
                 console.error('Error fetching status:', error);
             }
         }
 
         function updateStatus(data) {
+            const dnsWarnMs = data.dns_latency_warn_ms || 500;
             document.getElementById('vip-ip').textContent = data.vip;
             document.getElementById('dhcp-leases').textContent = data.dhcp_leases;
 
@@ -1725,9 +1747,9 @@
                     <div class="status-dot ${vipStatus}"></div>
                     <span>${vipLabel}</span>
                 </div>
-                <div class="status-item" title="${serverOffline ? 'Unknown — server offline' : (nodeData.dns ? 'DNS queries are resolving' : 'DNS resolution is failing')}">
-                    <div class="status-dot ${serverOffline ? 'unknown' : (nodeData.dns ? 'online' : 'offline')}"></div>
-                    <span>${serverOffline ? 'DNS (?)' : (nodeData.dns ? 'DNS Resolving' : 'DNS Failing')}</span>
+                <div class="status-item" title="${(() => { if (serverOffline) return 'Unknown — server offline'; if (!nodeData.dns) return 'DNS resolution is failing'; const lat = nodeData.dns_latency_ms; if (lat !== null && lat !== undefined && lat > dnsWarnMs) return `DNS slow: ${lat} ms`; return lat !== null && lat !== undefined ? `DNS resolving (${lat} ms)` : 'DNS queries are resolving'; })()}">
+                    <div class="status-dot ${serverOffline ? 'unknown' : (!nodeData.dns ? 'offline' : (nodeData.dns_latency_ms !== null && nodeData.dns_latency_ms !== undefined && nodeData.dns_latency_ms > dnsWarnMs ? 'warning' : 'online'))}"></div>
+                    <span>${serverOffline ? 'DNS (?)' : (!nodeData.dns ? 'DNS Failing' : (nodeData.dns_latency_ms !== null && nodeData.dns_latency_ms !== undefined && nodeData.dns_latency_ms > dnsWarnMs ? `DNS Slow (${nodeData.dns_latency_ms} ms)` : 'DNS Resolving'))}</span>
                 </div>
                 <div class="status-item" title="${dhcpTooltip}">
                     ${dhcpDot}
@@ -1758,7 +1780,7 @@
                         </div>
                         <div class="node-stat">
                             <span class="node-stat-value">${c}</span>
-                            <span class="node-stat-label">Clients</span>
+                            <span class="node-stat-label">Clients Today</span>
                         </div>
                     `;
                 }

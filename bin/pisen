@@ -12,6 +12,8 @@ Usage:
     pisen dashboard   - Show dashboard access info
     pisen health      - Comprehensive health check
     pisen test        - Failover testing guide
+    pisen sync        - Show sync status and config
+    pisen api         - Fetch live status from monitor API
     pisen --version   - Show version
     pisen --help      - Show this help
 """
@@ -21,6 +23,10 @@ import os
 import subprocess
 import argparse
 import shlex
+import urllib.request
+import urllib.error
+import json as _json
+from datetime import date
 from typing import Dict, Optional, Tuple
 
 
@@ -109,6 +115,10 @@ class PisenConfig:
         keepalived_env = Path('/etc/keepalived/.env')
         if keepalived_env.exists():
             config.update(self._parse_env_file(keepalived_env))
+
+        # Normalise API key name for easy lookup
+        if 'API_KEY' in config and 'api_key' not in config:
+            config['api_key'] = config['API_KEY']
 
         return config
 
@@ -406,6 +416,82 @@ class PisenCommands:
         else:
             print(f"{Colors.RED}✗ Sync failed{Colors.END}")
 
+    def api(self):
+        """Fetch and display current status from the monitor API over HTTP."""
+        api_key = self.cfg.get('api_key') or self.cfg.get('API_KEY') or os.getenv('API_KEY', '')
+        monitor_ip = self.cfg.get('monitor_ip') or self.cfg.get('MONITOR_IP') or '127.0.0.1'
+        port = self.cfg.get('dashboard_port') or self.cfg.get('DASHBOARD_PORT') or '8080'
+        url = f"http://{monitor_ip}:{port}/api/status"
+
+        print(f"{Colors.CYAN}{Colors.BOLD}\U0001f4e1 Monitor API Status{Colors.END}\n")
+        print(f"{Colors.DIM}Endpoint: {url}{Colors.END}\n")
+
+        if not api_key:
+            print(f"{Colors.YELLOW}\u26a0 No API key found.{Colors.END}")
+            print(f"{Colors.DIM}  Set API_KEY in /opt/pihole-monitor/.env{Colors.END}")
+            return
+
+        try:
+            req = urllib.request.Request(url, headers={'X-API-Key': api_key})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = _json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            if e.code == 403:
+                print(f"{Colors.RED}\u2717 Invalid API key (403 Forbidden){Colors.END}")
+            else:
+                print(f"{Colors.RED}\u2717 HTTP {e.code}: {e.reason}{Colors.END}")
+            return
+        except urllib.error.URLError as e:
+            print(f"{Colors.RED}\u2717 Cannot reach monitor at {url}{Colors.END}")
+            print(f"{Colors.DIM}  Reason: {e.reason}{Colors.END}")
+            print(f"{Colors.DIM}  Is pihole-monitor running? Try: systemctl status pihole-monitor{Colors.END}")
+            return
+        except Exception as e:
+            print(f"{Colors.RED}\u2717 Error: {e}{Colors.END}")
+            return
+
+        vip = data.get('vip', '-')
+        leases = data.get('dhcp_leases', 0)
+        dhcp_failover = data.get('dhcp_failover', False)
+        latency_warn = float(os.getenv('DNS_LATENCY_WARN_MS', '500'))
+
+        print(f"{Colors.BOLD}Virtual IP:{Colors.END} {Colors.CYAN}{vip}{Colors.END}")
+        if dhcp_failover:
+            print(f"{Colors.BOLD}DHCP Leases (MASTER):{Colors.END} {leases}")
+
+        for label, node in (('Primary', data.get('primary', {})), ('Secondary', data.get('secondary', {}))):
+            ip = node.get('ip', '-')
+            state = node.get('state', '?')
+            online = node.get('online', False)
+            pihole = node.get('pihole', False)
+            dns_ok = node.get('dns', False)
+            latency = node.get('dns_latency_ms')
+
+            state_color = Colors.GREEN if state == 'MASTER' else Colors.BLUE
+            online_dot = f"{Colors.GREEN}\u25cf{Colors.END}" if online else f"{Colors.RED}\u25cf{Colors.END}"
+            ftl_icon = f"{Colors.GREEN}\u2713{Colors.END}" if pihole else f"{Colors.RED}\u2717{Colors.END}"
+            dns_icon = f"{Colors.GREEN}\u2713{Colors.END}" if dns_ok else f"{Colors.RED}\u2717{Colors.END}"
+
+            lat_str = ''
+            if latency is not None:
+                lat_color = Colors.YELLOW if latency > latency_warn else Colors.GREEN
+                lat_str = f" {lat_color}({latency} ms){Colors.END}"
+
+            print(f"\n{Colors.BOLD}{label}{Colors.END} ({ip})")
+            print(f"  {online_dot} {state_color}{state}{Colors.END}")
+            print(f"  Pi-hole FTL: {ftl_icon}  DNS: {dns_icon}{lat_str}")
+
+            if online and pihole:
+                q = node.get('queries', 0)
+                b = node.get('blocked', 0)
+                c = node.get('clients', 0)
+                pct = f"{b / q * 100:.1f}%" if q > 0 else "0%"
+                print(f"  Queries today: {q:,}  Blocked: {b:,} ({pct})  Clients today: {c}")
+
+        ts = data.get('timestamp', '')
+        if ts:
+            print(f"\n{Colors.DIM}Last updated: {ts}{Colors.END}")
+
     # ==================== Helper Methods ====================
 
     def _run_command(self, command: str) -> bool:
@@ -466,9 +552,12 @@ def print_version():
     except Exception:
         version = 'unknown'
 
+    current_year = date.today().year
+    copyright_str = "2025" if current_year <= 2025 else f"2025-{current_year}"
     print(f"{Colors.CYAN}{Colors.BOLD}pisen{Colors.END} - Pi-hole Sentinel CLI Tool")
-    print(f"Version: {Colors.GREEN}{version}{Colors.END}")
-    print(f"Project: {Colors.CYAN}https://github.com/JBakers/pihole-sentinel{Colors.END}")
+    print(f"Version:   {Colors.GREEN}{version}{Colors.END}")
+    print(f"Copyright: {Colors.DIM}\u00a9 {copyright_str} JBakers{Colors.END}")
+    print(f"Project:   {Colors.CYAN}https://github.com/JBakers/pihole-sentinel{Colors.END}")
 
 
 def main():
@@ -485,7 +574,7 @@ def main():
     parser.add_argument(
         'command',
         nargs='?',
-        choices=['status', 'logs', 'vip', 'dashboard', 'health', 'test', 'sync'],
+        choices=['status', 'logs', 'vip', 'dashboard', 'health', 'test', 'sync', 'api'],
         help='Command to execute'
     )
     parser.add_argument(
@@ -522,6 +611,11 @@ def main():
         '-S', '--sync',
         action='store_true',
         help='Show sync status and configuration'
+    )
+    parser.add_argument(
+        '-A', '--api',
+        action='store_true',
+        help='Fetch and display current status from the monitor API'
     )
     parser.add_argument(
         '--run',
@@ -562,6 +656,8 @@ def main():
         command = 'test'
     elif args.sync or (not command and '-S' in sys.argv):
         command = 'sync'
+    elif args.api or (not command and '-A' in sys.argv):
+        command = 'api'
 
     if not command:
         parser.print_help()
@@ -590,6 +686,8 @@ def main():
                 commands.sync_run()
             else:
                 commands.sync()
+        elif command == 'api':
+            commands.api()
 
     except KeyboardInterrupt:
         print(f"\n{Colors.YELLOW}⚠ Interrupted by user{Colors.END}")

@@ -19,9 +19,11 @@ Before you begin, make sure you have:
 On your **local machine** or **monitor server**:
 
 ```bash
-git clone https://github.com/JBakers/pihole-sentinel.git
+curl -fsSL https://github.com/JBakers/pihole-sentinel/releases/latest/download/pihole-sentinel.tar.gz | tar -xz
 cd pihole-sentinel/
 ```
+
+> **Developers:** use `git clone https://github.com/JBakers/pihole-sentinel.git` to get the full repository including tests and tooling.
 
 ### Step 2: Run Setup Script
 

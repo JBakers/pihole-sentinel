@@ -15,7 +15,8 @@ High Availability setup. It is installed to `/usr/local/bin/pisen` during deploy
 | `pisen test` | `pisen -t` | Interactive failover testing guide |
 | `pisen sync` | `pisen -S` | Show sync status, config, and last run |
 | `pisen sync --run` | | Trigger an immediate configuration sync |
-| `pisen --version` | | Show installed version |
+| `pisen api` | `pisen -A` | Fetch live status from the monitor API over HTTP |
+| `pisen --version` | | Show installed version (with dynamic copyright year) |
 | `pisen --help` | | Show help |
 
 ## Examples
@@ -49,6 +50,21 @@ $ pisen sync
 
 # Trigger immediate sync
 $ pisen sync --run
+
+# Fetch live status from monitor API (requires API_KEY in .env)
+$ pisen api
+📡 Monitor API Status
+
+Virtual IP: 192.168.1.2
+
+Primary (192.168.1.10)
+  ● MASTER
+  Pi-hole FTL: ✓  DNS: ✓ (12.3 ms)
+  Queries today: 4,821  Blocked: 1,203 (24.9%)  Clients today: 14
+
+Secondary (192.168.1.11)
+  ● BACKUP
+  Pi-hole FTL: ✓  DNS: ✓ (11.8 ms)
 ```
 
 ## Installation
