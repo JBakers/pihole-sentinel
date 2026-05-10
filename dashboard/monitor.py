@@ -4,37 +4,38 @@ Pi-hole Keepalived Monitor - Simple Standalone Version
 No SSH required, simple API calls
 """
 
+import asyncio
+import copy
+import hmac
+import ipaddress as _ipaddress
+import json
+import logging
 import os
+import secrets
+import socket
+import subprocess
 import sys
 import time
-import asyncio
-import aiohttp
-import aiosqlite
-import uvicorn
-import subprocess
-import socket
-import copy
-import logging
-import json
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Dict, Optional, List, Tuple
-from collections import defaultdict
-from pydantic import BaseModel, Field
-from fastapi import FastAPI, HTTPException, Security, Depends, Request
-from fastapi.security import APIKeyHeader
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.openapi.utils import get_openapi
-from urllib.parse import urlparse
-import ipaddress as _ipaddress
-from dotenv import load_dotenv
-import hmac
-import secrets
 
 # Configure logging with rotation
 from logging.handlers import RotatingFileHandler
+from typing import Dict, List, Optional, Tuple
+from urllib.parse import urlparse
+
+import aiohttp
+import aiosqlite
+import uvicorn
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException, Request, Security
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.security import APIKeyHeader
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 handlers: list[logging.Handler] = [logging.StreamHandler()]
 try:
@@ -254,7 +255,7 @@ async def lifespan(app: FastAPI):
     await init_db()
     await get_http_session()
     # Duplicate log removed here - log_event is called inside monitor_loop startup logic
-    # await log_event("info", "Monitor started") 
+    # await log_event("info", "Monitor started")
     asyncio.create_task(monitor_loop())
     asyncio.create_task(daily_cleanup_loop())
     logger.info("Pi-hole Sentinel Monitor started")
@@ -459,7 +460,7 @@ async def handle_http_exception(request: Request, exc: HTTPException):
     """Handle FastAPI HTTPException with standardized format"""
     # Log the error
     logger.warning(f"HTTP {exc.status_code}: {exc.detail}")
-    
+
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -473,7 +474,7 @@ async def handle_http_exception(request: Request, exc: HTTPException):
 async def handle_generic_exception(request: Request, exc: Exception):
     """Handle unexpected exceptions with safe error response"""
     logger.error(f"Unhandled exception: {type(exc).__name__}: {str(exc)}", exc_info=True)
-    
+
     return JSONResponse(
         status_code=500,
         content={
@@ -541,11 +542,11 @@ def is_snoozed(settings: dict) -> bool:
     snooze = settings.get('snooze', {})
     if not snooze.get('enabled', False):
         return False
-    
+
     until_str = snooze.get('until')
     if not until_str:
         return False
-    
+
     try:
         until = datetime.fromisoformat(until_str.replace('Z', '+00:00'))
         # Handle timezone-naive comparison
@@ -560,26 +561,25 @@ def should_send_reminder(event_type: str, settings: dict) -> bool:
     repeat = settings.get('repeat', {})
     if not repeat.get('enabled', False):
         return False
-    
+
     interval_minutes = repeat.get('interval', 0)
     if interval_minutes <= 0:
         return False
-    
+
     # Check if issue is still active
     if not notification_state["active_issues"].get(event_type, False):
         return False
-    
+
     # Check if enough time has passed since last notification
     last_time = notification_state["last_notification_time"].get(event_type)
     if not last_time:
         return False
-    
+
     elapsed = datetime.now() - last_time
     return elapsed >= timedelta(minutes=interval_minutes)
 
 async def send_notification(event_type: str, template_vars: dict, is_reminder: bool = False):
     """Send notification via configured services using custom templates"""
-    import json
 
     config_path = CONFIG["notify_config_path"]
 
@@ -777,23 +777,22 @@ async def send_notification(event_type: str, template_vars: dict, is_reminder: b
 
 async def check_and_send_reminders():
     """Check if any reminder notifications should be sent for active issues."""
-    import json
-    
+
     config_path = CONFIG["notify_config_path"]
     if not os.path.exists(config_path):
         return
-    
+
     try:
         with open(config_path, 'r') as f:
             settings = json.load(f)
     except Exception:
         return
-    
+
     # Check repeat settings
     repeat = settings.get('repeat', {})
     if not repeat.get('enabled', False) or repeat.get('interval', 0) <= 0:
         return
-    
+
     # Check each active issue type
     for event_type in ['failover', 'fault']:
         if should_send_reminder(event_type, settings):
@@ -917,8 +916,8 @@ async def serve_index():
     # Inject API key and version as meta tags so no unauthenticated endpoint is needed
     import html as html_mod
     meta_tags = (
-        f'<meta name="api-key" content="{html_mod.escape(CONFIG["api_key"])}">'  
-        f'<meta name="app-version" content="{html_mod.escape(read_version_string())}">'  
+        f'<meta name="api-key" content="{html_mod.escape(CONFIG["api_key"])}">'
+        f'<meta name="app-version" content="{html_mod.escape(read_version_string())}">'
     )
     html_content = html_content.replace('</head>', f'{meta_tags}\n</head>', 1)
     return HTMLResponse(content=html_content)
@@ -931,8 +930,8 @@ async def serve_settings():
         html_content = f.read()
     import html as html_mod
     meta_tags = (
-        f'<meta name="api-key" content="{html_mod.escape(CONFIG["api_key"])}">'  
-        f'<meta name="app-version" content="{html_mod.escape(read_version_string())}">'  
+        f'<meta name="api-key" content="{html_mod.escape(CONFIG["api_key"])}">'
+        f'<meta name="app-version" content="{html_mod.escape(read_version_string())}">'
     )
     html_content = html_content.replace('</head>', f'{meta_tags}\n</head>', 1)
     return HTMLResponse(content=html_content)
@@ -956,13 +955,13 @@ async def get_client_config():
 async def get_version(api_key: str = Depends(verify_api_key)):
     """
     Get current Pi-hole Sentinel version.
-    
+
     Returns the version number from the VERSION file. Checks multiple locations
     including dev environment and production paths.
-    
+
     Security:
         - X-API-Key header required
-    
+
     Returns:
         VersionResponse: Contains the current version string
     """
@@ -981,26 +980,26 @@ _update_cache = {
 async def check_for_updates(api_key: str = Security(verify_api_key)):
     """
     Check GitHub for available Pi-hole Sentinel updates.
-    
+
     Queries the GitHub API to find the latest release version. Results are cached
     for 6 hours to avoid rate limiting. Requires valid API key authentication.
-    
+
     Security:
         - X-API-Key header required
         - GitHub API calls are rate-limited
-    
+
     Returns:
         UpdateCheckResponse: Current version, latest version, and update URL
     """
     global _update_cache
-    
+
     now = datetime.now()
-    
+
     # Return cached result if recent
-    if (_update_cache["last_check"] and 
+    if (_update_cache["last_check"] and
         (now - _update_cache["last_check"]).total_seconds() < _update_cache["check_interval"] and
         _update_cache["latest_version"]):
-        
+
         current = (await get_version())["version"]
         return {
             "current_version": current,
@@ -1009,16 +1008,16 @@ async def check_for_updates(api_key: str = Security(verify_api_key)):
             "release_url": _update_cache["release_url"],
             "cached": True
         }
-    
+
     try:
         session = await get_http_session()
         github_url = "https://api.github.com/repos/JBakers/pihole-sentinel/releases/latest"
-        
+
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "User-Agent": "PiholeSentinel-UpdateChecker"
         }
-        
+
         async with session.get(github_url, headers=headers, timeout=10) as resp:
             if resp.status == 404:
                 # No releases yet
@@ -1028,7 +1027,7 @@ async def check_for_updates(api_key: str = Security(verify_api_key)):
                     "update_available": False,
                     "message": "No releases found"
                 }
-            
+
             if resp.status == 403:
                 # Rate limited - return cached or unknown
                 return {
@@ -1037,27 +1036,27 @@ async def check_for_updates(api_key: str = Security(verify_api_key)):
                     "update_available": False,
                     "message": "GitHub API rate limited"
                 }
-            
+
             if resp.status != 200:
                 return {
                     "current_version": (await get_version())["version"],
                     "update_available": False,
                     "error": f"GitHub API returned {resp.status}"
                 }
-            
+
             data = await resp.json()
-        
+
         # Parse release info
         latest = data.get("tag_name", "").lstrip("v")
         release_url = data.get("html_url", "")
-        
+
         # Update cache
         _update_cache["last_check"] = now
         _update_cache["latest_version"] = latest
         _update_cache["release_url"] = release_url
-        
+
         current = (await get_version())["version"]
-        
+
         return {
             "current_version": current,
             "latest_version": latest,
@@ -1065,7 +1064,7 @@ async def check_for_updates(api_key: str = Security(verify_api_key)):
             "release_url": release_url,
             "cached": False
         }
-        
+
     except asyncio.TimeoutError:
         logger.warning("Timeout checking for updates")
         return {
@@ -1084,18 +1083,18 @@ async def check_for_updates(api_key: str = Security(verify_api_key)):
 
 def _is_newer_version(latest: str, current: str) -> bool:
     """Compare versions to check if update is available.
-    
+
     Handles semantic versioning including pre-release tags like:
     - 0.11.0, 0.11.0-beta.4, 1.0.0-rc.1
     """
     if not latest or not current or current == "unknown":
         return False
-    
+
     try:
         # Clean version strings
         latest_clean = latest.lstrip("v").strip()
         current_clean = current.lstrip("v").strip()
-        
+
         # Simple version comparison using packaging library if available
         try:
             from packaging import version as pkg_version
@@ -1130,7 +1129,7 @@ async def init_db():
                 secondary_dhcp BOOLEAN
             )
         """)
-        
+
         await db.execute("""
             CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1326,7 +1325,7 @@ async def check_pihole_simple(ip: str, password: str) -> Dict:
             pass
     except Exception as e:
         logger.warning(f"Main session exception for {ip}: {e}")
-    
+
     return result
 
 async def check_dns(ip: str) -> Tuple[bool, Optional[float]]:
@@ -1375,10 +1374,10 @@ async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str, max_re
                 except (OSError, socket.error):
                     # Socket errors are expected for unreachable hosts
                     pass
-            
+
             # Small delay for ARP table to populate
             await asyncio.sleep(0.2)
-            
+
             # Read ARP table entries using async subprocess
             async def get_arp_entry(ip_addr: str) -> str:
                 """Get ARP entry for IP address using async subprocess."""
@@ -1412,9 +1411,9 @@ async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str, max_re
             vip_mac = extract_mac(vip_output)
             primary_mac = extract_mac(primary_output)
             secondary_mac = extract_mac(secondary_output)
-            
+
             logger.debug(f"VIP check (attempt {attempt + 1}/{max_retries}): VIP_MAC={vip_mac}, Primary_MAC={primary_mac}, Secondary_MAC={secondary_mac}")
-            
+
             if vip_mac and primary_mac and vip_mac == primary_mac:
                 return True, False
             elif vip_mac and secondary_mac and vip_mac == secondary_mac:
@@ -1427,14 +1426,14 @@ async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str, max_re
                         await asyncio.sleep(1)  # Wait before retry
                         continue
                 return False, False
-            
+
         except Exception as e:
             logger.error(f"Error checking VIP (attempt {attempt + 1}/{max_retries}): {e}")
             if attempt < max_retries - 1:
                 await asyncio.sleep(1)  # Wait before retry
             else:
                 return False, False
-    
+
     return False, False
 
 async def log_event(event_type: str, message: str):
@@ -1524,7 +1523,7 @@ async def monitor_loop():
     previous_primary_has_vip = None
     previous_secondary_has_vip = None
     startup = True
-    
+
     while True:
         try:
             primary_data = await check_pihole_simple(CONFIG["primary"]["ip"], CONFIG["primary"]["password"])
@@ -1542,13 +1541,13 @@ async def monitor_loop():
                     elif override:
                         # Expired — clean up silently
                         _debug_overrides.pop(node, None)
-            
+
             # Update Pi-hole stats cache
             for key in ("queries", "blocked", "clients"):
                 _pihole_stats["primary"][key] = primary_data.get(key, 0)
                 _pihole_stats["secondary"][key] = secondary_data.get(key, 0)
             # dns_latency_ms is updated after check_dns calls below
-            
+
             # Check DNS functionality separately (returns ok + latency)
             primary_dns_ok, primary_dns_latency = await check_dns(CONFIG["primary"]["ip"]) if primary_data["online"] else (False, None)
             secondary_dns_ok, secondary_dns_latency = await check_dns(CONFIG["secondary"]["ip"]) if secondary_data["online"] else (False, None)
@@ -1575,12 +1574,12 @@ async def monitor_loop():
                 elif node in _dns_degraded and (not dns_ok or latency is None):
                     _dns_degraded.discard(node)
                     # DNS is offline/failing — clear degraded flag silently
-            
+
             primary_has_vip, secondary_has_vip = await check_who_has_vip(CONFIG["vip"], CONFIG["primary"]["ip"], CONFIG["secondary"]["ip"])
-            
+
             primary_state = "MASTER" if primary_has_vip else "BACKUP"
             secondary_state = "MASTER" if secondary_has_vip else "BACKUP"
-            
+
             # Log initial status on startup
             if startup:
                 current_master = "Primary" if primary_state == "MASTER" else "Secondary"
@@ -1597,7 +1596,7 @@ async def monitor_loop():
                     "date": datetime.now().strftime("%Y-%m-%d"),
                 })
                 startup = False
-            
+
             # Detect online/offline changes (with debounce)
             # A node must stay offline for EVENT_DEBOUNCE_SECONDS before an
             # event is logged.  This suppresses transient outages caused by
@@ -1726,7 +1725,7 @@ async def monitor_loop():
                                 "time": datetime.now().strftime("%H:%M:%S"),
                                 "date": datetime.now().strftime("%Y-%m-%d"),
                             })
-            
+
             # Detect VIP changes (not during failover)
             if previous_primary_has_vip is not None and previous_secondary_has_vip is not None:
                 if previous_primary_has_vip != primary_has_vip or previous_secondary_has_vip != secondary_has_vip:
@@ -1734,7 +1733,7 @@ async def monitor_loop():
                     previous = "Primary" if previous_primary_has_vip else "Secondary"
                     await log_event("warning", f"VIP switched from {previous} to {current}")
                     logger.warning(f"VIP switched from {previous} to {current}")
-            
+
             dhcp_leases = 0
             if primary_state == "MASTER":
                 dhcp_leases = primary_data.get("dhcp_leases", 0)
@@ -1746,14 +1745,14 @@ async def monitor_loop():
                 p_leases = primary_data.get("dhcp_leases", 0)
                 s_leases = secondary_data.get("dhcp_leases", 0)
                 dhcp_leases = max(p_leases, s_leases)
-            
+
             async with aiosqlite.connect(CONFIG["db_path"]) as db:
                 await db.execute("""
-                    INSERT INTO status_history (primary_state, secondary_state, primary_has_vip, secondary_has_vip, primary_online, secondary_online, primary_pihole, secondary_pihole, primary_dns, secondary_dns, dhcp_leases, primary_dhcp, secondary_dhcp) 
+                    INSERT INTO status_history (primary_state, secondary_state, primary_has_vip, secondary_has_vip, primary_online, secondary_online, primary_pihole, secondary_pihole, primary_dns, secondary_dns, dhcp_leases, primary_dhcp, secondary_dhcp)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (primary_state, secondary_state, primary_has_vip, secondary_has_vip, primary_data["online"], secondary_data["online"], primary_data["pihole"], secondary_data["pihole"], primary_dns, secondary_dns, dhcp_leases, primary_data.get("dhcp_enabled", False), secondary_data.get("dhcp_enabled", False)))
                 await db.commit()
-            
+
             # Detect failover
             current_master = "primary" if primary_state == "MASTER" else "secondary"
             if previous_state and previous_state != current_master:
@@ -1787,7 +1786,7 @@ async def monitor_loop():
                 else:
                     master_node = CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole')
                     backup_node = CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole')
-                
+
                 template_vars = {
                     "node_name": master_name,
                     "node": master_name,
@@ -1804,14 +1803,14 @@ async def monitor_loop():
                 await send_notification(transition_event, template_vars)
                 # Mark failover as active issue for reminders
                 notification_state["active_issues"]["failover"] = transition_event == "failover"
-            
+
             # Check for recovery - clear active issues
             if previous_state and previous_state != current_master:
                 # If we switched back to primary as master, clear failover issue
                 if current_master == "primary":
                     notification_state["active_issues"]["failover"] = False
                     notification_state["active_issues"]["fault"] = False
-            
+
             # Track fault state (both offline or both pihole down)
             both_offline = not primary_data["online"] and not secondary_data["online"]
             both_pihole_down = not primary_data["pihole"] and not secondary_data["pihole"]
@@ -1819,10 +1818,10 @@ async def monitor_loop():
                 notification_state["active_issues"]["fault"] = True
             else:
                 notification_state["active_issues"]["fault"] = False
-            
+
             # Check and send reminder notifications if needed
             await check_and_send_reminders()
-            
+
             previous_state = current_master
             previous_primary_online = primary_data["online"]
             previous_secondary_online = secondary_data["online"]
@@ -1837,7 +1836,7 @@ async def monitor_loop():
                 previous_secondary_pihole = secondary_data["pihole"]
             previous_primary_has_vip = primary_has_vip
             previous_secondary_has_vip = secondary_has_vip
-            
+
             # Check DHCP misconfiguration (with debounce)
             # Only warn every 5 minutes to avoid log spam
             # Skip entirely when DHCP failover is disabled
@@ -1856,11 +1855,11 @@ async def monitor_loop():
 
             if _dhcp_auto_detected:
                 should_warn = (current_time - monitor_loop._state["last_dhcp_warning"]) > 300
-                
+
                 # MASTER should have DHCP enabled, BACKUP should have it disabled
                 misconfigured = False
                 msg = ""
-                
+
                 if primary_state == "MASTER" and not primary_dhcp:
                     msg = "⚠️ DHCP misconfiguration: Primary is MASTER but DHCP is DISABLED"
                     misconfigured = True
@@ -1873,7 +1872,7 @@ async def monitor_loop():
                 elif secondary_state == "BACKUP" and secondary_dhcp:
                     msg = "⚠️ DHCP misconfiguration: Secondary is BACKUP but DHCP is ENABLED"
                     misconfigured = True
-                
+
                 if misconfigured and should_warn:
                     await log_event("warning", msg)
                     logger.warning(msg)
@@ -1882,7 +1881,7 @@ async def monitor_loop():
                     logger.debug(f"Suppressing DHCP warning (debounce): {msg}")
 
             logger.debug(f"[{datetime.now()}] Primary: {primary_state}, Secondary: {secondary_state}, Leases: {dhcp_leases}")
-            
+
         except Exception as e:
             logger.error(f"Error in monitor loop: {e}", exc_info=True)
             await log_event("error", f"Monitor error: {str(e)}")
@@ -1976,16 +1975,16 @@ async def get_debug_override_status(api_key: str = Depends(verify_api_key)):
 async def get_status(api_key: str = Depends(verify_api_key)):
     """
     Get current Pi-hole Sentinel system status.
-    
+
     Returns real-time status of both Pi-hole instances including FTL service,
     DNS resolution, DHCP status, and Virtual IP location.
-    
+
     Security:
         - X-API-Key header required
-    
+
     Returns:
         StatusResponse: Master/backup status, health of both nodes, VIP location
-    
+
     Raises:
         HTTPException: 403 if API key invalid, 500 if database error
     """
@@ -2037,16 +2036,16 @@ async def get_history(
 ):
     """
     Get historical status data for graph visualization.
-    
+
     Retrieves status history for the specified time period. Useful for plotting
     VIP location changes and identifying failover patterns.
-    
+
     Security:
         - X-API-Key header required
-    
+
     Parameters:
         hours: Number of hours of history to retrieve (default: 24, max: 720)
-    
+
     Returns:
         List of history entries with timestamps and master/backup status flags
     """
@@ -2082,16 +2081,16 @@ async def get_history(
 async def get_events(limit: int = 50, api_key: str = Depends(verify_api_key)):
     """
     Get recent system events and failover history.
-    
+
     Returns a list of system events including failovers, recoveries, faults,
     and other significant state changes. Includes statistics about failover history.
-    
+
     Security:
         - X-API-Key header required
-    
+
     Parameters:
         limit: Maximum number of events to return (default: 50, max: 500)
-    
+
     Returns:
         EventsResponse: Recent events, failover count, and last failover timestamp
     """
@@ -2137,22 +2136,21 @@ async def get_events(limit: int = 50, api_key: str = Depends(verify_api_key)):
 async def get_notification_settings(api_key: str = Depends(verify_api_key)):
     """
     Get current notification settings configuration.
-    
+
     Returns the notification settings with sensitive data masked (tokens replaced
     with asterisks). Useful for the settings UI to display current configuration
     without exposing secrets.
-    
+
     Security:
         - X-API-Key header required
         - Sensitive tokens are masked in response
-    
+
     Returns:
         dict: Notification settings with masked sensitive values
     """
-    import json
-    
+
     config_path = CONFIG["notify_config_path"]
-    
+
     if os.path.exists(config_path):
         try:
             with open(config_path, 'r') as f:
@@ -2162,7 +2160,7 @@ async def get_notification_settings(api_key: str = Depends(verify_api_key)):
                 return settings
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to load settings: {str(e)}")
-    
+
     # Return default empty settings
     return {
         "events": {"failover": True, "recovery": True, "fault": True, "startup": False},
@@ -2193,29 +2191,29 @@ async def get_notification_settings(api_key: str = Depends(verify_api_key)):
 def mask_sensitive_data(settings):
     """Mask sensitive fields with *** but indicate if they're set"""
     masked = copy.deepcopy(settings)
-    
+
     # Telegram
     if masked.get("telegram", {}).get("bot_token"):
         masked["telegram"]["bot_token"] = "••••••••" + masked["telegram"]["bot_token"][-4:]
     if masked.get("telegram", {}).get("chat_id"):
         masked["telegram"]["chat_id"] = "••••" + masked["telegram"]["chat_id"][-4:]
-    
+
     # Discord
     if masked.get("discord", {}).get("webhook_url"):
         masked["discord"]["webhook_url"] = "••••••••" + masked["discord"]["webhook_url"][-8:]
-    
+
     # Pushover
     if masked.get("pushover", {}).get("user_key"):
         masked["pushover"]["user_key"] = "••••••••" + masked["pushover"]["user_key"][-4:]
     if masked.get("pushover", {}).get("app_token"):
         masked["pushover"]["app_token"] = "••••••••" + masked["pushover"]["app_token"][-4:]
-    
+
     # Ntfy (topic and server are not sensitive)
-    
+
     # Webhook
     if masked.get("webhook", {}).get("url"):
         masked["webhook"]["url"] = "••••••••" + masked["webhook"]["url"][-8:]
-    
+
     return masked
 
 def merge_settings(existing, new):
@@ -2259,32 +2257,31 @@ async def save_notification_settings(
 ):
     """
     Save notification service configuration.
-    
+
     Updates notification settings for services like Telegram, Discord, Pushover, Ntfy,
     and custom webhooks. Supports templated messages and event-based delivery.
-    
+
     Security:
         - X-API-Key header required
         - Masked values (from GET request) are not overwritten
         - All settings stored securely
-    
+
     Request Body:
         Settings dictionary with service configurations and templates
-    
+
     Returns:
         dict: Operation status and message
-    
+
     Raises:
         HTTPException: 403 if API key invalid, 400 if settings invalid, 500 on save error
     """
-    import json
-    
+
     config_path = CONFIG["notify_config_path"]
     config_dir = os.path.dirname(config_path)
-    
+
     # Create directory if it doesn't exist
     os.makedirs(config_dir, exist_ok=True)
-    
+
     # Load existing settings to preserve masked values
     existing_settings = {}
     if os.path.exists(config_path):
@@ -2294,7 +2291,7 @@ async def save_notification_settings(
         except (json.JSONDecodeError, IOError, OSError):
             # Config file corrupted or unreadable, use defaults
             pass
-    
+
     # Merge settings, keeping existing values where new value is None
     merged_settings = merge_settings(existing_settings, settings)
 
@@ -2323,20 +2320,19 @@ async def save_notification_settings(
         escaped = escaped.replace('`', '\\`')
         escaped = escaped.replace('!', '\\!')
         return escaped
-    
+
     try:
-        with open(config_path, 'w') as f:
+        with _open_secure(config_path) as f:
             json.dump(merged_settings, f, indent=2)
-        os.chmod(config_path, 0o600)
-        
+
         # Also update the bash config file for keepalived scripts
         bash_config = "/etc/pihole-sentinel/notify.conf"
         os.makedirs(os.path.dirname(bash_config), exist_ok=True)
-        
-        with open(bash_config, 'w') as f:
+
+        with _open_secure(bash_config) as f:
             f.write("# Pi-hole Sentinel Notification Configuration\n")
             f.write("# Auto-generated from web interface\n\n")
-            
+
             # Event settings
             events = merged_settings.get('events', {})
             f.write("# Notification Event Controls\n")
@@ -2344,32 +2340,31 @@ async def save_notification_settings(
             f.write(f"NOTIFY_RECOVERY=\"{'true' if events.get('recovery', True) else 'false'}\"\n")
             f.write(f"NOTIFY_FAULT=\"{'true' if events.get('fault', True) else 'false'}\"\n")
             f.write(f"NOTIFY_STARTUP=\"{'true' if events.get('startup', False) else 'false'}\"\n\n")
-            
+
             # Service credentials - escape all values for bash safety
             if merged_settings.get('telegram', {}).get('enabled'):
                 f.write("# Telegram\n")
                 f.write(f"TELEGRAM_BOT_TOKEN=\"{escape_for_bash_config(merged_settings['telegram'].get('bot_token', ''))}\"\n")
                 f.write(f"TELEGRAM_CHAT_ID=\"{escape_for_bash_config(merged_settings['telegram'].get('chat_id', ''))}\"\n\n")
-            
+
             if merged_settings.get('discord', {}).get('enabled'):
                 f.write("# Discord\n")
                 f.write(f"DISCORD_WEBHOOK_URL=\"{escape_for_bash_config(merged_settings['discord'].get('webhook_url', ''))}\"\n\n")
-            
+
             if merged_settings.get('pushover', {}).get('enabled'):
                 f.write("# Pushover\n")
                 f.write(f"PUSHOVER_USER_KEY=\"{escape_for_bash_config(merged_settings['pushover'].get('user_key', ''))}\"\n")
                 f.write(f"PUSHOVER_APP_TOKEN=\"{escape_for_bash_config(merged_settings['pushover'].get('app_token', ''))}\"\n\n")
-            
+
             if merged_settings.get('ntfy', {}).get('enabled'):
                 f.write("# Ntfy\n")
                 f.write(f"NTFY_TOPIC=\"{escape_for_bash_config(merged_settings['ntfy'].get('topic', ''))}\"\n")
                 f.write(f"NTFY_SERVER=\"{escape_for_bash_config(merged_settings['ntfy'].get('server', 'https://ntfy.sh'))}\"\n\n")
-            
+
             if merged_settings.get('webhook', {}).get('enabled'):
                 f.write("# Custom Webhook\n")
                 f.write(f"CUSTOM_WEBHOOK_URL=\"{escape_for_bash_config(merged_settings['webhook'].get('url', ''))}\"\n\n")
-        
-        os.chmod(bash_config, 0o600)
+
         return {"status": "success", "message": "Settings saved successfully"}
 
     except Exception as e:
@@ -2380,6 +2375,16 @@ async def save_notification_settings(
 # System Settings (DHCP failover toggle)
 # ============================================================================
 
+def _open_secure(path: str):
+    """Open a file for writing with mode 0o600 from creation (avoids TOCTOU race).
+
+    Equivalent to open(path, 'w') + os.chmod(path, 0o600) but without the
+    brief window where the file is world-readable between creation and chmod.
+    """
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    return open(fd, 'w')
+
+
 def _load_system_settings() -> dict:
     """Load system settings from the notification config file.
 
@@ -2388,7 +2393,6 @@ def _load_system_settings() -> dict:
     Missing keys fall back to safe defaults (DHCP failover disabled until
     auto-detection confirms DHCP is in use on at least one Pi-hole).
     """
-    import json
 
     defaults = {"dhcp_failover": False}
     config_path = CONFIG["notify_config_path"]
@@ -2407,7 +2411,6 @@ def _load_system_settings() -> dict:
 
 def _save_system_settings(system: dict) -> None:
     """Persist *system* settings into ``notify_settings.json``."""
-    import json
 
     config_path = CONFIG["notify_config_path"]
     config_dir = os.path.dirname(config_path)
@@ -2422,9 +2425,8 @@ def _save_system_settings(system: dict) -> None:
             pass
 
     existing["system"] = system
-    with open(config_path, 'w') as f:
+    with _open_secure(config_path) as f:
         json.dump(existing, f, indent=2)
-    os.chmod(config_path, 0o600)
 
 
 # Cache for system settings — refreshed on POST and at startup
@@ -2594,8 +2596,8 @@ async def get_commands_available(api_key: str = Depends(verify_api_key)):
     Pi-hole nodes. This endpoint lets the dashboard disable those buttons
     when the monitor server doesn't have keepalived installed.
     """
-    import subprocess
     import os as _os
+    import subprocess
 
     keepalived_active = subprocess.run(
         ["systemctl", "is-active", "keepalived"], capture_output=True
@@ -2620,8 +2622,8 @@ async def execute_command(command_name: str, request: Request, api_key: str = De
     Returns icon, description, exit_code, status, and output so the
     dashboard modal can render them correctly.
     """
-    import subprocess
     import os as _os
+    import subprocess
 
     COMMAND_META = {
         "monitor_status":    {"icon": "📊", "label": "Monitor Status"},
@@ -2803,26 +2805,25 @@ async def test_notification(
 ):
     """
     Test a notification service by sending a test message.
-    
+
     Sends a test notification to the specified service to verify configuration.
     Loads unmasked settings from server, so masked values from UI are not used.
-    
+
     Security:
         - X-API-Key header required
         - Rate limited: max 3 requests per 60 seconds per IP
         - Only unmasked credentials used for testing
-    
+
     Request Body:
         service: Service to test (telegram, discord, pushover, ntfy, webhook)
         event_type: Optional event type for template selection
-    
+
     Returns:
         NotificationTestResponse: Success status and message
-    
+
     Raises:
         HTTPException: 403 if auth fails, 429 if rate limited, 400 if service invalid
     """
-    import json
 
     service = data.get('service')
 
@@ -2848,7 +2849,7 @@ async def test_notification(
         if service == 'telegram':
             if not settings.get('bot_token') or not settings.get('chat_id'):
                 raise HTTPException(status_code=400, detail="Bot token and chat ID required")
-            
+
             test_message = (
                 "🧪 <b>Pi-hole Sentinel Test Notification</b>\n\n"
                 "📋 <b>Default Template Examples:</b>\n\n"
@@ -2867,66 +2868,68 @@ async def test_notification(
                 "Monitoring Primary Pi-hole and Secondary Pi-hole\n\n"
                 "✅ If you see this, notifications are working!"
             )
-            
-            async with aiohttp.ClientSession() as session:
-                url = f"https://api.telegram.org/bot{settings['bot_token']}/sendMessage"
-                async with session.post(url, json={
-                    'chat_id': settings['chat_id'],
-                    'text': test_message,
-                    'parse_mode': 'HTML'
-                }) as response:
-                    if response.status != 200:
-                        raise Exception(f"Telegram API returned {response.status}")
-        
+
+            session = await get_http_session()
+            url = f"https://api.telegram.org/bot{settings['bot_token']}/sendMessage"
+            async with session.post(url, json={
+                'chat_id': settings['chat_id'],
+                'text': test_message,
+                'parse_mode': 'HTML'
+            }, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status != 200:
+                    raise Exception(f"Telegram API returned {response.status}")
+
         elif service == 'discord':
             if not settings.get('webhook_url'):
                 raise HTTPException(status_code=400, detail="Webhook URL required")
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.post(settings['webhook_url'], json={
-                    'embeds': [
-                        {
-                            'title': '🧪 Pi-hole Sentinel Test Notification',
-                            'description': '**Default Template Examples:**',
-                            'color': 3447003,
-                            'fields': [
-                                {
-                                    'name': '🚨 Failover',
-                                    'value': '🚨 Failover\nSecondary Pi-hole is now MASTER\nReason: Pi-hole service on Primary is down',
-                                    'inline': False
-                                },
-                                {
-                                    'name': '✅ Recovery',
-                                    'value': '✅ Recovery: Primary Pi-hole is now MASTER\nHost back online, Pi-hole service restored',
-                                    'inline': False
-                                },
-                                {
-                                    'name': '⚠️ Fault',
-                                    'value': '⚠️ FAULT: Pi-hole service on Secondary is down\nCheck immediately!',
-                                    'inline': False
-                                },
-                                {
-                                    'name': '🚀 Startup',
-                                    'value': '🚀 Pi-hole Sentinel started\nMonitoring Primary Pi-hole and Secondary Pi-hole',
-                                    'inline': False
-                                },
-                                {
-                                    'name': '✅ Status',
-                                    'value': 'If you see this, notifications are working!',
-                                    'inline': False
-                                }
-                            ],
-                            'footer': {'text': 'Pi-hole Sentinel HA Monitor'}
-                        }
-                    ]
-                }) as response:
-                    if response.status not in [200, 204]:
-                        raise Exception(f"Discord API returned {response.status}")
-        
+
+            if not validate_webhook_url(settings['webhook_url']):
+                raise HTTPException(status_code=400, detail="Discord webhook URL is not allowed (SSRF protection)")
+            session = await get_http_session()
+            async with session.post(settings['webhook_url'], json={
+                'embeds': [
+                    {
+                        'title': '🧪 Pi-hole Sentinel Test Notification',
+                        'description': '**Default Template Examples:**',
+                        'color': 3447003,
+                        'fields': [
+                            {
+                                'name': '🚨 Failover',
+                                'value': '🚨 Failover\nSecondary Pi-hole is now MASTER\nReason: Pi-hole service on Primary is down',
+                                'inline': False
+                            },
+                            {
+                                'name': '✅ Recovery',
+                                'value': '✅ Recovery: Primary Pi-hole is now MASTER\nHost back online, Pi-hole service restored',
+                                'inline': False
+                            },
+                            {
+                                'name': '⚠️ Fault',
+                                'value': '⚠️ FAULT: Pi-hole service on Secondary is down\nCheck immediately!',
+                                'inline': False
+                            },
+                            {
+                                'name': '🚀 Startup',
+                                'value': '🚀 Pi-hole Sentinel started\nMonitoring Primary Pi-hole and Secondary Pi-hole',
+                                'inline': False
+                            },
+                            {
+                                'name': '✅ Status',
+                                'value': 'If you see this, notifications are working!',
+                                'inline': False
+                            }
+                        ],
+                        'footer': {'text': 'Pi-hole Sentinel HA Monitor'}
+                    }
+                ]
+            }, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status not in [200, 204]:
+                    raise Exception(f"Discord API returned {response.status}")
+
         elif service == 'pushover':
             if not settings.get('user_key') or not settings.get('app_token'):
                 raise HTTPException(status_code=400, detail="User key and app token required")
-            
+
             test_message = (
                 "🧪 Pi-hole Sentinel Test\n\n"
                 "Default Template Examples:\n\n"
@@ -2944,24 +2947,24 @@ async def test_notification(
                 "Monitoring Primary and Secondary\n\n"
                 "✅ Notifications are working!"
             )
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.post('https://api.pushover.net/1/messages.json', data={
-                    'token': settings['app_token'],
-                    'user': settings['user_key'],
-                    'title': 'Pi-hole Sentinel Test',
-                    'message': test_message
-                }) as response:
-                    if response.status != 200:
-                        raise Exception(f"Pushover API returned {response.status}")
-        
+
+            session = await get_http_session()
+            async with session.post('https://api.pushover.net/1/messages.json', data={
+                'token': settings['app_token'],
+                'user': settings['user_key'],
+                'title': 'Pi-hole Sentinel Test',
+                'message': test_message
+            }, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status != 200:
+                    raise Exception(f"Pushover API returned {response.status}")
+
         elif service == 'ntfy':
             if not settings.get('topic'):
                 raise HTTPException(status_code=400, detail="Topic required")
-            
+
             server = settings.get('server', 'https://ntfy.sh')
             url = f"{server}/{settings['topic']}"
-            
+
             test_message = (
                 "🧪 Pi-hole Sentinel Test\n\n"
                 "Default Template Examples:\n\n"
@@ -2971,42 +2974,46 @@ async def test_notification(
                 "🚀 Startup: Pi-hole Sentinel started (Monitoring Primary and Secondary)\n\n"
                 "✅ If you see this, notifications are working!"
             )
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, data=test_message, headers={
-                    'Title': 'Pi-hole Sentinel Test',
-                    'Priority': 'default',
-                    'Tags': 'white_check_mark,test_tube'
-                }) as response:
-                    if response.status != 200:
-                        raise Exception(f"Ntfy returned {response.status}")
-        
+
+            if not validate_webhook_url(server):
+                raise HTTPException(status_code=400, detail="Ntfy server URL is not allowed (SSRF protection)")
+            session = await get_http_session()
+            async with session.post(url, data=test_message.encode('utf-8'), headers={
+                'Title': 'Pi-hole Sentinel Test',
+                'Priority': 'default',
+                'Tags': 'white_check_mark,test_tube'
+            }, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status != 200:
+                    raise Exception(f"Ntfy returned {response.status}")
+
         elif service == 'webhook':
             if not settings.get('url'):
                 raise HTTPException(status_code=400, detail="Webhook URL required")
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.post(settings['url'], json={
-                    'service': 'pihole-sentinel',
-                    'type': 'test',
-                    'message': 'Test notification - Default template examples',
-                    'templates': {
-                        'failover': '🚨 Failover: Secondary Pi-hole is now MASTER (Reason: Pi-hole service on Primary is down)',
-                        'recovery': '✅ Recovery: Primary Pi-hole is now MASTER (Host back online, Pi-hole service restored)',
-                        'fault': '⚠️ FAULT: Pi-hole service on Secondary is down - Check immediately!',
-                        'startup': '🚀 Pi-hole Sentinel started (Monitoring Primary Pi-hole and Secondary Pi-hole)'
-                    },
-                    'status': 'Notifications are working!',
-                    'timestamp': datetime.now().isoformat()
-                }) as response:
-                    if response.status not in [200, 201, 202, 204]:
-                        raise Exception(f"Webhook returned {response.status}")
-        
+
+            if not validate_webhook_url(settings['url']):
+                raise HTTPException(status_code=400, detail="Webhook URL is not allowed (SSRF protection)")
+            session = await get_http_session()
+            async with session.post(settings['url'], json={
+                'service': 'pihole-sentinel',
+                'type': 'test',
+                'message': 'Test notification - Default template examples',
+                'templates': {
+                    'failover': '🚨 Failover: Secondary Pi-hole is now MASTER (Reason: Pi-hole service on Primary is down)',
+                    'recovery': '✅ Recovery: Primary Pi-hole is now MASTER (Host back online, Pi-hole service restored)',
+                    'fault': '⚠️ FAULT: Pi-hole service on Secondary is down - Check immediately!',
+                    'startup': '🚀 Pi-hole Sentinel started (Monitoring Primary Pi-hole and Secondary Pi-hole)'
+                },
+                'status': 'Notifications are working!',
+                'timestamp': datetime.now().isoformat()
+            }, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status not in [200, 201, 202, 204]:
+                    raise Exception(f"Webhook returned {response.status}")
+
         else:
             raise HTTPException(status_code=400, detail=f"Unknown service: {service}")
-        
+
         return {"success": True, "message": f"Test notification sent via {service}", "service": service}
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -3021,34 +3028,33 @@ async def test_template_notification(
 ):
     """
     Preview a custom notification template without sending.
-    
+
     Takes a template string and template variables, performs variable substitution,
     and returns the rendered message. Useful for testing custom templates in the UI.
-    
+
     Security:
         - X-API-Key header required
         - Rate limited: max 3 requests per 60 seconds per IP
-    
+
     Request Body:
         template: Template string with {variable} placeholders
         variables: Dictionary of variables to substitute
-    
+
     Returns:
         dict: Rendered message and status
-    
+
     Raises:
         HTTPException: 403 if auth fails, 429 if rate limited, 400 if template invalid
     """
-    """Test a template notification with sample data"""
     template_type = data.get('template_type', 'failover')
-    
+
     if template_type not in ['failover', 'recovery', 'fault', 'startup']:
         raise HTTPException(status_code=400, detail="Invalid template type")
-    
+
     # Sample data for testing - use configured names or defaults
     primary_name = CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole')
     secondary_name = CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole')
-    
+
     _reasons = {
         "failover": f"Pi-hole service on {primary_name} is down",
         "recovery": "Host back online, Pi-hole service restored",
@@ -3070,7 +3076,7 @@ async def test_template_notification(
         "time": datetime.now().strftime("%H:%M:%S"),
         "date": datetime.now().strftime("%Y-%m-%d")
     }
-    
+
     try:
         await send_notification(template_type, sample_vars)
         return {"status": "success", "message": f"Test {template_type} notification sent"}
@@ -3081,26 +3087,25 @@ async def test_template_notification(
 async def get_snooze_status(api_key: str = Depends(verify_api_key)):
     """
     Get current notification snooze status.
-    
+
     Returns whether notifications are currently snoozed and when the snooze
     will expire. Automatically clears expired snoozes.
-    
+
     Security:
         - X-API-Key header required
-    
+
     Returns:
         SnoozeResponse: Snooze status, expiration time, and remaining duration
     """
-    import json
-    
+
     config_path = CONFIG["notify_config_path"]
-    
+
     if os.path.exists(config_path):
         try:
             with open(config_path, 'r') as f:
                 settings = json.load(f)
                 snooze = settings.get('snooze', {})
-                
+
                 # Check if snooze is still active
                 if snooze.get('enabled') and snooze.get('until'):
                     try:
@@ -3113,7 +3118,7 @@ async def get_snooze_status(api_key: str = Depends(verify_api_key)):
                             snooze['until'] = None
                     except (ValueError, TypeError):
                         pass
-                
+
                 is_active = is_snoozed(settings)
                 remaining = None
                 if is_active and snooze.get('until'):
@@ -3131,43 +3136,42 @@ async def get_snooze_status(api_key: str = Depends(verify_api_key)):
                 }
         except Exception:
             pass
-    
+
     return {"snoozed": False, "until": None, "remaining_seconds": None}
 
 @app.post("/api/notifications/snooze", response_model=SnoozeResponse, tags=["Notifications"])
 async def set_snooze(request: Request, data: dict, api_key: str = Depends(verify_api_key), _rate_limit: bool = Depends(write_rate_limit_check)):
     """
     Snooze notifications for a specified duration.
-    
+
     Temporarily disables all notifications for the requested time period.
     Useful when performing maintenance or when receiving too many alerts.
-    
+
     Security:
         - X-API-Key header required
-    
+
     Request Body:
         duration: Minutes to snooze (1-1440, max 24 hours)
-    
+
     Returns:
         SnoozeResponse: Updated snooze status and expiration time
-    
+
     Raises:
         HTTPException: 403 if auth fails, 400 if duration invalid
     """
-    import json
-    
+
     duration_minutes = data.get('duration', 60)  # Default 1 hour
-    
+
     if duration_minutes <= 0:
         raise HTTPException(status_code=400, detail="Duration must be positive")
-    
+
     if duration_minutes > 1440:  # Max 24 hours
         raise HTTPException(status_code=400, detail="Maximum snooze duration is 24 hours")
-    
+
     until = datetime.now() + timedelta(minutes=duration_minutes)
-    
+
     config_path = CONFIG["notify_config_path"]
-    
+
     # Load existing settings
     settings = {}
     if os.path.exists(config_path):
@@ -3176,18 +3180,18 @@ async def set_snooze(request: Request, data: dict, api_key: str = Depends(verify
                 settings = json.load(f)
         except Exception:
             pass
-    
+
     # Update snooze settings
     settings['snooze'] = {
         'enabled': True,
         'until': until.isoformat()
     }
-    
+
     # Save settings
     try:
-        with open(config_path, 'w') as f:
+        with _open_secure(config_path) as f:
             json.dump(settings, f, indent=2)
-        
+
         await log_event("info", f"🔕 Notifications snoozed until {until.strftime('%H:%M')}")
         remaining = int((until - datetime.now()).total_seconds())
         return {
@@ -3202,22 +3206,21 @@ async def set_snooze(request: Request, data: dict, api_key: str = Depends(verify
 async def cancel_snooze(api_key: str = Depends(verify_api_key)):
     """
     Cancel active notification snooze.
-    
+
     Immediately re-enables notifications if they were previously snoozed.
-    
+
     Security:
         - X-API-Key header required
-    
+
     Returns:
         SnoozeResponse: Updated snooze status (should now be enabled=false)
-    
+
     Raises:
         HTTPException: 403 if API key invalid, 500 on save error
     """
-    import json
-    
+
     config_path = CONFIG["notify_config_path"]
-    
+
     # Load existing settings
     settings = {}
     if os.path.exists(config_path):
@@ -3226,18 +3229,18 @@ async def cancel_snooze(api_key: str = Depends(verify_api_key)):
                 settings = json.load(f)
         except Exception:
             pass
-    
+
     # Clear snooze settings
     settings['snooze'] = {
         'enabled': False,
         'until': None
     }
-    
+
     # Save settings
     try:
-        with open(config_path, 'w') as f:
+        with _open_secure(config_path) as f:
             json.dump(settings, f, indent=2)
-        
+
         await log_event("info", "🔔 Snooze cancelled, notifications re-enabled")
         return {"snoozed": False, "until": None, "remaining_seconds": None}
     except Exception as e:
@@ -3246,4 +3249,8 @@ async def cancel_snooze(api_key: str = Depends(verify_api_key)):
 if __name__ == "__main__":
     if not os.path.exists(os.path.dirname(CONFIG["db_path"])):
         os.makedirs(os.path.dirname(CONFIG["db_path"]))
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(
+        app,
+        host=os.getenv("BIND_HOST", "0.0.0.0"),
+        port=int(os.getenv("BIND_PORT", "8080")),
+    )

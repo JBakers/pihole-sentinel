@@ -11,10 +11,10 @@ Docker endpoints used in integration tests:
     Secondary mock Pi-hole: http://localhost:8002  (password: testpass123)
 """
 
-import sys
 import subprocess
+import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -23,36 +23,39 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from setup import SetupConfig
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_config(**overrides):
     """Return a minimal SetupConfig pre-loaded with a test config dict."""
     c = SetupConfig()
-    c.config.update({
-        "separate_monitor":   True,
-        "monitor_ip":         "10.99.0.20",
-        "monitor_ssh_user":   "root",
-        "monitor_ssh_port":   "22",
-        "primary_ip":         "10.99.0.10",
-        "primary_ssh_user":   "root",
-        "primary_ssh_port":   "22",
-        "primary_password":   "testpass123",
-        "secondary_ip":       "10.99.0.11",
-        "secondary_ssh_user": "root",
-        "secondary_ssh_port": "22",
-        "secondary_password": "testpass123",
-        "ssh_key_path":       None,
-        **overrides,
-    })
+    c.config.update(
+        {
+            "separate_monitor": True,
+            "monitor_ip": "10.99.0.20",
+            "monitor_ssh_user": "root",
+            "monitor_ssh_port": "22",
+            "primary_ip": "10.99.0.10",
+            "primary_ssh_user": "root",
+            "primary_ssh_port": "22",
+            "primary_password": "testpass123",
+            "secondary_ip": "10.99.0.11",
+            "secondary_ssh_user": "root",
+            "secondary_ssh_port": "22",
+            "secondary_password": "testpass123",
+            "ssh_key_path": None,
+            **overrides,
+        }
+    )
     return c
 
 
 # ---------------------------------------------------------------------------
 # _check_pihole_api  (unit)
 # ---------------------------------------------------------------------------
+
 
 class TestCheckPiholeApi:
     """Unit tests for SetupConfig._check_pihole_api()."""
@@ -90,10 +93,13 @@ class TestCheckPiholeApi:
     def test_http_error_returns_false(self):
         """HTTP error (401/500) → (False, message with code)."""
         import urllib.error
+
         c = _make_config()
 
-        with patch("urllib.request.urlopen", side_effect=urllib.error.HTTPError(
-                None, 401, "Unauthorized", {}, None)):
+        with patch(
+            "urllib.request.urlopen",
+            side_effect=urllib.error.HTTPError(None, 401, "Unauthorized", {}, None),
+        ):
             ok, msg = c._check_pihole_api("10.0.0.1", "bad")
 
         assert ok is False
@@ -102,9 +108,12 @@ class TestCheckPiholeApi:
     def test_unreachable_host_returns_false(self):
         """Connection refused / timeout → (False, message)."""
         import urllib.error
+
         c = _make_config()
 
-        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("refused")):
+        with patch(
+            "urllib.request.urlopen", side_effect=urllib.error.URLError("refused")
+        ):
             ok, msg = c._check_pihole_api("10.0.0.1", "pass")
 
         assert ok is False
@@ -115,6 +124,7 @@ class TestCheckPiholeApi:
 # preflight_checks  (unit)
 # ---------------------------------------------------------------------------
 
+
 class TestPreflightChecks:
     """Unit tests for SetupConfig.preflight_checks()."""
 
@@ -122,8 +132,9 @@ class TestPreflightChecks:
         """All SSH + API checks pass → no sys.exit."""
         c = _make_config()
 
-        with patch.object(c, "remote_exec") as mock_ssh, \
-             patch.object(c, "_check_pihole_api", return_value=(True, "OK")):
+        with patch.object(c, "remote_exec") as mock_ssh, patch.object(
+            c, "_check_pihole_api", return_value=(True, "OK")
+        ):
             c.preflight_checks()  # must not raise / exit
 
         # remote_exec called for monitor + primary + secondary (3 SSH checks)
@@ -137,8 +148,9 @@ class TestPreflightChecks:
             if host == "10.99.0.10":
                 raise subprocess.CalledProcessError(255, "ssh")
 
-        with patch.object(c, "remote_exec", side_effect=ssh_fails), \
-             patch.object(c, "_check_pihole_api", return_value=(True, "OK")):
+        with patch.object(c, "remote_exec", side_effect=ssh_fails), patch.object(
+            c, "_check_pihole_api", return_value=(True, "OK")
+        ):
             with pytest.raises(SystemExit) as exc:
                 c.preflight_checks()
 
@@ -150,9 +162,9 @@ class TestPreflightChecks:
         """Wrong Pi-hole password → sys.exit(1)."""
         c = _make_config()
 
-        with patch.object(c, "remote_exec"), \
-             patch.object(c, "_check_pihole_api",
-                          return_value=(False, "wrong password")):
+        with patch.object(c, "remote_exec"), patch.object(
+            c, "_check_pihole_api", return_value=(False, "wrong password")
+        ):
             with pytest.raises(SystemExit) as exc:
                 c.preflight_checks()
 
@@ -164,10 +176,9 @@ class TestPreflightChecks:
         """Multiple failures are all reported before exiting."""
         c = _make_config()
 
-        with patch.object(c, "remote_exec",
-                          side_effect=subprocess.CalledProcessError(255, "ssh")), \
-             patch.object(c, "_check_pihole_api",
-                          return_value=(False, "wrong password")):
+        with patch.object(
+            c, "remote_exec", side_effect=subprocess.CalledProcessError(255, "ssh")
+        ), patch.object(c, "_check_pihole_api", return_value=(False, "wrong password")):
             with pytest.raises(SystemExit):
                 c.preflight_checks()
 
@@ -179,8 +190,9 @@ class TestPreflightChecks:
         """Without separate monitor, no SSH check for monitor."""
         c = _make_config(separate_monitor=False)
 
-        with patch.object(c, "remote_exec") as mock_ssh, \
-             patch.object(c, "_check_pihole_api", return_value=(True, "OK")):
+        with patch.object(c, "remote_exec") as mock_ssh, patch.object(
+            c, "_check_pihole_api", return_value=(True, "OK")
+        ):
             c.preflight_checks()
 
         # Only primary + secondary SSH = 2 calls
@@ -191,17 +203,33 @@ class TestPreflightChecks:
 # rollback_deployment  (unit)
 # ---------------------------------------------------------------------------
 
+
 class TestRollbackDeployment:
     """Unit tests for SetupConfig.rollback_deployment()."""
 
     def _make_deployed_hosts(self):
         return [
-            {"type": "monitor",   "host": "10.99.0.20", "user": "root",
-             "port": "22", "backup_ts": "20260328_120000"},
-            {"type": "primary",   "host": "10.99.0.10", "user": "root",
-             "port": "22", "backup_ts": "20260328_120001"},
-            {"type": "secondary", "host": "10.99.0.11", "user": "root",
-             "port": "22", "backup_ts": "20260328_120002"},
+            {
+                "type": "monitor",
+                "host": "10.99.0.20",
+                "user": "root",
+                "port": "22",
+                "backup_ts": "20260328_120000",
+            },
+            {
+                "type": "primary",
+                "host": "10.99.0.10",
+                "user": "root",
+                "port": "22",
+                "backup_ts": "20260328_120001",
+            },
+            {
+                "type": "secondary",
+                "host": "10.99.0.11",
+                "user": "root",
+                "port": "22",
+                "backup_ts": "20260328_120002",
+            },
         ]
 
     def test_rollback_calls_remote_exec_for_each_host(self):
@@ -252,8 +280,15 @@ class TestRollbackDeployment:
     def test_rollback_without_backup_ts_skips_file_restore(self, capsys):
         """Host without backup_ts gets a restart attempt but no cp commands."""
         c = _make_config()
-        hosts = [{"type": "primary", "host": "10.99.0.10",
-                  "user": "root", "port": "22", "backup_ts": None}]
+        hosts = [
+            {
+                "type": "primary",
+                "host": "10.99.0.10",
+                "user": "root",
+                "port": "22",
+                "backup_ts": None,
+            }
+        ]
         cp_calls = []
 
         def track(host, user, port, cmd):
@@ -272,6 +307,7 @@ class TestRollbackDeployment:
 # uninstall  (unit)
 # ---------------------------------------------------------------------------
 
+
 class TestUninstall:
     """Unit tests for SetupConfig.uninstall()."""
 
@@ -280,9 +316,11 @@ class TestUninstall:
         c = _make_config()
         exec_calls = []
 
-        with patch.object(c, "remote_exec",
-                          side_effect=lambda h, u, p, cmd: exec_calls.append((h, cmd))), \
-             patch("builtins.input", return_value="yes"):
+        with patch.object(
+            c,
+            "remote_exec",
+            side_effect=lambda h, u, p, cmd: exec_calls.append((h, cmd)),
+        ), patch("builtins.input", return_value="yes"):
             c.uninstall()
 
         all_cmds = " ".join(cmd for _, cmd in exec_calls)
@@ -296,9 +334,9 @@ class TestUninstall:
         c = _make_config()
         exec_calls = []
 
-        with patch.object(c, "remote_exec",
-                          side_effect=lambda h, u, p, cmd: exec_calls.append(cmd)), \
-             patch("builtins.input", return_value="yes"):
+        with patch.object(
+            c, "remote_exec", side_effect=lambda h, u, p, cmd: exec_calls.append(cmd)
+        ), patch("builtins.input", return_value="yes"):
             c.uninstall()
 
         all_cmds = " ".join(exec_calls)
@@ -311,8 +349,9 @@ class TestUninstall:
         """Input other than 'yes' cancels without touching any server."""
         c = _make_config()
 
-        with patch.object(c, "remote_exec") as mock_exec, \
-             patch("builtins.input", return_value="no"):
+        with patch.object(c, "remote_exec") as mock_exec, patch(
+            "builtins.input", return_value="no"
+        ):
             c.uninstall()
 
         mock_exec.assert_not_called()
@@ -324,9 +363,11 @@ class TestUninstall:
         c = _make_config(separate_monitor=False, monitor_ip=None)
         exec_calls = []
 
-        with patch.object(c, "remote_exec",
-                          side_effect=lambda h, u, p, cmd: exec_calls.append((h, cmd))), \
-             patch("builtins.input", return_value="yes"):
+        with patch.object(
+            c,
+            "remote_exec",
+            side_effect=lambda h, u, p, cmd: exec_calls.append((h, cmd)),
+        ), patch("builtins.input", return_value="yes"):
             c.uninstall()
 
         # No calls against 10.99.0.20 (monitor-only IP)
@@ -337,9 +378,9 @@ class TestUninstall:
         """SSH errors during uninstall are reported but don't crash setup."""
         c = _make_config()
 
-        with patch.object(c, "remote_exec",
-                          side_effect=Exception("connection refused")), \
-             patch("builtins.input", return_value="yes"):
+        with patch.object(
+            c, "remote_exec", side_effect=Exception("connection refused")
+        ), patch("builtins.input", return_value="yes"):
             # Must not raise
             c.uninstall()
 
@@ -347,6 +388,7 @@ class TestUninstall:
 # ---------------------------------------------------------------------------
 # backup_existing_configs  — return value (unit)
 # ---------------------------------------------------------------------------
+
 
 class TestBackupExistingConfigs:
     """Verify backup_existing_configs() returns the timestamp string."""
@@ -379,16 +421,17 @@ class TestBackupExistingConfigs:
 # Integration tests — require running Docker environment
 # ---------------------------------------------------------------------------
 
-DOCKER_PRIMARY_URL   = "http://localhost:8001"
+DOCKER_PRIMARY_URL = "http://localhost:8001"
 DOCKER_SECONDARY_URL = "http://localhost:8002"
-DOCKER_PASSWORD      = "testpass123"
-DOCKER_WRONG_PW      = "definitely-wrong"
+DOCKER_PASSWORD = "testpass123"
+DOCKER_WRONG_PW = "definitely-wrong"
 
 
 def _docker_available():
     """Return True if the Docker mock Pi-holes are reachable."""
-    import urllib.request
     import urllib.error
+    import urllib.request
+
     try:
         urllib.request.urlopen(f"{DOCKER_PRIMARY_URL}/mock/state", timeout=2)
         return True
@@ -398,7 +441,10 @@ def _docker_available():
 
 docker = pytest.mark.skipif(
     not _docker_available(),
-    reason="Docker test environment not running (make docker-up)"
+    reason=(
+        "Docker test environment not running "
+        "(run 'make docker-up' or 'docker compose -f docker-compose.test.yml up -d')"
+    ),
 )
 
 
@@ -412,29 +458,33 @@ class TestCheckPiholeApiDocker:
         # Direct call with host:port doesn't work — use the full URL approach.
         # The method builds http://{ip}/api/auth so we need to patch it to
         # use the correct port.  Re-test via monkeypatching the URL:
-        import urllib.request
         import json as _json
+        import urllib.request
+
         url = f"{DOCKER_PRIMARY_URL}/api/auth"
         payload = _json.dumps({"password": DOCKER_PASSWORD}).encode()
         req = urllib.request.Request(
-            url, data=payload,
+            url,
+            data=payload,
             headers={"Content-Type": "application/json"},
-            method="POST"
+            method="POST",
         )
         with urllib.request.urlopen(req, timeout=8) as resp:
             body = _json.loads(resp.read().decode())
         assert body["session"]["valid"] is True
 
     def test_primary_wrong_password(self):
-        import urllib.request
-        import urllib.error
         import json as _json
+        import urllib.error
+        import urllib.request
+
         url = f"{DOCKER_PRIMARY_URL}/api/auth"
         payload = _json.dumps({"password": DOCKER_WRONG_PW}).encode()
         req = urllib.request.Request(
-            url, data=payload,
+            url,
+            data=payload,
             headers={"Content-Type": "application/json"},
-            method="POST"
+            method="POST",
         )
         # Mock Pi-hole returns 401 for wrong password
         with pytest.raises(urllib.error.HTTPError) as exc_info:
@@ -442,14 +492,16 @@ class TestCheckPiholeApiDocker:
         assert exc_info.value.code == 401
 
     def test_secondary_correct_password(self):
-        import urllib.request
         import json as _json
+        import urllib.request
+
         url = f"{DOCKER_SECONDARY_URL}/api/auth"
         payload = _json.dumps({"password": DOCKER_PASSWORD}).encode()
         req = urllib.request.Request(
-            url, data=payload,
+            url,
+            data=payload,
             headers={"Content-Type": "application/json"},
-            method="POST"
+            method="POST",
         )
         with urllib.request.urlopen(req, timeout=8) as resp:
             body = _json.loads(resp.read().decode())
@@ -486,8 +538,7 @@ class TestCheckPiholeApiDocker:
             primary_password=DOCKER_WRONG_PW,
             secondary_password=DOCKER_WRONG_PW,
         )
-        with patch.object(c, "remote_exec"), \
-             pytest.raises(SystemExit) as exc:
+        with patch.object(c, "remote_exec"), pytest.raises(SystemExit) as exc:
             c.preflight_checks()
 
         assert exc.value.code == 1
@@ -499,13 +550,15 @@ class TestMockPiholeStateDocker:
 
     def test_set_fail_auth_then_check(self):
         """With fail_auth=true, _check_pihole_api should return False."""
-        import urllib.request
         import json as _json
+        import urllib.request
 
         def _post(url, payload):
             req = urllib.request.Request(
-                url, data=_json.dumps(payload).encode(),
-                headers={"Content-Type": "application/json"}, method="POST"
+                url,
+                data=_json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
             )
             urllib.request.urlopen(req, timeout=5)
 
@@ -521,13 +574,15 @@ class TestMockPiholeStateDocker:
 
     def test_primary_reset_restores_auth(self):
         """After reset, primary auth should work again."""
-        import urllib.request
         import json as _json
+        import urllib.request
 
         # Trigger fail then reset
         req = urllib.request.Request(
             f"{DOCKER_PRIMARY_URL}/mock/reset",
-            data=b"", headers={"Content-Type": "application/json"}, method="POST"
+            data=b"",
+            headers={"Content-Type": "application/json"},
+            method="POST",
         )
         urllib.request.urlopen(req, timeout=5)
 

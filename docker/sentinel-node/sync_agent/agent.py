@@ -13,18 +13,18 @@ container. Responsibilities:
 All peer-to-peer communication uses a shared SYNC_TOKEN for authentication.
 """
 
-import os
+import asyncio
 import hmac
 import json
-import time
-import asyncio
 import logging
-from pathlib import Path
+import os
+import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks, Depends
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 # ── Configuration ───────────────────────────────────────────
@@ -70,8 +70,10 @@ app = FastAPI(
 def verify_sync_token(x_sync_token: str = Header(default="")):
     """Verify the sync token for peer-to-peer communication (timing-safe)."""
     if not SYNC_TOKEN:
-        logger.warning("SYNC_TOKEN is not set — all sync endpoints are OPEN. Set SYNC_TOKEN for production use.")
-        return
+        raise HTTPException(
+            status_code=503,
+            detail="SYNC_TOKEN is not configured — sync endpoints unavailable. Set SYNC_TOKEN env var."
+        )
     if not hmac.compare_digest(x_sync_token, SYNC_TOKEN):
         raise HTTPException(status_code=403, detail="Invalid sync token")
 

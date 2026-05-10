@@ -37,6 +37,7 @@ def monitor(monkeypatch, tmp_path):
 # _load_system_settings
 # ─────────────────────────────────────────────────────────────────────
 
+
 class TestLoadSystemSettings:
     """Test system settings loading from JSON config."""
 
@@ -57,9 +58,7 @@ class TestLoadSystemSettings:
     def test_reads_dhcp_failover_false(self, monitor, tmp_path):
         """When system.dhcp_failover is false, return False."""
         config_path = tmp_path / "notify_settings.json"
-        config_path.write_text(json.dumps({
-            "system": {"dhcp_failover": False}
-        }))
+        config_path.write_text(json.dumps({"system": {"dhcp_failover": False}}))
         monitor.CONFIG["notify_config_path"] = str(config_path)
 
         result = monitor._load_system_settings()
@@ -68,9 +67,7 @@ class TestLoadSystemSettings:
     def test_reads_dhcp_failover_true(self, monitor, tmp_path):
         """When system.dhcp_failover is true, return True."""
         config_path = tmp_path / "notify_settings.json"
-        config_path.write_text(json.dumps({
-            "system": {"dhcp_failover": True}
-        }))
+        config_path.write_text(json.dumps({"system": {"dhcp_failover": True}}))
         monitor.CONFIG["notify_config_path"] = str(config_path)
 
         result = monitor._load_system_settings()
@@ -90,6 +87,7 @@ class TestLoadSystemSettings:
 # _save_system_settings
 # ─────────────────────────────────────────────────────────────────────
 
+
 class TestSaveSystemSettings:
     """Test system settings persistence."""
 
@@ -107,10 +105,14 @@ class TestSaveSystemSettings:
     def test_preserves_existing_settings(self, monitor, tmp_path):
         """Save preserves existing notification settings."""
         config_path = tmp_path / "notify_settings.json"
-        config_path.write_text(json.dumps({
-            "telegram": {"enabled": True, "bot_token": "secret123"},
-            "events": {"failover": True}
-        }))
+        config_path.write_text(
+            json.dumps(
+                {
+                    "telegram": {"enabled": True, "bot_token": "secret123"},
+                    "events": {"failover": True},
+                }
+            )
+        )
         monitor.CONFIG["notify_config_path"] = str(config_path)
 
         monitor._save_system_settings({"dhcp_failover": False})
@@ -120,6 +122,9 @@ class TestSaveSystemSettings:
         assert data["telegram"]["bot_token"] == "secret123"
         assert data["events"]["failover"] is True
 
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="chmod 0o600 not supported on Windows"
+    )
     def test_file_permissions(self, monitor, tmp_path):
         """Saved config file has restricted permissions (0o600)."""
         config_path = tmp_path / "notify_settings.json"
@@ -135,16 +140,21 @@ class TestSaveSystemSettings:
 # Backward compatibility
 # ─────────────────────────────────────────────────────────────────────
 
+
 class TestBackwardCompatibility:
     """Existing installations without system settings should work unchanged."""
 
     def test_existing_config_without_system_key(self, monitor, tmp_path):
         """Old configs without 'system' key default to dhcp_failover=False."""
         config_path = tmp_path / "notify_settings.json"
-        config_path.write_text(json.dumps({
-            "telegram": {"enabled": False},
-            "events": {"failover": True, "recovery": True}
-        }))
+        config_path.write_text(
+            json.dumps(
+                {
+                    "telegram": {"enabled": False},
+                    "events": {"failover": True, "recovery": True},
+                }
+            )
+        )
         monitor.CONFIG["notify_config_path"] = str(config_path)
 
         result = monitor._load_system_settings()
@@ -152,7 +162,7 @@ class TestBackwardCompatibility:
 
     def test_cached_settings_available(self, monitor):
         """Module-level _system_settings cache is populated."""
-        assert hasattr(monitor, '_system_settings')
+        assert hasattr(monitor, "_system_settings")
         assert "dhcp_failover" in monitor._system_settings
 
     def test_default_is_disabled(self, monitor):
