@@ -23,24 +23,24 @@
 
 ## Current Status
 
-### Branch: `develop` — v0.18.5
+### Branch: `develop` — v0.19.0
 
-| Item | Status |
-|------|--------|
-| Core monitoring service (monitor.py) | ✅ Stable |
-| Dashboard + Settings UI | ✅ Up to date |
-| setup.py deployment (bare-metal) | ✅ Fully working (tested 2026-03-28) |
-| Config sync (pihole.toml + gravity) | ✅ Stable |
-| Notifications (Telegram/Discord/Pushover/Ntfy) | ✅ Working |
-| System Commands panel | ✅ Working |
-| Fault debounce + recovery notifications | ✅ Working |
-| DHCP auto-detection | ✅ Working (3-poll debounce) |
-| Docker integration test suite (20 tests) | ✅ Working (`make docker-integration`) |
-| `pisen api` CLI command | ✅ Working (v0.18.0) |
-| DNS latency health check | ✅ Working (v0.18.0, default 500ms) |
-| Debug override mode (`DEBUG_MODE=true`) | ✅ Working (v0.18.0) |
-| Unit tests | ⚠️ 55% monitor.py coverage (399 tests) — target 60%+ still open (see D2) |
-| Container architecture (v2.0) | 🔲 Separate branch: `feature/container-architecture` |
+| Item                                           | Status                                                         |
+| ---------------------------------------------- | -------------------------------------------------------------- |
+| Core monitoring service (monitor.py)           | ✅ Stable                                                      |
+| Dashboard + Settings UI                        | ✅ Up to date                                                  |
+| setup.py deployment (bare-metal)               | ✅ Fully working (tested 2026-03-28)                           |
+| Config sync (pihole.toml + gravity)            | ✅ Stable                                                      |
+| Notifications (Telegram/Discord/Pushover/Ntfy) | ✅ Working                                                     |
+| System Commands panel                          | ✅ Working                                                     |
+| Fault debounce + recovery notifications        | ✅ Working                                                     |
+| DHCP auto-detection                            | ✅ Working (3-poll debounce)                                   |
+| Docker integration test suite (18 tests)       | ✅ Working (`pytest tests/test_integration.py -m integration`) |
+| `pisen api` CLI command                        | ✅ Working (v0.18.0)                                           |
+| DNS latency health check                       | ✅ Working (v0.18.0, default 500ms)                            |
+| Debug override mode (`DEBUG_MODE=true`)        | ✅ Working (v0.18.0)                                           |
+| Unit tests                                     | ✅ 539 tests passing — target 60%+ still open (see D2)         |
+| Container architecture (v2.0)                  | 🔲 Separate branch: `feature/container-architecture`           |
 
 ---
 
@@ -52,6 +52,9 @@ No open bugs.
 
 ## Security & Best Practices Review — 2026-05-10
 
+> Status: alle bevindingen hieronder zijn geïmplementeerd in code en vastgelegd in commit `5216894`.
+> Deze sectie blijft behouden als auditgeschiedenis; het is geen open todo-lijst meer.
+
 > Gegenereerd via volledige codebase-scan. Gesorteerd op kriticiteitsniveau.
 > Elke fix is exact en actionable. Geen tutorials of algemene uitleg.
 
@@ -62,36 +65,39 @@ No open bugs.
 ---
 
 **C1**
+
 - **Level:** Critical
 - **Location:** [setup.py](setup.py#L260) — ook L303, L307, L312, L681, L695, L736, L1482, L1955, L1963, L1969, L2376, L2378, L2380
 - **Issue:** `StrictHostKeyChecking=no` in alle SSH/SCP-aanroepen gedurende installatie en remote commando's — staat MITM-aanvallen toe.
 - **Fix:**
-  ```python
-  # Vervang in remote_exec, remote_copy, en alle andere ssh/scp calls:
-  # VOOR (oud):
-  "-o", "StrictHostKeyChecking=no",
 
-  # NA (nieuw) — gebruik accept-new: accepteer bij eerste verbinding, weiger bij gewijzigde host key:
-  "-o", "StrictHostKeyChecking=accept-new",
-  "-o", "UserKnownHostsFile=/opt/pihole-monitor/.ssh/known_hosts",
-  ```
+    ```python
+    # Vervang in remote_exec, remote_copy, en alle andere ssh/scp calls:
+    # VOOR (oud):
+    "-o", "StrictHostKeyChecking=no",
+
+    # NA (nieuw) — gebruik accept-new: accepteer bij eerste verbinding, weiger bij gewijzigde host key:
+    "-o", "StrictHostKeyChecking=accept-new",
+    "-o", "UserKnownHostsFile=/opt/pihole-monitor/.ssh/known_hosts",
+    ```
 
 ---
 
 **C2**
+
 - **Level:** Critical
 - **Location:** [docker/sentinel-node/sync_agent/agent.py](docker/sentinel-node/sync_agent/agent.py#L72)
 - **Issue:** Wanneer `SYNC_TOKEN=""` (standaard), worden alle sync-endpoints volledig opengesteld zonder authenticatie; alleen een warning wordt gelogd.
 - **Fix:**
-  ```python
-  def verify_sync_token(x_sync_token: str = Header(default="")):
-      if not SYNC_TOKEN:
-          # VOOR: logger.warning(...) + return  ← open!
-          # NA: harde fout:
-          raise HTTPException(status_code=503, detail="Sync token not configured — service unavailable")
-      if not hmac.compare_digest(x_sync_token, SYNC_TOKEN):
-          raise HTTPException(status_code=403, detail="Invalid sync token")
-  ```
+    ```python
+    def verify_sync_token(x_sync_token: str = Header(default="")):
+        if not SYNC_TOKEN:
+            # VOOR: logger.warning(...) + return  ← open!
+            # NA: harde fout:
+            raise HTTPException(status_code=503, detail="Sync token not configured — service unavailable")
+        if not hmac.compare_digest(x_sync_token, SYNC_TOKEN):
+            raise HTTPException(status_code=403, detail="Invalid sync token")
+    ```
 
 ---
 
@@ -100,52 +106,57 @@ No open bugs.
 ---
 
 **H1**
+
 - **Level:** High
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L1260) — ook L1277, L1290, L1305, L1323
 - **Issue:** Pi-hole API-communicatie (inclusief wachtwoordoverdracht) gebruikt onversleuteld HTTP (`http://{ip}/api/auth`).
 - **Fix:**
-  ```python
-  # Voeg toe aan CONFIG (env-driven):
-  "pihole_scheme": os.getenv("PIHOLE_SCHEME", "http"),  # zet op "https" voor TLS
 
-  # Vervang in check_pihole_simple():
-  scheme = CONFIG.get("pihole_scheme", "http")
-  async with session.post(f"{scheme}://{ip}/api/auth", json={"password": password}, ...) as auth_resp:
-  # Idem voor alle andere f"http://{ip}/..." aanroepen in die functie.
-  ```
+    ```python
+    # Voeg toe aan CONFIG (env-driven):
+    "pihole_scheme": os.getenv("PIHOLE_SCHEME", "http"),  # zet op "https" voor TLS
+
+    # Vervang in check_pihole_simple():
+    scheme = CONFIG.get("pihole_scheme", "http")
+    async with session.post(f"{scheme}://{ip}/api/auth", json={"password": password}, ...) as auth_resp:
+    # Idem voor alle andere f"http://{ip}/..." aanroepen in die functie.
+    ```
 
 ---
 
 **H2**
+
 - **Level:** High
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L2885) — ook L2988
 - **Issue:** `test_notification`-endpoint roept `validate_webhook_url()` niet aan voor Discord- en Webhook-testpaden — SSRF-bescherming wordt omzeild.
 - **Fix:**
-  ```python
-  # Voeg toe vóór de session.post() aanroep in service == 'discord' blok (L2885):
-  if not validate_webhook_url(settings['webhook_url']):
-      raise HTTPException(status_code=400, detail="Webhook URL is not allowed (SSRF protection)")
 
-  # Voeg toe vóór de session.post() aanroep in service == 'webhook' blok (L2988):
-  if not validate_webhook_url(settings['url']):
-      raise HTTPException(status_code=400, detail="Webhook URL is not allowed (SSRF protection)")
-  ```
+    ```python
+    # Voeg toe vóór de session.post() aanroep in service == 'discord' blok (L2885):
+    if not validate_webhook_url(settings['webhook_url']):
+        raise HTTPException(status_code=400, detail="Webhook URL is not allowed (SSRF protection)")
+
+    # Voeg toe vóór de session.post() aanroep in service == 'webhook' blok (L2988):
+    if not validate_webhook_url(settings['url']):
+        raise HTTPException(status_code=400, detail="Webhook URL is not allowed (SSRF protection)")
+    ```
 
 ---
 
 **H3**
+
 - **Level:** High
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L2871) — ook L2885, L2948, L2975, L2988
 - **Issue:** `test_notification` maakt per aanroep een nieuw `aiohttp.ClientSession()` zonder timeout — resource-lek en kwetsbaar voor Slowloris.
 - **Fix:**
-  ```python
-  # Vervang alle `async with aiohttp.ClientSession() as session:` in test_notification
-  # door gebruik van de globale sessie met timeout:
-  session = await get_http_session()
-  # (verwijder de `async with aiohttp.ClientSession() as session:` wrapper per blok)
-  # Voeg per post-aanroep een expliciete timeout toe:
-  async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as response:
-  ```
+    ```python
+    # Vervang alle `async with aiohttp.ClientSession() as session:` in test_notification
+    # door gebruik van de globale sessie met timeout:
+    session = await get_http_session()
+    # (verwijder de `async with aiohttp.ClientSession() as session:` wrapper per blok)
+    # Voeg per post-aanroep een expliciete timeout toe:
+    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as response:
+    ```
 
 ---
 
@@ -154,113 +165,122 @@ No open bugs.
 ---
 
 **M1**
+
 - **Level:** Medium
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L330) — L330–L390
 - **Issue:** `rate_limit_store` en `write_rate_limit_store` zijn onbegrensde `defaultdict`s; bij DoS met unieke IPs groeien ze onbeperkt in geheugen.
 - **Fix:**
-  ```python
-  # Voeg toe aan de cleanup-stap in rate_limit_check en write_rate_limit_check,
-  # vóór de append-stap, een max-cap op het aantal bijgehouden sleutels:
-  MAX_TRACKED_IPS = 10_000
 
-  async def rate_limit_check(request: Request):
-      client_ip = _get_client_ip(request)
-      now = datetime.now()
-      rate_limit_store[client_ip] = [
-          ts for ts in rate_limit_store[client_ip]
-          if now - ts < timedelta(seconds=RATE_LIMIT_WINDOW)
-      ]
-      if len(rate_limit_store) > MAX_TRACKED_IPS:
-          # Verwijder de oudste inactieve sleutels
-          stale = [ip for ip, ts_list in rate_limit_store.items() if not ts_list]
-          for ip in stale[:1000]:
-              del rate_limit_store[ip]
-      # ... rest ongewijzigd
-  ```
+    ```python
+    # Voeg toe aan de cleanup-stap in rate_limit_check en write_rate_limit_check,
+    # vóór de append-stap, een max-cap op het aantal bijgehouden sleutels:
+    MAX_TRACKED_IPS = 10_000
+
+    async def rate_limit_check(request: Request):
+        client_ip = _get_client_ip(request)
+        now = datetime.now()
+        rate_limit_store[client_ip] = [
+            ts for ts in rate_limit_store[client_ip]
+            if now - ts < timedelta(seconds=RATE_LIMIT_WINDOW)
+        ]
+        if len(rate_limit_store) > MAX_TRACKED_IPS:
+            # Verwijder de oudste inactieve sleutels
+            stale = [ip for ip, ts_list in rate_limit_store.items() if not ts_list]
+            for ip in stale[:1000]:
+                del rate_limit_store[ip]
+        # ... rest ongewijzigd
+    ```
 
 ---
 
 **M2**
+
 - **Level:** Medium
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L897)
 - **Issue:** `Content-Security-Policy` header staat `'unsafe-inline'` toe voor `script-src`, wat XSS-bescherming significant verlaagt.
 - **Fix:**
-  ```python
-  # Vervang in security_headers middleware:
-  # VOOR:
-  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
 
-  # NA — gebruik een nonce (genereer per request):
-  import secrets as _sec
-  nonce = _sec.token_urlsafe(16)
-  response.headers["Content-Security-Policy"] = (
-      f"default-src 'self'; "
-      f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-      "style-src 'self' 'unsafe-inline'; "
-      "img-src 'self' data:; "
-      "connect-src 'self'; "
-      "frame-ancestors 'none'"
-  )
-  # Injecteer de nonce ook in de HTML via de serve_index/serve_settings handlers.
-  ```
+    ```python
+    # Vervang in security_headers middleware:
+    # VOOR:
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+
+    # NA — gebruik een nonce (genereer per request):
+    import secrets as _sec
+    nonce = _sec.token_urlsafe(16)
+    response.headers["Content-Security-Policy"] = (
+        f"default-src 'self'; "
+        f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+    # Injecteer de nonce ook in de HTML via de serve_index/serve_settings handlers.
+    ```
 
 ---
 
 **M3**
+
 - **Level:** Medium
 - **Location:** [requirements.txt](requirements.txt)
 - **Issue:** `packaging`-library wordt gebruikt in `_is_newer_version()` (monitor.py L1101) maar staat niet in `requirements.txt`; de fallback-vergelijking (`latest_clean > current_clean`) is lexicografisch en incorrect voor semantische versies.
 - **Fix:**
-  ```
-  # Voeg toe aan requirements.txt:
-  packaging>=23.0
-  ```
+    ```
+    # Voeg toe aan requirements.txt:
+    packaging>=23.0
+    ```
 
 ---
 
 **M4**
+
 - **Level:** Medium
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L3249)
 - **Issue:** `uvicorn.run(app, host="0.0.0.0")` is hardcoded — bind-adres is niet configureerbaar via omgevingsvariabele.
 - **Fix:**
-  ```python
-  # Vervang de laatste regel:
-  # VOOR:
-  uvicorn.run(app, host="0.0.0.0", port=8080)
 
-  # NA:
-  uvicorn.run(
-      app,
-      host=os.getenv("BIND_HOST", "0.0.0.0"),
-      port=int(os.getenv("BIND_PORT", "8080")),
-  )
-  ```
+    ```python
+    # Vervang de laatste regel:
+    # VOOR:
+    uvicorn.run(app, host="0.0.0.0", port=8080)
+
+    # NA:
+    uvicorn.run(
+        app,
+        host=os.getenv("BIND_HOST", "0.0.0.0"),
+        port=int(os.getenv("BIND_PORT", "8080")),
+    )
+    ```
 
 ---
 
 **M5**
+
 - **Level:** Medium
 - **Location:** [docker/sentinel-node/sync_agent/agent.py](docker/sentinel-node/sync_agent/agent.py)
 - **Issue:** Geen rate limiting op enig endpoint in de sync agent; gezamenlijke endpoints zijn blootgesteld zonder throttling.
 - **Fix:**
-  ```python
-  # Voeg toe als dependency (zelfde patroon als monitor.py write_rate_limit_check):
-  from collections import defaultdict
-  from datetime import datetime, timedelta
-  _agent_rate_store = defaultdict(list)
-  AGENT_RATE_LIMIT = 30
-  AGENT_RATE_WINDOW = 60
 
-  def agent_rate_limit(request: Request):
-      ip = request.client.host if request.client else "unknown"
-      now = datetime.now()
-      _agent_rate_store[ip] = [t for t in _agent_rate_store[ip] if now - t < timedelta(seconds=AGENT_RATE_WINDOW)]
-      if len(_agent_rate_store[ip]) >= AGENT_RATE_LIMIT:
-          raise HTTPException(status_code=429, detail="Rate limit exceeded")
-      _agent_rate_store[ip].append(now)
+    ```python
+    # Voeg toe als dependency (zelfde patroon als monitor.py write_rate_limit_check):
+    from collections import defaultdict
+    from datetime import datetime, timedelta
+    _agent_rate_store = defaultdict(list)
+    AGENT_RATE_LIMIT = 30
+    AGENT_RATE_WINDOW = 60
 
-  # Voeg toe aan elke route: dependencies=[Depends(agent_rate_limit)]
-  ```
+    def agent_rate_limit(request: Request):
+        ip = request.client.host if request.client else "unknown"
+        now = datetime.now()
+        _agent_rate_store[ip] = [t for t in _agent_rate_store[ip] if now - t < timedelta(seconds=AGENT_RATE_WINDOW)]
+        if len(_agent_rate_store[ip]) >= AGENT_RATE_LIMIT:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded")
+        _agent_rate_store[ip].append(now)
+
+    # Voeg toe aan elke route: dependencies=[Depends(agent_rate_limit)]
+    ```
 
 ---
 
@@ -269,81 +289,88 @@ No open bugs.
 ---
 
 **L1**
+
 - **Level:** Low
 - **Location:** [docker/mock-pihole/mock_pihole.py](docker/mock-pihole/mock_pihole.py#L45)
 - **Issue:** Hardcoded standaard-testwachtwoord `"testpass123"` — indien mock server per ongeluk in productie draait, is het wachtwoord bekend.
 - **Fix:**
-  ```python
-  # VOOR:
-  PIHOLE_PASSWORD = os.getenv("PIHOLE_PASSWORD", "testpass123")
 
-  # NA — geen default; verplicht via env:
-  PIHOLE_PASSWORD = os.getenv("PIHOLE_PASSWORD", "")
-  if not PIHOLE_PASSWORD:
-      raise RuntimeError("PIHOLE_PASSWORD env var is required")
-  ```
+    ```python
+    # VOOR:
+    PIHOLE_PASSWORD = os.getenv("PIHOLE_PASSWORD", "testpass123")
+
+    # NA — geen default; verplicht via env:
+    PIHOLE_PASSWORD = os.getenv("PIHOLE_PASSWORD", "")
+    if not PIHOLE_PASSWORD:
+        raise RuntimeError("PIHOLE_PASSWORD env var is required")
+    ```
 
 ---
 
 **L2**
+
 - **Level:** Low
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L580) — ook L778, L808 en diverse API handlers
 - **Issue:** `import json` wordt herhaaldelijk binnenin functies geïmporteerd terwijl het al module-breed beschikbaar is — overtollige microkosten en inconsistentie.
 - **Fix:**
-  ```python
-  # Verwijder alle `import json` regels bínnen functies.
-  # `json` staat al als top-level import (controleer: het staat NIET in de top imports!
-  # Voeg eenmalig toe aan de module-level imports bovenaan monitor.py):
-  import json
-  ```
+    ```python
+    # Verwijder alle `import json` regels bínnen functies.
+    # `json` staat al als top-level import (controleer: het staat NIET in de top imports!
+    # Voeg eenmalig toe aan de module-level imports bovenaan monitor.py):
+    import json
+    ```
 
 ---
 
 **L3**
+
 - **Level:** Low
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L3042)
 - **Issue:** `test_template_notification` heeft een dood-code-string `"""Test a template notification with sample data"""` als losse statement na de echte docstring — dead code.
 - **Fix:**
-  ```python
-  # Verwijder regel 3042 volledig:
-  """Test a template notification with sample data"""   # ← DELETE deze regel
-  ```
+    ```python
+    # Verwijder regel 3042 volledig:
+    """Test a template notification with sample data"""   # ← DELETE deze regel
+    ```
 
 ---
 
 **L4**
+
 - **Level:** Low
 - **Location:** [setup.py](setup.py#L1234)
 - **Issue:** `subprocess.run(["sudo", "useradd", ...], check=False)` smoort fouten stil; mislukte systeemgebruiker-aanmaak blijft onopgemerkt.
 - **Fix:**
-  ```python
-  # VOOR:
-  subprocess.run(["sudo", "useradd", "-r", "-s", "/bin/false", "pihole-monitor"], check=False)
 
-  # NA:
-  result = subprocess.run(["sudo", "useradd", "-r", "-s", "/bin/false", "pihole-monitor"], capture_output=True)
-  if result.returncode not in (0, 9):  # 9 = user already exists
-      logger.warning(f"useradd failed (rc={result.returncode}): {result.stderr.decode().strip()}")
-  ```
+    ```python
+    # VOOR:
+    subprocess.run(["sudo", "useradd", "-r", "-s", "/bin/false", "pihole-monitor"], check=False)
+
+    # NA:
+    result = subprocess.run(["sudo", "useradd", "-r", "-s", "/bin/false", "pihole-monitor"], capture_output=True)
+    if result.returncode not in (0, 9):  # 9 = user already exists
+        logger.warning(f"useradd failed (rc={result.returncode}): {result.stderr.decode().strip()}")
+    ```
 
 ---
 
 **L5**
+
 - **Level:** Low
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L1451)
 - **Issue:** `extract_mac` is een geneste functie die bij élke aanroep van `check_who_has_vip()` opnieuw wordt aangemaakt (per poll-cyclus).
 - **Fix:**
-  ```python
-  # Verplaats extract_mac naar module-niveau (vóór check_who_has_vip):
-  def _extract_mac(output: str) -> Optional[str]:
-      """Extract MAC address from 'ip neigh show' output."""
-      parts = output.split()
-      try:
-          lladdr_idx = parts.index('lladdr')
-          return parts[lladdr_idx + 1].upper()
-      except (ValueError, IndexError):
-          return None
-  ```
+    ```python
+    # Verplaats extract_mac naar module-niveau (vóór check_who_has_vip):
+    def _extract_mac(output: str) -> Optional[str]:
+        """Extract MAC address from 'ip neigh show' output."""
+        parts = output.split()
+        try:
+            lladdr_idx = parts.index('lladdr')
+            return parts[lladdr_idx + 1].upper()
+        except (ValueError, IndexError):
+            return None
+    ```
 
 ---
 
@@ -352,6 +379,7 @@ No open bugs.
 ---
 
 **I1**
+
 - **Level:** Info
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L18)
 - **Issue:** `import copy` wordt alleen gebruikt in `mask_sensitive_data()` (één `deepcopy`-aanroep) — geen probleem maar opvallend geïsoleerd.
@@ -360,38 +388,40 @@ No open bugs.
 ---
 
 **I2**
+
 - **Level:** Info
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L2427) — ook L2330
 - **Issue:** `open(config_path, 'w')` gevolgd door `os.chmod(config_path, 0o600)` heeft een TOCTOU-venster; bestand is tijdelijk world-readable bij aanmaak.
 - **Fix:**
-  ```python
-  import stat
 
-  def _open_secure(path: str):
-      """Open bestand voor schrijven met mode 0o600 vanaf aanmaak."""
-      fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-      return open(fd, 'w')
+    ```python
+    import stat
 
-  # Vervang:
-  with open(config_path, 'w') as f:
-      json.dump(..., f, indent=2)
-  os.chmod(config_path, 0o600)
+    def _open_secure(path: str):
+        """Open bestand voor schrijven met mode 0o600 vanaf aanmaak."""
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        return open(fd, 'w')
 
-  # Door:
-  with _open_secure(config_path) as f:
-      json.dump(..., f, indent=2)
-  ```
+    # Vervang:
+    with open(config_path, 'w') as f:
+        json.dump(..., f, indent=2)
+    os.chmod(config_path, 0o600)
+
+    # Door:
+    with _open_secure(config_path) as f:
+        json.dump(..., f, indent=2)
+    ```
 
 ---
 
 ## Open Improvements
 
-| ID | Improvement | Priority |
-|----|-------------|----------|
-| D2 | Expand test coverage (currently 54% monitor.py, target 60%+) | Medium |
-| P2 | `pisen` CLI: make copyright year dynamic | Low |
-| P3 | `pisen` CLI: add `--api` mode (HTTP client to monitor API) | Low |
-| M1 | Multi-node support: N Pi-holes (3+) instead of hardcoded primary/secondary | Medium |
+| ID  | Improvement                                                                | Priority |
+| --- | -------------------------------------------------------------------------- | -------- |
+| D2  | Expand test coverage (currently 54% monitor.py, target 60%+)               | Medium   |
+| P2  | `pisen` CLI: make copyright year dynamic                                   | Low      |
+| P3  | `pisen` CLI: add `--api` mode (HTTP client to monitor API)                 | Low      |
+| M1  | Multi-node support: N Pi-holes (3+) instead of hardcoded primary/secondary | Medium   |
 
 ### M1 — Multi-Node Support (N Pi-holes)
 
@@ -404,41 +434,41 @@ environment variables, DB schema, API responses, dashboard HTML, setup wizard, n
 hardcodes this two-node assumption. The sync agent (`sync_agent/agent.py`) is the **only**
 component already N-aware (via `SYNC_PEERS`).
 
-#### Phase 1 — Internal Data Layer *(blocks all other phases)*
+#### Phase 1 — Internal Data Layer _(blocks all other phases)_
 
 - **Config format** (`dashboard/monitor.py`, `dashboard/.env.example`)
-  - `PRIMARY_IP`/`SECONDARY_IP`/`PRIMARY_PASSWORD`/`SECONDARY_PASSWORD` →
-    `PIHOLE_1_IP`, `PIHOLE_1_NAME`, `PIHOLE_1_PASSWORD`, ..., `PIHOLE_N_*`
-  - `required_vars` validation becomes dynamic: detect `PIHOLE_1_*` up to first missing `PIHOLE_N_*`
-  - `CONFIG` dict: `{"primary": {...}, "secondary": {...}}` → `{"nodes": [{...}, ...]}`
+    - `PRIMARY_IP`/`SECONDARY_IP`/`PRIMARY_PASSWORD`/`SECONDARY_PASSWORD` →
+      `PIHOLE_1_IP`, `PIHOLE_1_NAME`, `PIHOLE_1_PASSWORD`, ..., `PIHOLE_N_*`
+    - `required_vars` validation becomes dynamic: detect `PIHOLE_1_*` up to first missing `PIHOLE_N_*`
+    - `CONFIG` dict: `{"primary": {...}, "secondary": {...}}` → `{"nodes": [{...}, ...]}`
 
 - **Database schema redesign** (`init_db()` in `monitor.py`)
-  - Current: `status_history` with 12 hardcoded `primary_*`/`secondary_*` columns
-  - New normalized schema:
-    - `poll_cycles (id, timestamp, dhcp_leases)`
-    - `node_status (id, poll_id FK, node_index, node_name, state, has_vip, online, pihole, dns, dhcp)`
-  - Include migration strategy for existing databases
+    - Current: `status_history` with 12 hardcoded `primary_*`/`secondary_*` columns
+    - New normalized schema:
+        - `poll_cycles (id, timestamp, dhcp_leases)`
+        - `node_status (id, poll_id FK, node_index, node_name, state, has_vip, online, pihole, dns, dhcp)`
+    - Include migration strategy for existing databases
 
 - **VIP detection** (`check_who_has_vip` in `monitor.py`)
-  - Signature: `(vip, node_ips: list[str]) -> list[bool]` (was: `(vip, primary_ip, secondary_ip) -> (bool, bool)`)
-  - Internally: `asyncio.gather(get_arp_entry(vip), *[get_arp_entry(ip) for ip in node_ips])`
+    - Signature: `(vip, node_ips: list[str]) -> list[bool]` (was: `(vip, primary_ip, secondary_ip) -> (bool, bool)`)
+    - Internally: `asyncio.gather(get_arp_entry(vip), *[get_arp_entry(ip) for ip in node_ips])`
 
 - **Monitor loop** (`poll_status` / `monitor_loop`)
-  - Replace all `primary_data`/`secondary_data` vars with `nodes_data: list[dict]` loop
-  - `both_offline` → `all(not n["online"] for n in nodes_data)`
-  - DHCP validation: `if nodes_data[i]["state"] == "MASTER" and not nodes_data[i]["dhcp"]: warn(...)`
-  - Notification template vars: `{master_node, all_nodes: [...]}` instead of `{primary, secondary}`
+    - Replace all `primary_data`/`secondary_data` vars with `nodes_data: list[dict]` loop
+    - `both_offline` → `all(not n["online"] for n in nodes_data)`
+    - DHCP validation: `if nodes_data[i]["state"] == "MASTER" and not nodes_data[i]["dhcp"]: warn(...)`
+    - Notification template vars: `{master_node, all_nodes: [...]}` instead of `{primary, secondary}`
 
 - **Fault debounce** (`_check_fault_debounce`) — generalize 2-node checks to N nodes
 
-#### Phase 2 — API Layer *(depends on Phase 1)*
+#### Phase 2 — API Layer _(depends on Phase 1)_
 
 - **`GET /api/status`** — Breaking change:
   `{primary: {...}, secondary: {...}}` → `{nodes: [{index, name, ip, state, has_vip, ...}], vip: ...}`
 - **`GET /api/history`** — normalized per-node response format
 - Update Pydantic/response models (`StatusResponse`, `PiHoleStatus`)
 
-#### Phase 3 — Dashboard UI *(depends on Phase 2)*
+#### Phase 3 — Dashboard UI _(depends on Phase 2)_
 
 - **Dynamic node cards** (`dashboard/index.html`) — remove hardcoded `#primary-card`/`#secondary-card`,
   JS loops over `data.nodes[]`
@@ -446,7 +476,7 @@ component already N-aware (via `SYNC_PEERS`).
 - Remove hardcoded labels like `'Primary (LXC)'` / `'Secondary (RPi)'`
 - Generalize DHCP badges and event color logic
 
-#### Phase 4 — Setup Wizard *(parallel with Phase 2/3)*
+#### Phase 4 — Setup Wizard _(parallel with Phase 2/3)_
 
 - **Interactive wizard** (`setup.py`) — ask "How many Pi-holes?" → loop N times for IP/name/password/SSH
 - **Keepalived config generation** — generate N configs with descending priorities:
@@ -454,7 +484,7 @@ component already N-aware (via `SYNC_PEERS`).
   Add `keepalived/node-N/keepalived.conf` alongside existing `pihole1/`/`pihole2/` templates
 - **SSH mesh setup** (`_setup_cross_node_ssh`) — from A↔B to full N×(N-1) mesh
 
-#### Phase 5 — Tests & Docker *(depends on all phases)*
+#### Phase 5 — Tests & Docker _(depends on all phases)_
 
 - `tests/conftest.py` — `sample_config` fixture to `nodes: [...]` structure
 - DB schema fixtures in `test_cleanup_db.py` and other test files
@@ -481,10 +511,10 @@ component already N-aware (via `SYNC_PEERS`).
 
 ## Low Priority / Later
 
-| Task | Details |
-|------|---------|
-| Prometheus metrics endpoint | `GET /metrics` in monitor.py |
-| HTTPS / TLS support | Self-signed cert or Let's Encrypt integration |
+| Task                        | Details                                       |
+| --------------------------- | --------------------------------------------- |
+| Prometheus metrics endpoint | `GET /metrics` in monitor.py                  |
+| HTTPS / TLS support         | Self-signed cert or Let's Encrypt integration |
 
 | Database auto-cleanup | Delete status_history older than 30 days |
 
