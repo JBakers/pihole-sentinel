@@ -1,8 +1,8 @@
 # PLAN.md — Pi-hole Sentinel Development Plan
 
-**Last Updated:** 2026-04-15
+**Last Updated:** 2026-05-10
 **Branch:** `develop`
-**Current Version:** 0.16.6
+**Current Version:** 0.18.5
 
 > **📌 This is the central planning and TODO document.**
 > CLAUDE.md references this file. All open tasks, bugs, and the
@@ -23,7 +23,7 @@
 
 ## Current Status
 
-### Branch: `develop` — v0.16.6
+### Branch: `develop` — v0.18.5
 
 | Item | Status |
 |------|--------|
@@ -36,7 +36,10 @@
 | Fault debounce + recovery notifications | ✅ Working |
 | DHCP auto-detection | ✅ Working (3-poll debounce) |
 | Docker integration test suite (20 tests) | ✅ Working (`make docker-integration`) |
-| Unit tests | ⚠️ 54% monitor.py coverage (399 tests, 17 files) — target 60%+ |
+| `pisen api` CLI command | ✅ Working (v0.18.0) |
+| DNS latency health check | ✅ Working (v0.18.0, default 500ms) |
+| Debug override mode (`DEBUG_MODE=true`) | ✅ Working (v0.18.0) |
+| Unit tests | ⚠️ 55% monitor.py coverage (399 tests) — target 60%+ still open (see D2) |
 | Container architecture (v2.0) | 🔲 Separate branch: `feature/container-architecture` |
 
 ---
@@ -51,9 +54,7 @@ No open bugs.
 
 | ID | Improvement | Priority |
 |----|-------------|----------|
-| D2 | Expand test coverage (currently 54% monitor.py, target 60%+) | Medium |
-| P2 | `pisen` CLI: make copyright year dynamic | Low |
-| P3 | `pisen` CLI: add `--api` mode (HTTP client to monitor API) | Low |
+| D2 | Expand test coverage from 55% → 60%+ (monitor.py; focus: pushover/ntfy/webhook send paths, monitor_loop partial coverage, notification test endpoint) | Medium |
 
 ---
 
@@ -69,6 +70,27 @@ No open bugs.
 ---
 
 ## Completed Items
+
+### v0.18.5 (2026-04-21) — Bug fixes VIP check + keepalived buttons
+
+- [x] VIP check showed "(not configured)" — `execute_command()` used flat keys, CONFIG is nested
+- [x] Keepalived buttons visible on dedicated monitor server — fixed with `systemctl is-active` + `display: none`
+- [x] Keepalived installed on monitor server — added `role` param to `install_remote_dependencies()`
+
+### v0.18.0 (2026-04-21) — pisen api + DNS latency + debug mode
+
+- [x] P3: `pisen api` command — fetch live status from monitor API over HTTP
+- [x] DNS latency health check — measures response time, warning event if slow (default: 500ms)
+- [x] Test/simulate-outage mode — `POST /api/debug/override` (gated: `DEBUG_MODE=true`)
+- [x] P2: `pisen` copyright year dynamic — `2025-{current_year}` when year > 2025
+
+### v0.16.8 (2026-04-15) — Security fixes
+
+- [x] DHCP disabled on world-writable `.env`
+- [x] Octal-safe IP validation in sync script
+- [x] SSH known_hosts atomic updates
+- [x] Defensive JSON parsing for notify_settings.json
+- [x] SSH port respected for remote settings read
 
 ### v0.16.6 (2026-04-15) — Security audit + F4/D3
 

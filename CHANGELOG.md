@@ -9,6 +9,8 @@
 - `test_monitor_helpers` — 46 tests: `validate_webhook_url`, `is_snoozed`, `should_send_reminder`, `collect_node_issues`, `describe_master_transition`, `init_db`, `log_event`, fault debounce helpers
 - `test_additional_coverage` — 33 tests: `mask_sensitive_data`, `merge_settings`, snooze API endpoints, `check_and_send_reminders`, `check_who_has_vip`
 - Total: 399 tests (153 new), monitor.py unit coverage increased from 24% to 54%
+- Added `tests/test_monitor_coverage.py` to consolidate monitor-specific
+  coverage scenarios and keep future D2 coverage work focused in one file.
 
 ## [0.18.5] - 2026-04-21
 
@@ -577,7 +579,7 @@
      in sed replacement strings — hash was silently mangled.
   3. **Staging file permissions**: rsync preserved source ownership (`pihole:pihole` 644),
      making `/tmp/pihole.toml.new` unwritable in some contexts + readable by all users.
-  
+
   **Fix**: single quoted heredoc with `PIHOLE_DIR` passed via env; python3 for all values
   containing special characters (pwhash, upstreams); `chown root:root && chmod 600` on
   staging file immediately after rsync. Verified end-to-end on live Pi-holes.
@@ -597,7 +599,7 @@
      unrestorable.
   2. **Security bug**: the hash was briefly stored in a local shell variable and embedded as a
      command-line argument, making it visible in `ps aux` and SSH audit logs.
-  
+
   **Fix**: the extraction and sed restore now run in a single heredoc on the remote machine.
   The hash never leaves the secondary node — not as a command argument, not as a local
   variable, not in any log.
