@@ -388,7 +388,94 @@ No open bugs.
 
 | ID | Improvement | Priority |
 |----|-------------|----------|
-| D2 | Expand test coverage from 55% → 60%+ (monitor.py; focus: pushover/ntfy/webhook send paths, monitor_loop partial coverage, notification test endpoint) | Medium |
+| D2 | Expand test coverage (currently 54% monitor.py, target 60%+) | Medium |
+| P2 | `pisen` CLI: make copyright year dynamic | Low |
+| P3 | `pisen` CLI: add `--api` mode (HTTP client to monitor API) | Low |
+| M1 | Multi-node support: N Pi-holes (3+) instead of hardcoded primary/secondary | Medium |
+
+### M1 — Multi-Node Support (N Pi-holes)
+
+> **Branch:** `feature/multi-node-support`
+> **Breaking change:** Yes (API response format changes)
+> **Scope:** Full stack refactor — config, DB, API, UI, setup wizard, tests
+
+**Background:** The entire stack assumes exactly 2 nodes (`primary`/`secondary`). Every layer —
+environment variables, DB schema, API responses, dashboard HTML, setup wizard, notifications —
+hardcodes this two-node assumption. The sync agent (`sync_agent/agent.py`) is the **only**
+component already N-aware (via `SYNC_PEERS`).
+
+#### Phase 1 — Internal Data Layer *(blocks all other phases)*
+
+- **Config format** (`dashboard/monitor.py`, `dashboard/.env.example`)
+  - `PRIMARY_IP`/`SECONDARY_IP`/`PRIMARY_PASSWORD`/`SECONDARY_PASSWORD` →
+    `PIHOLE_1_IP`, `PIHOLE_1_NAME`, `PIHOLE_1_PASSWORD`, ..., `PIHOLE_N_*`
+  - `required_vars` validation becomes dynamic: detect `PIHOLE_1_*` up to first missing `PIHOLE_N_*`
+  - `CONFIG` dict: `{"primary": {...}, "secondary": {...}}` → `{"nodes": [{...}, ...]}`
+
+- **Database schema redesign** (`init_db()` in `monitor.py`)
+  - Current: `status_history` with 12 hardcoded `primary_*`/`secondary_*` columns
+  - New normalized schema:
+    - `poll_cycles (id, timestamp, dhcp_leases)`
+    - `node_status (id, poll_id FK, node_index, node_name, state, has_vip, online, pihole, dns, dhcp)`
+  - Include migration strategy for existing databases
+
+- **VIP detection** (`check_who_has_vip` in `monitor.py`)
+  - Signature: `(vip, node_ips: list[str]) -> list[bool]` (was: `(vip, primary_ip, secondary_ip) -> (bool, bool)`)
+  - Internally: `asyncio.gather(get_arp_entry(vip), *[get_arp_entry(ip) for ip in node_ips])`
+
+- **Monitor loop** (`poll_status` / `monitor_loop`)
+  - Replace all `primary_data`/`secondary_data` vars with `nodes_data: list[dict]` loop
+  - `both_offline` → `all(not n["online"] for n in nodes_data)`
+  - DHCP validation: `if nodes_data[i]["state"] == "MASTER" and not nodes_data[i]["dhcp"]: warn(...)`
+  - Notification template vars: `{master_node, all_nodes: [...]}` instead of `{primary, secondary}`
+
+- **Fault debounce** (`_check_fault_debounce`) — generalize 2-node checks to N nodes
+
+#### Phase 2 — API Layer *(depends on Phase 1)*
+
+- **`GET /api/status`** — Breaking change:
+  `{primary: {...}, secondary: {...}}` → `{nodes: [{index, name, ip, state, has_vip, ...}], vip: ...}`
+- **`GET /api/history`** — normalized per-node response format
+- Update Pydantic/response models (`StatusResponse`, `PiHoleStatus`)
+
+#### Phase 3 — Dashboard UI *(depends on Phase 2)*
+
+- **Dynamic node cards** (`dashboard/index.html`) — remove hardcoded `#primary-card`/`#secondary-card`,
+  JS loops over `data.nodes[]`
+- **Failover chart** — N dynamic series per node with distinct colors
+- Remove hardcoded labels like `'Primary (LXC)'` / `'Secondary (RPi)'`
+- Generalize DHCP badges and event color logic
+
+#### Phase 4 — Setup Wizard *(parallel with Phase 2/3)*
+
+- **Interactive wizard** (`setup.py`) — ask "How many Pi-holes?" → loop N times for IP/name/password/SSH
+- **Keepalived config generation** — generate N configs with descending priorities:
+  node-0=150, node-1=140, node-2=130, ...
+  Add `keepalived/node-N/keepalived.conf` alongside existing `pihole1/`/`pihole2/` templates
+- **SSH mesh setup** (`_setup_cross_node_ssh`) — from A↔B to full N×(N-1) mesh
+
+#### Phase 5 — Tests & Docker *(depends on all phases)*
+
+- `tests/conftest.py` — `sample_config` fixture to `nodes: [...]` structure
+- DB schema fixtures in `test_cleanup_db.py` and other test files
+- `tests/test_integration.py` — `PRIMARY_URL`/`SECONDARY_URL` → `NODE_URLS: list`
+- `docker-compose.test.yml` — add 3rd mock-pihole, monitor config to `PIHOLE_*` env vars
+- `docker-compose.poc.yml` — add 3rd sentinel-node + pihole pair
+
+#### Out of scope
+
+- `docker/sentinel-node/sync_agent/agent.py` — already N-aware via `SYNC_PEERS`
+- `keepalived/scripts/keepalived_notify.sh` — already per-node generic
+
+#### Verification checklist
+
+- [ ] `make test` passes after each phase
+- [ ] `GET /api/status` with 3 configured nodes returns `nodes[]` array with 3 items
+- [ ] Dashboard renders 3 node cards dynamically
+- [ ] Keepalived node-3 wins VIP when nodes 1+2 fail
+- [ ] DHCP misconfiguration warning appears correctly for node-3 as MASTER
+- [ ] `make docker-integration` passes with 3-node scenario
+- [ ] `setup.py` wizard completes correctly for 3 nodes
 
 ---
 
