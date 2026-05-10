@@ -30,6 +30,7 @@ POLL_INTERVAL = 5  # seconds (CHECK_INTERVAL in docker-compose)
 # Helpers
 # ─────────────────────────────────────────────────────────────────────
 
+
 def _docker_is_running() -> bool:
     """Check if the Docker test environment is reachable."""
     try:
@@ -121,11 +122,15 @@ def now_ts():
 # Fixtures
 # ─────────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture(autouse=True)
 def require_docker():
     """Skip all tests if Docker environment is not running."""
     if not _docker_is_running():
-        pytest.skip("Docker test environment not running (run 'make docker-up' first)")
+        pytest.skip(
+            "Docker test environment not running "
+            "(run 'make docker-up' or 'docker compose -f docker-compose.test.yml up -d' first)"
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -143,6 +148,7 @@ def reset_mocks(require_docker):
 # T1. Primary Pi-hole failure
 # ─────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.integration
 class TestPrimaryFailure:
 
@@ -156,19 +162,26 @@ class TestPrimaryFailure:
 
     def test_primary_failure_logs_event(self):
         """Primary failure creates an event in the timeline."""
+        before = now_ts()
         mock_set_state("primary", {"pihole_running": False})
-        wait_for_detection(cycles=3)
 
-        events = monitor_events(limit=50)
-        descriptions = [e["description"].lower() for e in events]
-        assert any("primary" in d and ("down" in d or "offline" in d)
-                    for d in descriptions), \
-            f"No primary offline event in events: {descriptions[:5]}"
+        def event_logged():
+            recent = events_since(before)
+            descriptions = [e["description"].lower() for e in recent]
+            return any(
+                "primary" in d and ("down" in d or "offline" in d) for d in descriptions
+            )
+
+        assert wait_for_condition(event_logged, timeout=60), (
+            f"No primary offline event within 60s. "
+            f"Recent: {[e['description'].lower() for e in events_since(before)]}"
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────
 # T2. Secondary Pi-hole failure
 # ─────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.integration
 class TestSecondaryFailure:
@@ -183,19 +196,27 @@ class TestSecondaryFailure:
 
     def test_secondary_failure_logs_event(self):
         """Secondary failure creates an event."""
+        before = now_ts()
         mock_set_state("secondary", {"pihole_running": False})
-        wait_for_detection(cycles=3)
 
-        events = monitor_events(limit=50)
-        descriptions = [e["description"].lower() for e in events]
-        assert any("secondary" in d and ("down" in d or "offline" in d)
-                    for d in descriptions), \
-            f"No secondary offline event in events: {descriptions[:5]}"
+        def event_logged():
+            recent = events_since(before)
+            descriptions = [e["description"].lower() for e in recent]
+            return any(
+                "secondary" in d and ("down" in d or "offline" in d)
+                for d in descriptions
+            )
+
+        assert wait_for_condition(event_logged, timeout=60), (
+            f"No secondary offline event within 60s. "
+            f"Recent: {[e['description'].lower() for e in events_since(before)]}"
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────
 # T3. DHCP failure on primary
 # ─────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.integration
 class TestDhcpFailurePrimary:
@@ -212,6 +233,7 @@ class TestDhcpFailurePrimary:
 # T4. DHCP state on secondary
 # ─────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.integration
 class TestDhcpSecondaryState:
 
@@ -224,6 +246,7 @@ class TestDhcpSecondaryState:
 # ─────────────────────────────────────────────────────────────────────
 # T5. Stats (queries, blocked, clients)
 # ─────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.integration
 class TestStatsReporting:
@@ -246,6 +269,7 @@ class TestStatsReporting:
 # T6. VIP detection
 # ─────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.integration
 class TestVipDetection:
 
@@ -260,6 +284,7 @@ class TestVipDetection:
 # ─────────────────────────────────────────────────────────────────────
 # T7. DHCP master/backup consistency
 # ─────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.integration
 class TestDhcpMasterBackup:
@@ -279,31 +304,46 @@ class TestDhcpMasterBackup:
 # T8. Failover event logging
 # ─────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.integration
 class TestFailoverEvents:
 
     def test_failure_and_recovery_events(self):
         """Full failure -> recovery cycle creates both events."""
+        before = now_ts()
         mock_set_state("primary", {"pihole_running": False})
-        wait_for_detection(cycles=3)
+
+        # Wait for failure event to appear in DB
+        def failure_logged():
+            recent = events_since(before)
+            descriptions = [e["description"].lower() for e in recent]
+            return any("down" in d or "offline" in d for d in descriptions)
+
+        assert wait_for_condition(failure_logged, timeout=60), (
+            f"No failure event within 60s. "
+            f"Recent: {[e['description'].lower() for e in events_since(before)]}"
+        )
 
         mock_reset("primary")
-        wait_for_detection(cycles=3)
 
-        events = monitor_events(limit=50)
-        descriptions = [e["description"].lower() for e in events]
+        # Wait for recovery event ("back up" or "is back")
+        def recovery_logged():
+            recent = events_since(before)
+            descriptions = [e["description"].lower() for e in recent]
+            return any(
+                "back" in d or ("up" in d and "primary" in d) for d in descriptions
+            )
 
-        has_failure = any("down" in d or "offline" in d for d in descriptions)
-        has_recovery = any("ok" in d or "running" in d or "online" in d
-                          or "back" in d for d in descriptions)
-
-        assert has_failure, f"No failure event: {descriptions[:5]}"
-        assert has_recovery, f"No recovery event: {descriptions[:5]}"
+        assert wait_for_condition(recovery_logged, timeout=60), (
+            f"No recovery event within 60s. "
+            f"Recent: {[e['description'].lower() for e in events_since(before)]}"
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────
 # T9. Client discovery and DHCP leases
 # ─────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.integration
 class TestClientDiscovery:
@@ -317,6 +357,7 @@ class TestClientDiscovery:
 # ─────────────────────────────────────────────────────────────────────
 # T10. Recovery after failure
 # ─────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.integration
 class TestRecoveryAfterFailure:
@@ -342,6 +383,7 @@ class TestRecoveryAfterFailure:
 # T11b. DNS resolver checks
 # ─────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.integration
 class TestDnsResolution:
 
@@ -366,6 +408,7 @@ class TestDnsResolution:
 # ─────────────────────────────────────────────────────────────────────
 # T11. History endpoint
 # ─────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.integration
 class TestHistoryEndpoint:

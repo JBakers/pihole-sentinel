@@ -10,19 +10,19 @@ This script helps you configure your Pi-hole Sentinel High Availability setup by
 4. Creating all necessary config files
 """
 
+import datetime
+import json
 import os
 import re
-import sys
-import json
-import socket
 import secrets
+import socket
 import string
 import subprocess
-import datetime
-import urllib.request
+import sys
 import urllib.error
-from ipaddress import ip_network, ip_address
+import urllib.request
 from getpass import getpass
+from ipaddress import ip_address, ip_network
 
 # Global verbose flag
 VERBOSE = False
@@ -38,7 +38,7 @@ class Colors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
     END = '\033[0m'
-    
+
     @staticmethod
     def disable():
         Colors.PURPLE = ''
@@ -81,15 +81,15 @@ def _get_version_banner():
 LOGO = f"""{Colors.PURPLE}{Colors.BOLD}
     ██████╗ ██╗██╗  ██╗ ██████╗ ██╗     ███████╗
     ██╔══██╗██║██║  ██║██╔═══██╗██║     ██╔════╝
-    ██████╔╝██║███████║██║   ██║██║     █████╗  
-    ██╔═══╝ ██║██╔══██║██║   ██║██║     ██╔══╝  
+    ██████╔╝██║███████║██║   ██║██║     █████╗
+    ██╔═══╝ ██║██╔══██║██║   ██║██║     ██╔══╝
     ██║     ██║██║  ██║╚██████╔╝███████╗███████╗
     ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝
 {Colors.END}{Colors.CYAN}{Colors.BOLD}
-        ███████╗███████╗███╗   ██╗████████╗██╗███╗   ██╗███████╗██╗     
-        ██╔════╝██╔════╝████╗  ██║╚══██╔══╝██║████╗  ██║██╔════╝██║     
-        ███████╗█████╗  ██╔██╗ ██║   ██║   ██║██╔██╗ ██║█████╗  ██║     
-        ╚════██║██╔══╝  ██║╚██╗██║   ██║   ██║██║╚██╗██║██╔══╝  ██║     
+        ███████╗███████╗███╗   ██╗████████╗██╗███╗   ██╗███████╗██╗
+        ██╔════╝██╔════╝████╗  ██║╚══██╔══╝██║████╗  ██║██╔════╝██║
+        ███████╗█████╗  ██╔██╗ ██║   ██║   ██║██╔██╗ ██║█████╗  ██║
+        ╚════██║██╔══╝  ██║╚██╗██║   ██║   ██║██║╚██╗██║██╔══╝  ██║
         ███████║███████╗██║ ╚████║   ██║   ██║██║ ╚████║███████╗███████╗
         ╚══════╝╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝{Colors.END}{Colors.CYAN}{Colors.BOLD}
 resilient dns · simple ops · keep dns up when others drop{Colors.END}{Colors.BOLD}
@@ -123,7 +123,7 @@ class SetupConfig:
             return True
         except ValueError:
             return False
-    
+
     def validate_subnet(self, ip, netmask):
         """Validate if IP and netmask form a valid subnet."""
         try:
@@ -208,14 +208,14 @@ class SetupConfig:
 
     def generate_secure_password(self, length=32):
         """Generate a secure random password.
-        
+
         Uses only alphanumeric characters to ensure compatibility with
         keepalived auth_pass and other config files that may have issues
         with special characters like !@#$%^&* in shell/config parsing.
         """
         alphabet = string.ascii_letters + string.digits
         return ''.join(secrets.choice(alphabet) for _ in range(length))
-    
+
     def validate_timezone(self, tz):
         """Validate timezone format to prevent shell injection."""
         if not tz:
@@ -223,7 +223,7 @@ class SetupConfig:
         # Timezone format: Region/City or just a region (e.g., UTC)
         pattern = r'^[A-Za-z_]+(/[A-Za-z_]+)?$'
         return bool(re.match(pattern, tz)) and len(tz) <= 64
-    
+
     def escape_for_env_file(self, value):
         """Escape value for safe use in .env file."""
         if not value:
@@ -234,7 +234,7 @@ class SetupConfig:
             escaped = value_str.replace('\\', '\\\\').replace('"', '\\"')
             return f'"{escaped}"'
         return value_str
-    
+
     @staticmethod
     def _s(user):
         """Return 'sudo -n ' when the SSH user is not root, empty string otherwise.
@@ -257,7 +257,7 @@ class SetupConfig:
         import time as _time
 
         ssh_opts = [
-            "-o", "StrictHostKeyChecking=no",
+            "-o", "StrictHostKeyChecking=accept-new",
             "-o", "ConnectTimeout=30",
             "-o", "ServerAliveInterval=15",
             "-o", "ServerAliveCountMax=4",
@@ -292,7 +292,7 @@ class SetupConfig:
                     continue
                 raise
         raise last_exc  # unreachable, but satisfies type checkers
-    
+
     def remote_copy(self, local_file, host, user, port, remote_path, password=None):
         """Copy file to remote host via SCP.
 
@@ -300,34 +300,34 @@ class SetupConfig:
         """
         # Use SSH key if available
         if self.config.get('ssh_key_path') and not password:
-            cmd = ["scp", "-i", self.config['ssh_key_path'], "-P", port, "-o", "StrictHostKeyChecking=no"]
+            cmd = ["scp", "-i", self.config['ssh_key_path'], "-P", port, "-o", "StrictHostKeyChecking=accept-new"]
             return subprocess.run(cmd + [local_file, f"{user}@{host}:{remote_path}"], check=True)
         elif password:
             # Use environment variable instead of CLI argument for security
-            cmd = ["sshpass", "-e", "scp", "-P", port, "-o", "StrictHostKeyChecking=no"]
+            cmd = ["sshpass", "-e", "scp", "-P", port, "-o", "StrictHostKeyChecking=accept-new"]
             env = os.environ.copy()
             env['SSHPASS'] = password
             return subprocess.run(cmd + [local_file, f"{user}@{host}:{remote_path}"], check=True, env=env)
         else:
-            cmd = ["scp", "-P", port, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes"]
+            cmd = ["scp", "-P", port, "-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes"]
             return subprocess.run(cmd + [local_file, f"{user}@{host}:{remote_path}"], check=True)
-    
+
     def configure_timezone_and_ntp(self, host, user, port, password=None, timezone=None):
         """Configure timezone and enable NTP synchronization on remote host."""
         # Auto-detect timezone if not specified
         if timezone is None:
             try:
-                result = subprocess.run(['timedatectl', 'show', '--property=Timezone', '--value'], 
+                result = subprocess.run(['timedatectl', 'show', '--property=Timezone', '--value'],
                                       capture_output=True, text=True, timeout=5)
                 timezone = result.stdout.strip() or "Europe/Amsterdam"
             except Exception:
                 timezone = "Europe/Amsterdam"  # Fallback
-        
+
         # Validate timezone format to prevent shell injection
         if not self.validate_timezone(timezone):
             print(f"{Colors.YELLOW}├─ Invalid timezone format '{timezone}', using Europe/Amsterdam{Colors.END}")
             timezone = "Europe/Amsterdam"
-        
+
         print(f"{Colors.CYAN}├─ Configuring timezone ({timezone}) and NTP...{Colors.END}")
         S = self._s(user)
         try:
@@ -342,13 +342,13 @@ class SetupConfig:
                 self.remote_exec(host, user, port, f"{S}timedatectl set-ntp true >/dev/null 2>&1 || true", password)
             except:
                 pass  # Containers sync time from host, so NTP service not needed
-            
+
             print(f"{Colors.GREEN}├─ ✓ Timezone set to {timezone}{Colors.END}")
             return True
         except subprocess.CalledProcessError as e:
             print(f"{Colors.RED}├─ ✗ Failed to configure timezone: {e}{Colors.END}")
             return False
-    
+
     def install_remote_dependencies(self, host, user, port, password=None, packages=None, role="pihole"):
         """Install system dependencies on remote host.
 
@@ -366,7 +366,7 @@ class SetupConfig:
                 packages = ["keepalived"] + base_packages
             else:
                 packages = base_packages
-        
+
         print(f"\n┌─ Installing system dependencies on {host}")
         print(f"│  Packages: {len(packages)} total")
 
@@ -401,29 +401,29 @@ class SetupConfig:
                 ),
                 password,
             )
-            
+
             print(f"│  [████████████████████] 100% Installation complete!    ")
             print(f"└─ ✓ Dependencies installed on {host}\n")
             return True
         except subprocess.CalledProcessError as e:
             print(f"\n└─ ✗ Failed to install dependencies on {host}: {e}\n")
             return False
-    
+
     def deploy_to_remote(self, host, user, port, files_to_copy, commands_to_run):
         """Deploy files and run commands on remote host."""
         try:
             print(f"\nDeploying to {host}...")
-            
+
             # Copy files
             for local_file, remote_path in files_to_copy:
                 print(f"  Copying {local_file} to {remote_path}...")
                 self.remote_copy(local_file, host, user, port, remote_path)
-            
+
             # Run commands
             for cmd in commands_to_run:
                 print(f"  Running: {cmd[:50]}...")
                 self.remote_exec(host, user, port, cmd)
-            
+
             print(f"✓ Deployment to {host} successful!")
             return True
         except subprocess.CalledProcessError as e:
@@ -597,7 +597,7 @@ class SetupConfig:
     def collect_dhcp_config(self):
         """Collect DHCP failover configuration."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== DHCP Configuration ==={Colors.END}")
-        
+
         while True:
             dhcp = input(f"\n{Colors.BOLD}Do you use DHCP on your Pi-holes? (Y/n):{Colors.END} ").lower()
             if dhcp in ['y', 'n', '']:
@@ -627,12 +627,12 @@ class SetupConfig:
                 print(f"{Colors.RED}Enter a number between 1 and 1440 (24 hours){Colors.END}")
         else:
             print(f"{Colors.YELLOW}✓ Built-in sync disabled — using your own sync solution{Colors.END}")
-        
+
     def setup_ssh_keys(self):
         """Generate SSH key and distribute to all servers."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== SSH Key Setup ==={Colors.END}")
         print(f"Setting up passwordless SSH access to all servers...")
-        
+
         # Check if SSH key already exists
         ssh_key_path = os.path.expanduser("~/.ssh/id_pihole_sentinel")
         if os.path.exists(ssh_key_path):
@@ -641,12 +641,12 @@ class SetupConfig:
             if reuse != 'n':
                 print(f"{Colors.GREEN}✓ Using existing SSH key{Colors.END}")
                 return ssh_key_path
-        
+
         # Generate new SSH key
         print(f"\n{Colors.CYAN}Generating new SSH key...{Colors.END}")
         try:
             subprocess.run([
-                "ssh-keygen", "-t", "ed25519", 
+                "ssh-keygen", "-t", "ed25519",
                 "-f", ssh_key_path,
                 "-N", "",  # No passphrase
                 "-C", "pihole-sentinel-setup"
@@ -656,29 +656,29 @@ class SetupConfig:
             print(f"{Colors.RED}✗ Failed to generate SSH key: {e}{Colors.END}")
             return None
 
-        print(f"\n{Colors.YELLOW}⚠ Security note: SSH host key verification is disabled (StrictHostKeyChecking=no).{Colors.END}")
+        print(f"\n{Colors.YELLOW}⚠ Security note: SSH host key verification uses accept-new (first connection accepted, changes rejected).{Colors.END}")
         print(f"{Colors.YELLOW}  This setup script does not verify remote host keys. Only run this on a{Colors.END}")
         print(f"{Colors.YELLOW}  trusted network. A man-in-the-middle attack could intercept credentials.{Colors.END}")
 
         return ssh_key_path
-    
+
     def distribute_ssh_key(self, host, user, port, password, key_path):
         """Distribute SSH public key to a remote host."""
         pub_key_path = f"{key_path}.pub"
-        
+
         try:
             # Read public key
             with open(pub_key_path, 'r') as f:
                 pub_key = f.read().strip()
-            
+
             # Copy key to remote host
             print(f"  Copying SSH key to {user}@{host}...", end=' ')
-            
+
             # Use sshpass with environment variable to authenticate and add key (secure)
             cmd = [
                 "sshpass", "-e",
                 "ssh", "-p", port,
-                "-o", "StrictHostKeyChecking=no",
+                "-o", "StrictHostKeyChecking=accept-new",
                 "-o", "ConnectTimeout=10",
                 f"{user}@{host}",
                 f"mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys << 'SENTINEL_EOF'\n{pub_key}\nSENTINEL_EOF\nchmod 600 ~/.ssh/authorized_keys"
@@ -687,19 +687,19 @@ class SetupConfig:
             env = os.environ.copy()
             env['SSHPASS'] = password
             result = subprocess.run(cmd, capture_output=True, timeout=15, env=env)
-            
+
             if result.returncode == 0:
                 # Test the key
                 test_cmd = [
                     "ssh", "-i", key_path, "-p", port,
-                    "-o", "StrictHostKeyChecking=no",
+                    "-o", "StrictHostKeyChecking=accept-new",
                     "-o", "BatchMode=yes",
                     "-o", "ConnectTimeout=5",
                     f"{user}@{host}",
                     "echo 'OK'"
                 ]
                 test = subprocess.run(test_cmd, capture_output=True, timeout=10)
-                
+
                 if test.returncode == 0:
                     print(f"{Colors.GREEN}✓{Colors.END}")
                     return True
@@ -709,7 +709,7 @@ class SetupConfig:
             else:
                 print(f"{Colors.RED}✗ (copy failed){Colors.END}")
                 return False
-                
+
         except Exception as e:
             print(f"{Colors.RED}✗ (error: {e}){Colors.END}")
             return False
@@ -733,7 +733,7 @@ class SetupConfig:
                     'ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N "" -q')
                 # Read public key from source
                 ssh_cmd = ["ssh", "-p", src_p,
-                           "-o", "StrictHostKeyChecking=no",
+                           "-o", "StrictHostKeyChecking=accept-new",
                            "-o", "ConnectTimeout=10"]
                 if self.config.get('ssh_key_path'):
                     ssh_cmd += ["-i", self.config['ssh_key_path']]
@@ -765,14 +765,14 @@ class SetupConfig:
     def collect_monitor_config(self):
         """Collect monitoring server configuration."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== Monitor Configuration ==={Colors.END}")
-        
+
         while True:
             monitor_type = input(f"\n{Colors.BOLD}Where to install the monitor?{Colors.END}\n1. Separate server {Colors.GREEN}(recommended){Colors.END}\n2. On primary Pi-hole\nChoice [{Colors.CYAN}1{Colors.END}]: ").strip() or "1"
             if monitor_type in ['1', '2']:
                 self.config['separate_monitor'] = monitor_type == '1'
                 break
             print(f"{Colors.RED}Please enter '1' or '2'{Colors.END}")
-            
+
         if self.config['separate_monitor']:
             while True:
                 default_range = self.config.get('ip_range')
@@ -810,7 +810,7 @@ class SetupConfig:
                             self.config['monitor_ssh_port'] = ssh_port
                             break
                         print(f"{Colors.RED}Error: Invalid port! Must be between 1-65535.{Colors.END}")
-                    
+
                     if self.check_host_reachable(monitor_ip):
                         print(f"{Colors.GREEN}✓ Monitor server is reachable{Colors.END}")
                         break
@@ -828,7 +828,7 @@ class SetupConfig:
     def collect_pihole_config(self):
         """Collect Pi-hole SSH configuration."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== Pi-hole SSH Configuration ==={Colors.END}")
-        
+
         # Set defaults for all servers
         print(f"\nSSH access configuration (same for all servers):")
 
@@ -851,21 +851,21 @@ class SetupConfig:
         self.config['primary_ssh_port'] = ssh_port
         self.config['secondary_ssh_user'] = ssh_user
         self.config['secondary_ssh_port'] = ssh_port
-        
+
         if self.config.get('monitor_ssh_user') is None:
             self.config['monitor_ssh_user'] = ssh_user
             self.config['monitor_ssh_port'] = ssh_port
-        
+
         print(f"\n{Colors.CYAN}Now we'll ask for SSH passwords to setup passwordless access.{Colors.END}")
         print(f"{Colors.CYAN}Passwords are only needed once to distribute SSH keys.{Colors.END}")
-        
+
         # Collect passwords for all servers
         servers = []
         if self.config['separate_monitor']:
             servers.append(('monitor', self.config['monitor_ip'], self.config['monitor_ssh_user'], self.config['monitor_ssh_port']))
         servers.append(('primary', self.config['primary_ip'], self.config['primary_ssh_user'], self.config['primary_ssh_port']))
         servers.append(('secondary', self.config['secondary_ip'], self.config['secondary_ssh_user'], self.config['secondary_ssh_port']))
-        
+
         passwords = {}
         same_pw = input(f"\n{Colors.BOLD}Use the same SSH password for all servers? (Y/n):{Colors.END} ").strip().lower()
         if same_pw != 'n':
@@ -878,7 +878,7 @@ class SetupConfig:
             print()
             for name, ip, user, port in servers:
                 passwords[name] = getpass(f"{Colors.BOLD}SSH password for {user}@{ip}:{Colors.END} ")
-        
+
         # Setup SSH keys
         key_path = self.setup_ssh_keys()
         if not key_path:
@@ -888,7 +888,7 @@ class SetupConfig:
                 passwords[key] = None
             passwords.clear()
             sys.exit(1)
-        
+
         # Distribute keys to all servers
         print(f"\n{Colors.CYAN}Distributing SSH keys to servers...{Colors.END}")
         success = True
@@ -896,7 +896,7 @@ class SetupConfig:
             if not self.distribute_ssh_key(ip, user, port, passwords[name], key_path):
                 print(f"{Colors.RED}✗ Failed to setup SSH key for {name}{Colors.END}")
                 success = False
-        
+
         if not success:
             for key in passwords:
                 passwords[key] = None
@@ -923,19 +923,19 @@ class SetupConfig:
             passwords[key] = None
         passwords.clear()
         del passwords
-        
+
         print(f"\n{Colors.GREEN}{Colors.BOLD}✓ SSH keys successfully distributed to all servers!{Colors.END}")
         print(f"{Colors.GREEN}  Passwordless access is now configured.{Colors.END}")
-        
+
         # Clear passwords - not needed anymore (defense in depth)
         self.config['primary_ssh_pass'] = None
         self.config['secondary_ssh_pass'] = None
         self.config['monitor_ssh_pass'] = None
-        
+
         # Generate secure keepalived password
         # keepalived PASS auth truncates to 8 characters — generate exactly 8
         self.config['keepalived_password'] = self.generate_secure_password(length=8)
-    
+
     def collect_pihole_passwords(self):
         """Collect Pi-hole web interface passwords (for monitoring)."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== Pi-hole Web Interface Passwords ==={Colors.END}")
@@ -946,14 +946,14 @@ class SetupConfig:
         print(f"  2. If you forgot it: SSH to Pi-hole and run: {Colors.BOLD}pihole -a -p{Colors.END}")
         print(f"  3. First time setup: The password was shown during Pi-hole installation")
         print(f"\n{Colors.GREEN}Tip: You can test if password works by logging into http://<pihole-ip>/admin{Colors.END}\n")
-        
+
         self.config['primary_password'] = getpass(f"{Colors.BOLD}Primary Pi-hole ({self.config['primary_ip']}) web password:{Colors.END} ")
         self.config['secondary_password'] = getpass(f"{Colors.BOLD}Secondary Pi-hole ({self.config['secondary_ip']}) web password:{Colors.END} ")
 
     def verify_configuration(self):
         """Verify the collected configuration."""
         print("\n=== Configuration Verification ===")
-        
+
         print("\nTesting connectivity...")
         unreachable = []
         for name, ip in [("Primary", self.config['primary_ip']),
@@ -961,7 +961,7 @@ class SetupConfig:
                         ("Gateway", self.config['gateway'])]:
             if not self.check_host_reachable(ip):
                 unreachable.append(f"{name} ({ip})")
-        
+
         if unreachable:
             print("\nWarning: The following hosts are not reachable:")
             for host in unreachable:
@@ -1065,7 +1065,7 @@ class SetupConfig:
     def generate_configs(self):
         """Generate configuration files."""
         print("\n=== Generating Configuration Files ===")
-        
+
         # Create primary keepalived config
         primary_keepalived = f"""# Keepalived configuration for Primary Pi-hole
 # Generated by setup script - DO NOT EDIT MANUALLY
@@ -1098,21 +1098,21 @@ vrrp_instance VI_1 {{
     virtual_router_id 51
     priority 150
     advert_int 1
-    
+
     authentication {{
         auth_type PASS
         auth_pass {self.config['keepalived_password']}
     }}
-    
+
     virtual_ipaddress {{
         {self.config['vip']}/{self.config['netmask']}
     }}
-    
+
     track_script {{
         chk_pihole_service weight -60
         chk_dhcp_service weight -40
     }}
-    
+
     notify_master "/usr/local/bin/keepalived_notify.sh MASTER"
     notify_backup "/usr/local/bin/keepalived_notify.sh BACKUP"
     notify_fault "/usr/local/bin/keepalived_notify.sh FAULT"
@@ -1228,20 +1228,25 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
         """Deploy the monitor service."""
         try:
             print("\nSetting up monitor service...")
-            
+
             # Create monitor user
             print("Creating service user...")
-            subprocess.run(["sudo", "useradd", "-r", "-s", "/bin/false", "pihole-monitor"], check=False)
-            
+            useradd_result = subprocess.run(
+                ["sudo", "useradd", "-r", "-s", "/bin/false", "pihole-monitor"],
+                capture_output=True
+            )
+            if useradd_result.returncode not in (0, 9):  # 9 = user already exists
+                print(f"Warning: useradd failed (rc={useradd_result.returncode}): {useradd_result.stderr.decode().strip()}")
+
             # Create directory structure
             print("Creating directory structure...")
             subprocess.run(["sudo", "mkdir", "-p", "/opt/pihole-monitor"], check=True)
-            
+
             # Setup Python virtual environment
             print("Setting up Python environment...")
             subprocess.run(["sudo", "python3", "-m", "venv", "/opt/pihole-monitor/venv"], check=True)
             subprocess.run(["sudo", "/opt/pihole-monitor/venv/bin/pip", "install", "-r", "requirements.txt"], check=True)
-            
+
             # Copy files
             print("Copying application files...")
             subprocess.run(["sudo", "cp", "dashboard/monitor.py", "/opt/pihole-monitor/"], check=True)
@@ -1269,24 +1274,24 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
 
             # Set correct ownership and permissions
             print("Setting permissions...")
-            
+
             # Main directory: 755 pihole-monitor:pihole-monitor
             subprocess.run(["sudo", "chown", "pihole-monitor:pihole-monitor", "/opt/pihole-monitor"], check=True)
             subprocess.run(["sudo", "chmod", "755", "/opt/pihole-monitor"], check=True)
-            
+
             # Application files: 644 pihole-monitor:pihole-monitor
             for file in ["monitor.py", "index.html", "settings.html"]:
-                subprocess.run(["sudo", "chown", "pihole-monitor:pihole-monitor", 
+                subprocess.run(["sudo", "chown", "pihole-monitor:pihole-monitor",
                               f"/opt/pihole-monitor/{file}"], check=True)
                 subprocess.run(["sudo", "chmod", "644", f"/opt/pihole-monitor/{file}"], check=True)
-            
+
             # Environment file: 600 pihole-monitor:pihole-monitor (contains secrets)
-            subprocess.run(["sudo", "chown", "pihole-monitor:pihole-monitor", 
+            subprocess.run(["sudo", "chown", "pihole-monitor:pihole-monitor",
                           "/opt/pihole-monitor/.env"], check=True)
             subprocess.run(["sudo", "chmod", "600", "/opt/pihole-monitor/.env"], check=True)
-            
+
             # Virtual environment: 755 pihole-monitor:pihole-monitor
-            subprocess.run(["sudo", "chown", "-R", "pihole-monitor:pihole-monitor", 
+            subprocess.run(["sudo", "chown", "-R", "pihole-monitor:pihole-monitor",
                           "/opt/pihole-monitor/venv"], check=True)
             subprocess.run(["sudo", "chmod", "-R", "755", "/opt/pihole-monitor/venv"], check=True)
 
@@ -1332,17 +1337,17 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
                 subprocess.run(["sudo", "chmod", "600", settings_path], check=True)
 
             # Service file: 644 root:root
-            subprocess.run(["sudo", "chown", "root:root", 
+            subprocess.run(["sudo", "chown", "root:root",
                           "/etc/systemd/system/pihole-monitor.service"], check=True)
-            subprocess.run(["sudo", "chmod", "644", 
+            subprocess.run(["sudo", "chmod", "644",
                           "/etc/systemd/system/pihole-monitor.service"], check=True)
-            
+
             # Enable and start service
             print("Starting service...")
             subprocess.run(["sudo", "systemctl", "daemon-reload"], check=True)
             subprocess.run(["sudo", "systemctl", "enable", "pihole-monitor"], check=True)
             subprocess.run(["sudo", "systemctl", "start", "pihole-monitor"], check=True)
-            
+
             print("Monitor service deployed successfully!")
             return True
         except subprocess.CalledProcessError as e:
@@ -1380,7 +1385,7 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
             # Create remote temp directory
             print("├─ Preparing deployment staging area...")
             self.remote_exec(host, user, port, "mkdir -p /tmp/pihole-sentinel-deploy", password)
-            
+
             # Copy necessary files
             print("Copying files...")
             files_to_copy = [
@@ -1402,7 +1407,7 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
                 print(f"├─ [{bar}] {percent:3d}% {filename:30s}", end='\r')
                 self.remote_copy(local, host, user, port, remote, password)
             print(f"├─ [████████████████████] 100% All files copied{' ' * 30}")
-            
+
             # Execute installation commands
             print("Installing monitor service...")
             print("├─ Creating service user...")
@@ -1473,13 +1478,14 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
             if not self.config.get('dhcp_enabled', True):
                 print("├─ Configuring initial DHCP state (disabled)...")
                 import tempfile
+
                 # Read existing remote settings to preserve notification config (Telegram/Discord/etc)
                 existing = {}
                 try:
                     result = subprocess.run(
                         ["ssh", "-i", self.config.get('ssh_key_path', ''),
                          "-p", str(port),
-                         "-o", "StrictHostKeyChecking=no",
+                         "-o", "StrictHostKeyChecking=accept-new",
                          f"{user}@{host}",
                          "cat /opt/pihole-monitor/notify_settings.json 2>/dev/null || echo '{}'"],
                         capture_output=True, text=True, timeout=10
@@ -1531,10 +1537,10 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
             self.remote_exec(host, user, port, f"{S}systemctl enable pihole-monitor >/dev/null 2>&1", password)
             self.remote_exec(host, user, port, f"{S}systemctl restart pihole-monitor", password)
             self.remote_exec(host, user, port, "rm -rf /tmp/pihole-sentinel-deploy", password)
-            
+
             print(f"✓ Monitor deployed successfully to {host}!")
             return True
-            
+
         except subprocess.CalledProcessError as e:
             print(f"✗ Error deploying monitor to {host}: {e}")
             return False
@@ -1549,36 +1555,36 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
         """Deploy keepalived configuration to a node."""
         try:
             print(f"\nDeploying {node_type} keepalived configuration...")
-            
+
             # Install keepalived if not present
             if subprocess.run(["which", "keepalived"], capture_output=True).returncode != 0:
                 print("Installing required packages...")
                 subprocess.run(["sudo", "apt-get", "update"], check=True)
                 subprocess.run(["sudo", "apt-get", "install", "-y", "keepalived", "arping"], check=True)
-            
+
             # Create directories with correct permissions
             print("Creating directories...")
             subprocess.run(["sudo", "mkdir", "-p", "/etc/keepalived"], check=True)
             subprocess.run(["sudo", "chmod", "755", "/etc/keepalived"], check=True)
             subprocess.run(["sudo", "mkdir", "-p", "/usr/local/bin"], check=True)
             subprocess.run(["sudo", "chmod", "755", "/usr/local/bin"], check=True)
-            
+
             # Copy and set permissions for configuration files
             print("Setting up configuration files...")
             config_suffix = "primary" if node_type == "primary" else "secondary"
-            
+
             # keepalived.conf: 644 root:root
             subprocess.run(["sudo", "cp", f"generated_configs/{config_suffix}_keepalived.conf",
                           "/etc/keepalived/keepalived.conf"], check=True)
             subprocess.run(["sudo", "chown", "root:root", "/etc/keepalived/keepalived.conf"], check=True)
             subprocess.run(["sudo", "chmod", "644", "/etc/keepalived/keepalived.conf"], check=True)
-            
+
             # .env file: 600 root:root (contains secrets)
             subprocess.run(["sudo", "cp", f"generated_configs/{config_suffix}.env",
                           "/etc/keepalived/.env"], check=True)
             subprocess.run(["sudo", "chown", "root:root", "/etc/keepalived/.env"], check=True)
             subprocess.run(["sudo", "chmod", "600", "/etc/keepalived/.env"], check=True)
-            
+
             # Copy and set permissions for scripts
             print("Setting up monitoring scripts...")
             for script in ["check_pihole_service.sh", "check_dhcp_service.sh", "dhcp_control.sh", "keepalived_notify.sh"]:
@@ -1589,16 +1595,16 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
                 # Convert CRLF to LF (fix Windows line endings)
                 subprocess.run(["sudo", "sed", "-i", "s/\\r$//", f"/tmp/{script}"], check=True)
                 # Move to final location
-                subprocess.run(["sudo", "mv", f"/tmp/{script}", 
+                subprocess.run(["sudo", "mv", f"/tmp/{script}",
                               f"/usr/local/bin/{script}"], check=True)
                 subprocess.run(["sudo", "chown", "root:root", f"/usr/local/bin/{script}"], check=True)
                 subprocess.run(["sudo", "chmod", "755", f"/usr/local/bin/{script}"], check=True)
-            
+
             # Enable and start keepalived
             print("Starting keepalived service...")
             subprocess.run(["sudo", "systemctl", "enable", "keepalived"], check=True)
             subprocess.run(["sudo", "systemctl", "restart", "keepalived"], check=True)
-            
+
             print(f"Keepalived {node_type} configuration deployed successfully!")
             return True
         except subprocess.CalledProcessError as e:
@@ -1619,7 +1625,7 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
             # Install system dependencies first (keepalived included — Pi-hole nodes run VRRP)
             if not self.install_remote_dependencies(host, user, port, password, role="pihole"):
                 return False
-            
+
             # Configure timezone and NTP
             self.configure_timezone_and_ntp(host, user, port, password)
 
@@ -1628,7 +1634,7 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
             # Create remote temp directory
             print("├─ Preparing deployment staging area...")
             self.remote_exec(host, user, port, "mkdir -p /tmp/pihole-sentinel-deploy", password)
-            
+
             # Copy necessary files
             print("Copying files...")
             config_suffix = "primary" if node_type == "primary" else "secondary"
@@ -1651,7 +1657,7 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
                 print(f"├─ [{bar}] {percent:3d}% {filename:30s}", end='\r')
                 self.remote_copy(local, host, user, port, remote, password)
             print(f"├─ [████████████████████] 100% All files copied{' ' * 30}")
-            
+
             # Execute installation commands
             print("Installing keepalived...")
             commands = [
@@ -1725,10 +1731,10 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
 
             # Cleanup staging area
             self.remote_exec(host, user, port, "rm -rf /tmp/pihole-sentinel-deploy", password)
-            
+
             print(f"✓ Keepalived {node_type} deployed successfully to {host}!")
             return True
-            
+
         except subprocess.CalledProcessError as e:
             print(f"\n{Colors.RED}✗ Error deploying keepalived to {host}: {e}{Colors.END}")
             print(f"\n{Colors.YELLOW}Config files are deployed to {host} but the service failed to start.{Colors.END}")
@@ -1893,11 +1899,11 @@ WantedBy=timers.target
 {Colors.RED}{Colors.BOLD}DELETE this directory immediately after deployment!{Colors.END}
 {Colors.CYAN}Command: rm -rf generated_configs/{Colors.END}
 """)
-    
+
     def cleanup_sensitive_files(self):
         """Securely remove generated config files containing sensitive data."""
         print(f"\n{Colors.YELLOW}{Colors.BOLD}Security Cleanup{Colors.END}")
-        
+
         if os.path.exists('generated_configs'):
             print(f"{Colors.CYAN}Removing generated configuration files with sensitive data...{Colors.END}")
             try:
@@ -1908,7 +1914,7 @@ WantedBy=timers.target
                         size = os.path.getsize(filepath)
                         with open(filepath, 'wb') as f:
                             f.write(os.urandom(size))
-                
+
                 # Now remove the directory
                 import shutil
                 shutil.rmtree('generated_configs')
@@ -1918,7 +1924,7 @@ WantedBy=timers.target
                 print(f"{Colors.YELLOW}Please manually delete: rm -rf generated_configs/{Colors.END}")
         else:
             print(f"{Colors.GREEN}✓ No sensitive files to cleanup{Colors.END}")
-    
+
     def backup_existing_configs(self, host, user, port, password=None, config_type="monitor"):
         """Backup existing configuration files on remote server.
 
@@ -1928,9 +1934,9 @@ WantedBy=timers.target
         """
         import datetime
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         files_to_backup = []
-        
+
         if config_type == "monitor":
             files_to_backup = [
                 ("/opt/pihole-monitor/.env", f"/opt/pihole-monitor/.env.backup_{timestamp}"),
@@ -1943,16 +1949,16 @@ WantedBy=timers.target
                 ("/etc/keepalived/keepalived.conf", f"/etc/keepalived/keepalived.conf.backup_{timestamp}"),
                 ("/etc/keepalived/.env", f"/etc/keepalived/.env.backup_{timestamp}"),
             ]
-        
+
         backed_up = []
         for source, backup in files_to_backup:
             try:
                 # Check if file exists and backup
                 check_cmd = f"[ -f {source} ] && cp {source} {backup} && echo 'backed_up' || echo 'not_found'"
-                
+
                 if self.config.get('ssh_key_path') and not password:
                     result = subprocess.run(
-                        ["ssh", "-i", self.config['ssh_key_path'], "-p", port, "-o", "StrictHostKeyChecking=no",
+                        ["ssh", "-i", self.config['ssh_key_path'], "-p", port, "-o", "StrictHostKeyChecking=accept-new",
                          f"{user}@{host}", check_cmd],
                         capture_output=True, text=True, timeout=10
                     )
@@ -1960,22 +1966,22 @@ WantedBy=timers.target
                     env = os.environ.copy()
                     env['SSHPASS'] = password
                     result = subprocess.run(
-                        ["sshpass", "-e", "ssh", "-p", port, "-o", "StrictHostKeyChecking=no",
+                        ["sshpass", "-e", "ssh", "-p", port, "-o", "StrictHostKeyChecking=accept-new",
                          f"{user}@{host}", check_cmd],
                         capture_output=True, text=True, timeout=10, env=env
                     )
                 else:
                     result = subprocess.run(
-                        ["ssh", "-p", port, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
+                        ["ssh", "-p", port, "-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes",
                          f"{user}@{host}", check_cmd],
                         capture_output=True, text=True, timeout=10
                     )
-                
+
                 if 'backed_up' in result.stdout:
                     backed_up.append((source, backup))
             except:
                 pass
-        
+
         if backed_up:
             print(f"\n{Colors.GREEN}{Colors.BOLD}📦 Existing Configuration Backup{Colors.END}")
             print(f"{Colors.CYAN}The following existing files have been backed up on {host}:{Colors.END}")
@@ -2220,11 +2226,11 @@ WantedBy=timers.target
 
 class Uninstaller:
     """Uninstall Pi-hole Sentinel components."""
-    
+
     def __init__(self, keep_configs=False, dry_run=False):
         self.keep_configs = keep_configs
         self.dry_run = dry_run
-    
+
     def run_cmd(self, cmd, description=""):
         """Execute command with dry-run support."""
         if self.dry_run:
@@ -2238,21 +2244,21 @@ class Uninstaller:
         except subprocess.TimeoutExpired:
             print(f"  ⚠ Command timed out: {' '.join(cmd)}")
             return False
-    
+
     def uninstall_monitor(self):
         """Uninstall monitor service from local machine."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}═══ Uninstalling Pi-hole Sentinel Monitor ═══{Colors.END}\n")
-        
+
         # Stop and disable service
         print("Stopping service...")
         self.run_cmd(["systemctl", "stop", "pihole-monitor"])
         self.run_cmd(["systemctl", "disable", "pihole-monitor"])
-        
+
         # Remove service file
         print("Removing systemd service...")
         self.run_cmd(["rm", "-f", "/etc/systemd/system/pihole-monitor.service"])
         self.run_cmd(["systemctl", "daemon-reload"])
-        
+
         # Remove application files
         print("Removing application files...")
         if self.keep_configs:
@@ -2264,37 +2270,37 @@ class Uninstaller:
         else:
             self.run_cmd(["rm", "-rf", "/opt/pihole-monitor"])
             self.run_cmd(["rm", "-rf", "/etc/pihole-sentinel"])
-        
+
         self.run_cmd(["rm", "-f", "/opt/VERSION"])
-        
+
         # Remove logs
         print("Removing log files...")
         self.run_cmd(["rm", "-f", "/var/log/pihole-monitor.log"])
         self.run_cmd(["sh", "-c", "rm -f /var/log/pihole-monitor.log.*"])
-        
+
         # Remove user
         print("Removing service user...")
         self.run_cmd(["userdel", "-r", "pihole-monitor"])
-        
+
         print(f"\n{Colors.GREEN}✓ Monitor uninstalled{Colors.END}")
-    
+
     def uninstall_keepalived_config(self):
         """Remove keepalived configuration (not the package)."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}═══ Removing Keepalived Configuration ═══{Colors.END}\n")
-        
+
         print("Stopping keepalived...")
         self.run_cmd(["systemctl", "stop", "keepalived"])
-        
+
         print("Removing configuration...")
         if self.keep_configs:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             print(f"  {Colors.YELLOW}(Backing up config to keepalived.conf.backup_{timestamp}){Colors.END}")
-            self.run_cmd(["mv", "/etc/keepalived/keepalived.conf", 
+            self.run_cmd(["mv", "/etc/keepalived/keepalived.conf",
                          f"/etc/keepalived/keepalived.conf.backup_{timestamp}"])
         else:
             self.run_cmd(["rm", "-f", "/etc/keepalived/keepalived.conf"])
             self.run_cmd(["rm", "-f", "/etc/keepalived/.env"])
-        
+
         print("Removing scripts...")
         scripts = [
             "/usr/local/bin/check_pihole_service.sh",
@@ -2305,18 +2311,18 @@ class Uninstaller:
         ]
         for script in scripts:
             self.run_cmd(["rm", "-f", script])
-        
+
         self.run_cmd(["rm", "-f", "/var/log/keepalived-notify.log"])
-        
+
         print(f"\n{Colors.GREEN}✓ Keepalived configuration removed{Colors.END}")
         print(f"  {Colors.YELLOW}Note: keepalived package NOT removed (may be used elsewhere){Colors.END}")
-    
+
     def uninstall_remote(self, host, user, port, password=None, ssh_key=None):
         """Uninstall from remote host via SSH."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}═══ Uninstalling from {host} ═══{Colors.END}\n")
-        
+
         keep_flag = "true" if self.keep_configs else "false"
-        
+
         script = f'''
 #!/bin/bash
 KEEP_CONFIGS={keep_flag}
@@ -2365,24 +2371,24 @@ userdel -r pihole-monitor 2>/dev/null || true
 
 echo "Done!"
 '''
-        
+
         if self.dry_run:
             print(f"  [DRY-RUN] Would execute uninstall script on {host}")
             return True
-        
+
         try:
             # Build SSH command
             if ssh_key:
-                ssh_cmd = ["ssh", "-i", ssh_key, "-p", port, "-o", "StrictHostKeyChecking=no"]
+                ssh_cmd = ["ssh", "-i", ssh_key, "-p", port, "-o", "StrictHostKeyChecking=accept-new"]
             elif password:
-                ssh_cmd = ["sshpass", "-e", "ssh", "-p", port, "-o", "StrictHostKeyChecking=no"]
+                ssh_cmd = ["sshpass", "-e", "ssh", "-p", port, "-o", "StrictHostKeyChecking=accept-new"]
             else:
-                ssh_cmd = ["ssh", "-p", port, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes"]
-            
+                ssh_cmd = ["ssh", "-p", port, "-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes"]
+
             env = os.environ.copy()
             if password:
                 env['SSHPASS'] = password
-            
+
             # Execute script
             result = subprocess.run(
                 ssh_cmd + [f"{user}@{host}", "bash -s"],
@@ -2392,28 +2398,28 @@ echo "Done!"
                 timeout=120,
                 env=env
             )
-            
+
             if result.returncode == 0:
                 print(f"{Colors.GREEN}✓ Uninstalled from {host}{Colors.END}")
                 return True
             else:
                 raise Exception(result.stderr or "Unknown error")
-                
+
         except Exception as e:
             print(f"\n{Colors.RED}⚠️  Failed to uninstall from {host}: {e}{Colors.END}")
             self._show_troubleshooting(host, user)
             return False
-    
+
     def _show_troubleshooting(self, host, user):
         """Show troubleshooting tips for failed remote uninstall."""
         print(f"""
 {Colors.YELLOW}╔══════════════════════════════════════════════════════════════════════╗
 ║  TROUBLESHOOTING TIPS                                                 ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║  1. Check SSH access:     ssh {user}@{host}                          
-║  2. Verify root/sudo permissions                                     
-║  3. Check if host is reachable: ping {host}                          
-║  4. Try manual uninstall (commands below)                            
+║  1. Check SSH access:     ssh {user}@{host}
+║  2. Verify root/sudo permissions
+║  3. Check if host is reachable: ping {host}
+║  4. Try manual uninstall (commands below)
 ╚══════════════════════════════════════════════════════════════════════╝{Colors.END}
 
 {Colors.CYAN}Manual uninstall commands:{Colors.END}
@@ -2424,7 +2430,7 @@ echo "Done!"
   rm -f /etc/keepalived/keepalived.conf /etc/keepalived/.env
   userdel -r pihole-monitor
 """)
-    
+
     def run_interactive(self):
         """Run interactive uninstall wizard."""
         print(f"""
@@ -2444,14 +2450,14 @@ What would you like to uninstall?
   {Colors.BOLD}5.{Colors.END} Cancel
 """)
         choice = input(f"{Colors.BOLD}Enter choice (1-5): {Colors.END}").strip()
-        
+
         if choice == '5' or not choice:
             print("Cancelled.")
             return
-        
+
         if self.dry_run:
             print(f"\n{Colors.YELLOW}═══ DRY-RUN MODE - No changes will be made ═══{Colors.END}")
-        
+
         if choice in ['1', '2', '3']:
             if choice in ['1', '3']:
                 self.uninstall_monitor()
@@ -2465,13 +2471,13 @@ What would you like to uninstall?
             user = input("SSH user [root]: ").strip() or "root"
             port = input("SSH port [22]: ").strip() or "22"
             use_password = input("Use password authentication? (y/N): ").strip().lower() == 'y'
-            
+
             password = None
             if use_password:
                 password = getpass("SSH password: ")
-            
+
             self.uninstall_remote(host, user, port, password=password)
-        
+
         print(f"\n{Colors.GREEN}{Colors.BOLD}Uninstallation complete!{Colors.END}")
 
 
@@ -2486,7 +2492,7 @@ def check_command_exists(cmd):
 def check_package_available(pkg):
     """Check if a package is available in apt cache."""
     try:
-        result = subprocess.run(["apt-cache", "show", pkg], 
+        result = subprocess.run(["apt-cache", "show", pkg],
                                capture_output=True, text=True, timeout=5)
         return result.returncode == 0
     except:
@@ -2494,12 +2500,12 @@ def check_package_available(pkg):
 
 def resolve_package_name(pkg):
     """Resolve package name with version-specific fallbacks.
-    
+
     For Python packages, tries version-specific names first, then generic.
     E.g., python3-dev -> python3.13-dev (if available) -> python3-dev
     """
     py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-    
+
     # Packages that might have version-specific variants or Debian-version renames
     versioned_packages = {
         'python3-dev': [f'python{py_version}-dev', 'python3-dev', 'libpython3-dev'],
@@ -2507,15 +2513,15 @@ def resolve_package_name(pkg):
         # Debian 12+ renamed dnsutils → bind9-dnsutils (dnsutils is now transitional)
         'dnsutils': ['dnsutils', 'bind9-dnsutils'],
     }
-    
+
     if pkg not in versioned_packages:
         return pkg
-    
+
     alternatives = versioned_packages[pkg]
     for alt in alternatives:
         if check_package_available(alt):
             return alt
-    
+
     # Fallback to original (will fail gracefully)
     return pkg
 
@@ -2574,18 +2580,18 @@ def check_package_installed(pkg, pkg_manager="apt"):
 def check_dependencies():
     """Check all required dependencies and report missing ones."""
     import platform
-    
+
     print("\n=== Checking Dependencies ===\n")
-    
+
     missing_system = []
     missing_commands = []
     missing_python = []
-    
+
     # Check system packages from system-requirements.txt
     if os.path.exists("system-requirements.txt"):
         with open("system-requirements.txt") as f:
             sys_pkgs = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-        
+
         # Detect package manager
         pkg_manager = None
         if os.path.exists("/usr/bin/apt-get"):
@@ -2594,13 +2600,13 @@ def check_dependencies():
             pkg_manager = "yum"
         elif os.path.exists("/usr/bin/pacman"):
             pkg_manager = "pacman"
-        
+
         if pkg_manager and platform.system() == "Linux":
             print("Checking system packages...")
             for pkg in sys_pkgs:
                 # Resolve to version-specific package name if needed
                 resolved_pkg = resolve_package_name(pkg) if pkg_manager == "apt" else pkg
-                
+
                 if not check_package_installed(resolved_pkg, pkg_manager):
                     missing_system.append(resolved_pkg)
                     if resolved_pkg != pkg:
@@ -2612,7 +2618,7 @@ def check_dependencies():
                         print(f"  ✓ {pkg} ({resolved_pkg}) - installed")
                     else:
                         print(f"  ✓ {pkg} - installed")
-    
+
     # Check required commands
     print("\nChecking required commands...")
     required_commands = {
@@ -2622,14 +2628,14 @@ def check_dependencies():
         'useradd': 'User management utility',
         'ping': 'Network connectivity tool',
     }
-    
+
     for cmd, description in required_commands.items():
         if not check_command_exists(cmd):
             missing_commands.append(f"{cmd} ({description})")
             print(f"  ✗ {cmd} - NOT FOUND")
         else:
             print(f"  ✓ {cmd} - found")
-    
+
     # Check Python version
     print("\nChecking Python version...")
     py_version = sys.version_info
@@ -2638,7 +2644,7 @@ def check_dependencies():
         print(f"  ✗ Python {py_version.major}.{py_version.minor} - TOO OLD (need 3.8+)")
     else:
         print(f"  ✓ Python {py_version.major}.{py_version.minor} - OK")
-    
+
     # Check Python packages from requirements.txt (system-wide)
     # Note: These are installed in virtual environments during deployment
     print("\nChecking Python packages (system-wide)...")
@@ -2646,7 +2652,7 @@ def check_dependencies():
     if os.path.exists("requirements.txt"):
         with open("requirements.txt") as f:
             py_pkgs = [line.strip().split('==')[0] for line in f if line.strip() and not line.startswith('#')]
-        
+
         installed_count = 0
         for pkg in py_pkgs:
             try:
@@ -2656,12 +2662,12 @@ def check_dependencies():
             except ImportError:
                 # This is OK - packages will be installed in venv
                 pass
-        
+
         if installed_count == 0:
             print(f"  ℹ No packages installed system-wide (will be installed in venv during deployment)")
         else:
             print(f"  ℹ {installed_count}/{len(py_pkgs)} packages installed system-wide")
-    
+
     # Report summary
     print("\n" + "="*50)
     if not missing_system and not missing_commands:
@@ -2670,28 +2676,28 @@ def check_dependencies():
         return True
     else:
         print("✗ Missing system dependencies detected:\n")
-        
+
         if missing_system:
             print("System packages (required):")
             for pkg in missing_system:
                 print(f"  - {pkg}")
-        
+
         if missing_commands:
             print("\nRequired commands:")
             for cmd in missing_commands:
                 print(f"  - {cmd}")
-        
+
         return False
 
 def main():
     global VERBOSE
-    
-    import platform
+
     import argparse
-    
+    import platform
+
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description='Pi-hole Sentinel High Availability Setup')
-    parser.add_argument('-v', '--verbose', action='store_true', 
+    parser.add_argument('-v', '--verbose', action='store_true',
                        help='Show verbose output including all command details')
     parser.add_argument('--uninstall', action='store_true',
                        help='Uninstall Pi-hole Sentinel components')
@@ -2700,9 +2706,9 @@ def main():
     parser.add_argument('--dry-run', action='store_true',
                        help='Show what would be done without making changes')
     args = parser.parse_args()
-    
+
     VERBOSE = args.verbose
-    
+
     # Handle uninstall mode
     if args.uninstall:
         uninstaller = Uninstaller(
@@ -2711,10 +2717,10 @@ def main():
         )
         uninstaller.run_interactive()
         sys.exit(0)
-    
+
     if VERBOSE:
         print("═══ VERBOSE MODE ENABLED ═══\n")
-    
+
     def is_root():
         if platform.system() == "Windows":
             # On Windows, check for admin
@@ -2735,12 +2741,12 @@ def main():
     try:
         # Show logo
         print(LOGO)
-        
+
         # Pause to let user see the logo
         print(f"{Colors.YELLOW}This script will guide you through setting up High Availability for your Pi-holes.{Colors.END}")
         print(f"{Colors.YELLOW}We'll check system dependencies, collect your network configuration, and deploy the setup.{Colors.END}\n")
         input(f"{Colors.BOLD}Press ENTER to begin...{Colors.END} ")
-        
+
         # Check for root/sudo
         if not is_root():
             print(f"\n{Colors.RED}{Colors.BOLD}ERROR:{Colors.END} This setup script must be run as root or with sudo privileges!")
@@ -2750,13 +2756,13 @@ def main():
         # Check all dependencies
         print(f"\n{Colors.CYAN}{Colors.BOLD}═══ Checking System Dependencies ═══{Colors.END}\n")
         deps_ok = check_dependencies()
-        
+
         if not deps_ok:
             print("\n" + "="*50)
             print("Do you want to install missing dependencies automatically?")
             print("This will use your system's package manager (apt/yum/pacman).")
             choice = input("\nInstall missing dependencies? (y/N): ").lower()
-            
+
             if choice != 'y':
                 print("\nSetup cancelled. Please install missing dependencies manually.")
                 print("\nSystem packages can be installed with:")
@@ -2769,16 +2775,16 @@ def main():
                 print("\nPython packages can be installed with:")
                 print("  pip3 install -r requirements.txt")
                 sys.exit(1)
-            
+
             # Install system requirements
             print("\n┌─ Installing system packages")
             sysreq_file = "system-requirements.txt"
             if os.path.exists(sysreq_file):
                 with open(sysreq_file) as f:
                     pkgs = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-                
+
                 print(f"│  Packages: {len(pkgs)} total")
-                
+
                 # Detect package manager
                 if platform.system() == "Linux":
                     if os.path.exists("/usr/bin/apt-get"):
@@ -2821,8 +2827,8 @@ def main():
                             print("│  ℹ Check apt lock/network, then rerun setup with --verbose")
                             print("└─")
                             sys.exit(1)
-                    
-                    
+
+
                     elif os.path.exists("/usr/bin/yum"):
                         print(f"│  [░░░░░░░░░░░░░░░░░░░░] 0%   Installing packages...", end='\r')
                         result = subprocess.run(["yum", "install", "-y", "-q"] + pkgs,
@@ -2842,7 +2848,7 @@ def main():
                         sys.exit(1)
                 elif platform.system() == "Windows":
                     print("│  ⚠ WARNING: System requirements must be installed manually on Windows.")
-            
+
             print("└─ ✓ Dependencies installed successfully!\n")
         else:
             print("\n✓ All dependencies already satisfied, continuing with setup...")

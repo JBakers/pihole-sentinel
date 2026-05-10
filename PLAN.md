@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-05-10
 **Branch:** `develop`
-**Current Version:** 0.18.5
+**Current Version:** 0.19.0
 
 > **📌 This is the central planning and TODO document.**
 > CLAUDE.md references this file. All open tasks, bugs, and the
@@ -47,6 +47,340 @@
 ## Open Bugs
 
 No open bugs.
+
+---
+
+## Security & Best Practices Review — 2026-05-10
+
+> Gegenereerd via volledige codebase-scan. Gesorteerd op kriticiteitsniveau.
+> Elke fix is exact en actionable. Geen tutorials of algemene uitleg.
+
+---
+
+### 🔴 CRITICAL
+
+---
+
+**C1**
+- **Level:** Critical
+- **Location:** [setup.py](setup.py#L260) — ook L303, L307, L312, L681, L695, L736, L1482, L1955, L1963, L1969, L2376, L2378, L2380
+- **Issue:** `StrictHostKeyChecking=no` in alle SSH/SCP-aanroepen gedurende installatie en remote commando's — staat MITM-aanvallen toe.
+- **Fix:**
+  ```python
+  # Vervang in remote_exec, remote_copy, en alle andere ssh/scp calls:
+  # VOOR (oud):
+  "-o", "StrictHostKeyChecking=no",
+
+  # NA (nieuw) — gebruik accept-new: accepteer bij eerste verbinding, weiger bij gewijzigde host key:
+  "-o", "StrictHostKeyChecking=accept-new",
+  "-o", "UserKnownHostsFile=/opt/pihole-monitor/.ssh/known_hosts",
+  ```
+
+---
+
+**C2**
+- **Level:** Critical
+- **Location:** [docker/sentinel-node/sync_agent/agent.py](docker/sentinel-node/sync_agent/agent.py#L72)
+- **Issue:** Wanneer `SYNC_TOKEN=""` (standaard), worden alle sync-endpoints volledig opengesteld zonder authenticatie; alleen een warning wordt gelogd.
+- **Fix:**
+  ```python
+  def verify_sync_token(x_sync_token: str = Header(default="")):
+      if not SYNC_TOKEN:
+          # VOOR: logger.warning(...) + return  ← open!
+          # NA: harde fout:
+          raise HTTPException(status_code=503, detail="Sync token not configured — service unavailable")
+      if not hmac.compare_digest(x_sync_token, SYNC_TOKEN):
+          raise HTTPException(status_code=403, detail="Invalid sync token")
+  ```
+
+---
+
+### 🟠 HIGH
+
+---
+
+**H1**
+- **Level:** High
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L1260) — ook L1277, L1290, L1305, L1323
+- **Issue:** Pi-hole API-communicatie (inclusief wachtwoordoverdracht) gebruikt onversleuteld HTTP (`http://{ip}/api/auth`).
+- **Fix:**
+  ```python
+  # Voeg toe aan CONFIG (env-driven):
+  "pihole_scheme": os.getenv("PIHOLE_SCHEME", "http"),  # zet op "https" voor TLS
+
+  # Vervang in check_pihole_simple():
+  scheme = CONFIG.get("pihole_scheme", "http")
+  async with session.post(f"{scheme}://{ip}/api/auth", json={"password": password}, ...) as auth_resp:
+  # Idem voor alle andere f"http://{ip}/..." aanroepen in die functie.
+  ```
+
+---
+
+**H2**
+- **Level:** High
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L2885) — ook L2988
+- **Issue:** `test_notification`-endpoint roept `validate_webhook_url()` niet aan voor Discord- en Webhook-testpaden — SSRF-bescherming wordt omzeild.
+- **Fix:**
+  ```python
+  # Voeg toe vóór de session.post() aanroep in service == 'discord' blok (L2885):
+  if not validate_webhook_url(settings['webhook_url']):
+      raise HTTPException(status_code=400, detail="Webhook URL is not allowed (SSRF protection)")
+
+  # Voeg toe vóór de session.post() aanroep in service == 'webhook' blok (L2988):
+  if not validate_webhook_url(settings['url']):
+      raise HTTPException(status_code=400, detail="Webhook URL is not allowed (SSRF protection)")
+  ```
+
+---
+
+**H3**
+- **Level:** High
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L2871) — ook L2885, L2948, L2975, L2988
+- **Issue:** `test_notification` maakt per aanroep een nieuw `aiohttp.ClientSession()` zonder timeout — resource-lek en kwetsbaar voor Slowloris.
+- **Fix:**
+  ```python
+  # Vervang alle `async with aiohttp.ClientSession() as session:` in test_notification
+  # door gebruik van de globale sessie met timeout:
+  session = await get_http_session()
+  # (verwijder de `async with aiohttp.ClientSession() as session:` wrapper per blok)
+  # Voeg per post-aanroep een expliciete timeout toe:
+  async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as response:
+  ```
+
+---
+
+### 🟡 MEDIUM
+
+---
+
+**M1**
+- **Level:** Medium
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L330) — L330–L390
+- **Issue:** `rate_limit_store` en `write_rate_limit_store` zijn onbegrensde `defaultdict`s; bij DoS met unieke IPs groeien ze onbeperkt in geheugen.
+- **Fix:**
+  ```python
+  # Voeg toe aan de cleanup-stap in rate_limit_check en write_rate_limit_check,
+  # vóór de append-stap, een max-cap op het aantal bijgehouden sleutels:
+  MAX_TRACKED_IPS = 10_000
+
+  async def rate_limit_check(request: Request):
+      client_ip = _get_client_ip(request)
+      now = datetime.now()
+      rate_limit_store[client_ip] = [
+          ts for ts in rate_limit_store[client_ip]
+          if now - ts < timedelta(seconds=RATE_LIMIT_WINDOW)
+      ]
+      if len(rate_limit_store) > MAX_TRACKED_IPS:
+          # Verwijder de oudste inactieve sleutels
+          stale = [ip for ip, ts_list in rate_limit_store.items() if not ts_list]
+          for ip in stale[:1000]:
+              del rate_limit_store[ip]
+      # ... rest ongewijzigd
+  ```
+
+---
+
+**M2**
+- **Level:** Medium
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L897)
+- **Issue:** `Content-Security-Policy` header staat `'unsafe-inline'` toe voor `script-src`, wat XSS-bescherming significant verlaagt.
+- **Fix:**
+  ```python
+  # Vervang in security_headers middleware:
+  # VOOR:
+  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+
+  # NA — gebruik een nonce (genereer per request):
+  import secrets as _sec
+  nonce = _sec.token_urlsafe(16)
+  response.headers["Content-Security-Policy"] = (
+      f"default-src 'self'; "
+      f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+      "style-src 'self' 'unsafe-inline'; "
+      "img-src 'self' data:; "
+      "connect-src 'self'; "
+      "frame-ancestors 'none'"
+  )
+  # Injecteer de nonce ook in de HTML via de serve_index/serve_settings handlers.
+  ```
+
+---
+
+**M3**
+- **Level:** Medium
+- **Location:** [requirements.txt](requirements.txt)
+- **Issue:** `packaging`-library wordt gebruikt in `_is_newer_version()` (monitor.py L1101) maar staat niet in `requirements.txt`; de fallback-vergelijking (`latest_clean > current_clean`) is lexicografisch en incorrect voor semantische versies.
+- **Fix:**
+  ```
+  # Voeg toe aan requirements.txt:
+  packaging>=23.0
+  ```
+
+---
+
+**M4**
+- **Level:** Medium
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L3249)
+- **Issue:** `uvicorn.run(app, host="0.0.0.0")` is hardcoded — bind-adres is niet configureerbaar via omgevingsvariabele.
+- **Fix:**
+  ```python
+  # Vervang de laatste regel:
+  # VOOR:
+  uvicorn.run(app, host="0.0.0.0", port=8080)
+
+  # NA:
+  uvicorn.run(
+      app,
+      host=os.getenv("BIND_HOST", "0.0.0.0"),
+      port=int(os.getenv("BIND_PORT", "8080")),
+  )
+  ```
+
+---
+
+**M5**
+- **Level:** Medium
+- **Location:** [docker/sentinel-node/sync_agent/agent.py](docker/sentinel-node/sync_agent/agent.py)
+- **Issue:** Geen rate limiting op enig endpoint in de sync agent; gezamenlijke endpoints zijn blootgesteld zonder throttling.
+- **Fix:**
+  ```python
+  # Voeg toe als dependency (zelfde patroon als monitor.py write_rate_limit_check):
+  from collections import defaultdict
+  from datetime import datetime, timedelta
+  _agent_rate_store = defaultdict(list)
+  AGENT_RATE_LIMIT = 30
+  AGENT_RATE_WINDOW = 60
+
+  def agent_rate_limit(request: Request):
+      ip = request.client.host if request.client else "unknown"
+      now = datetime.now()
+      _agent_rate_store[ip] = [t for t in _agent_rate_store[ip] if now - t < timedelta(seconds=AGENT_RATE_WINDOW)]
+      if len(_agent_rate_store[ip]) >= AGENT_RATE_LIMIT:
+          raise HTTPException(status_code=429, detail="Rate limit exceeded")
+      _agent_rate_store[ip].append(now)
+
+  # Voeg toe aan elke route: dependencies=[Depends(agent_rate_limit)]
+  ```
+
+---
+
+### 🔵 LOW
+
+---
+
+**L1**
+- **Level:** Low
+- **Location:** [docker/mock-pihole/mock_pihole.py](docker/mock-pihole/mock_pihole.py#L45)
+- **Issue:** Hardcoded standaard-testwachtwoord `"testpass123"` — indien mock server per ongeluk in productie draait, is het wachtwoord bekend.
+- **Fix:**
+  ```python
+  # VOOR:
+  PIHOLE_PASSWORD = os.getenv("PIHOLE_PASSWORD", "testpass123")
+
+  # NA — geen default; verplicht via env:
+  PIHOLE_PASSWORD = os.getenv("PIHOLE_PASSWORD", "")
+  if not PIHOLE_PASSWORD:
+      raise RuntimeError("PIHOLE_PASSWORD env var is required")
+  ```
+
+---
+
+**L2**
+- **Level:** Low
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L580) — ook L778, L808 en diverse API handlers
+- **Issue:** `import json` wordt herhaaldelijk binnenin functies geïmporteerd terwijl het al module-breed beschikbaar is — overtollige microkosten en inconsistentie.
+- **Fix:**
+  ```python
+  # Verwijder alle `import json` regels bínnen functies.
+  # `json` staat al als top-level import (controleer: het staat NIET in de top imports!
+  # Voeg eenmalig toe aan de module-level imports bovenaan monitor.py):
+  import json
+  ```
+
+---
+
+**L3**
+- **Level:** Low
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L3042)
+- **Issue:** `test_template_notification` heeft een dood-code-string `"""Test a template notification with sample data"""` als losse statement na de echte docstring — dead code.
+- **Fix:**
+  ```python
+  # Verwijder regel 3042 volledig:
+  """Test a template notification with sample data"""   # ← DELETE deze regel
+  ```
+
+---
+
+**L4**
+- **Level:** Low
+- **Location:** [setup.py](setup.py#L1234)
+- **Issue:** `subprocess.run(["sudo", "useradd", ...], check=False)` smoort fouten stil; mislukte systeemgebruiker-aanmaak blijft onopgemerkt.
+- **Fix:**
+  ```python
+  # VOOR:
+  subprocess.run(["sudo", "useradd", "-r", "-s", "/bin/false", "pihole-monitor"], check=False)
+
+  # NA:
+  result = subprocess.run(["sudo", "useradd", "-r", "-s", "/bin/false", "pihole-monitor"], capture_output=True)
+  if result.returncode not in (0, 9):  # 9 = user already exists
+      logger.warning(f"useradd failed (rc={result.returncode}): {result.stderr.decode().strip()}")
+  ```
+
+---
+
+**L5**
+- **Level:** Low
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L1451)
+- **Issue:** `extract_mac` is een geneste functie die bij élke aanroep van `check_who_has_vip()` opnieuw wordt aangemaakt (per poll-cyclus).
+- **Fix:**
+  ```python
+  # Verplaats extract_mac naar module-niveau (vóór check_who_has_vip):
+  def _extract_mac(output: str) -> Optional[str]:
+      """Extract MAC address from 'ip neigh show' output."""
+      parts = output.split()
+      try:
+          lladdr_idx = parts.index('lladdr')
+          return parts[lladdr_idx + 1].upper()
+      except (ValueError, IndexError):
+          return None
+  ```
+
+---
+
+### ⚪ INFO
+
+---
+
+**I1**
+- **Level:** Info
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L18)
+- **Issue:** `import copy` wordt alleen gebruikt in `mask_sensitive_data()` (één `deepcopy`-aanroep) — geen probleem maar opvallend geïsoleerd.
+- **Fix:** Geen actie vereist; optioneel `copy.deepcopy` vervangen door `json.loads(json.dumps(settings))` voor serialiseerbare dicts om de `copy`-import te elimineren.
+
+---
+
+**I2**
+- **Level:** Info
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L2427) — ook L2330
+- **Issue:** `open(config_path, 'w')` gevolgd door `os.chmod(config_path, 0o600)` heeft een TOCTOU-venster; bestand is tijdelijk world-readable bij aanmaak.
+- **Fix:**
+  ```python
+  import stat
+
+  def _open_secure(path: str):
+      """Open bestand voor schrijven met mode 0o600 vanaf aanmaak."""
+      fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+      return open(fd, 'w')
+
+  # Vervang:
+  with open(config_path, 'w') as f:
+      json.dump(..., f, indent=2)
+  os.chmod(config_path, 0o600)
+
+  # Door:
+  with _open_secure(config_path) as f:
+      json.dump(..., f, indent=2)
+  ```
 
 ---
 

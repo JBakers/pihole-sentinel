@@ -1,6 +1,46 @@
+## [0.19.0] - 2026-05-10
+
+### Security
+
+- **C1 — StrictHostKeyChecking: MITM prevention (setup.py, 14 locations)** — All SSH/SCP
+  calls in `setup.py` replaced `StrictHostKeyChecking=no` with `accept-new`: first connection
+  is accepted and the host key stored; subsequent connections with a changed key are rejected,
+  blocking MITM attacks after initial deployment.
+- **C2 — SYNC_TOKEN enforcement (sync_agent/agent.py)** — When `SYNC_TOKEN` env var is
+  unset the sync agent now raises HTTP 503 ("service unavailable") instead of silently
+  opening all sync endpoints to unauthenticated callers.
+- **H2 — SSRF protection in test_notification (monitor.py)** — Discord, Ntfy server, and
+  custom Webhook paths in `test_notification` now call `validate_webhook_url()` before
+  making outbound requests, matching the protection already present in the production
+  `send_notification` path.
+- **H3 — aiohttp session leak in test_notification (monitor.py)** — All five service
+  blocks replaced ad-hoc `aiohttp.ClientSession()` (no timeout, no pooling) with the
+  global `get_http_session()` pool and explicit `ClientTimeout(total=10)`.
+- **I2 — TOCTOU race on config file creation (monitor.py)** — Added `_open_secure(path)`
+  helper that uses `os.open(..., 0o600)` to create files with the correct permissions
+  atomically, eliminating the brief window where a newly created `notify_settings.json`
+  or `notify.conf` was world-readable. Applied to all five write sites.
+
+### Improved
+
+- **M4 — Configurable bind address (monitor.py)** — `uvicorn.run()` now reads
+  `BIND_HOST` and `BIND_PORT` environment variables (defaults: `0.0.0.0` / `8080`).
+- **L4 — useradd error reporting (setup.py)** — `subprocess.run(..., check=False)` for
+  `useradd` replaced with explicit exit-code check: exit 0 (created) and exit 9 (already
+  exists) are accepted; any other code emits a warning.
+- **L2 — Removed 10 redundant local `import json` statements (monitor.py)** — `json`
+  is a top-level import; the function-level duplicates were dead overhead.
+- **L3 — Removed dead-code docstring in `test_template_notification` (monitor.py)** —
+  A standalone `"""Test a template notification with sample data"""` string inside the
+  function body (after the real docstring) was unreachable dead code.
+- **M3 — Added `packaging>=23.0` to requirements.txt** — `_is_newer_version()` already
+  imported `packaging.version` at runtime; the dependency is now declared explicitly so
+  it is installed by pip rather than relying on an accidental transitive dependency.
+
 ## [0.18.6] - 2026-04-22
 
 ### Tests
+
 - Added 6 new test files covering previously untested functions in `dashboard/monitor.py`
 - `test_check_pihole_simple` — 17 tests: TCP connectivity, API auth, stats, DHCP config, lease count, logout
 - `test_send_notification` — 29 tests: Telegram, Discord, Pushover, Ntfy, Webhook, template security, snooze, reminders
@@ -15,6 +55,7 @@
 ## [0.18.5] - 2026-04-21
 
 ### Fixed
+
 - **VIP Check showed "(not configured)" for Primary/Secondary** — `execute_command()`
   used flat keys `CONFIG.get("primary_ip")` but `CONFIG` is nested as
   `CONFIG["primary"]["ip"]`. Fixed in `vip_check`, `keepalived_status`, and
@@ -32,10 +73,11 @@
 ## [0.18.4] - 2026-04-21
 
 ### Improved
+
 - **System Commands panel: disabled unavailable buttons** — the dashboard now
   calls `GET /api/commands/available` on startup and disables the
-  `Keepalived Status` and `Keepalived Logs` buttons (with label *Pi-hole node
-  only*) when keepalived is not installed on the monitor server. A new
+  `Keepalived Status` and `Keepalived Logs` buttons (with label _Pi-hole node
+  only_) when keepalived is not installed on the monitor server. A new
   backend endpoint checks for the `keepalived` binary and log file.
 - **Recent System Events is now scrollable** — the events list is capped at
   420 px with `overflow-y: auto` so long event histories no longer push
@@ -44,6 +86,7 @@
 ## [0.18.3] - 2026-04-21
 
 ### Fixed
+
 - **`dnsWarnMs is not defined` crash in dashboard** — `dnsWarnMs` was declared
   as a local variable inside `updateStatus()` but referenced inside `updateNode()`
   which has a separate scope, causing a `ReferenceError` on every poll cycle and
@@ -53,6 +96,7 @@
 ## [0.18.2] - 2026-04-21
 
 ### Fixed
+
 - **`dns_latency_warn_ms` missing from API response** — added `dns_latency_warn_ms`
   field to `StatusResponse` Pydantic model so FastAPI no longer strips it from
   serialized responses; the frontend now reliably receives the configured threshold.
@@ -68,6 +112,7 @@
 ## [0.18.1] - 2026-04-21
 
 ### Fixed
+
 - **test-mode-banner can't get stuck visible** — when the debug override status
   request returns non-2xx (e.g. 403 when `DEBUG_MODE` is disabled) or throws
   (network error, endpoint not found), the dashboard now explicitly hides the
@@ -92,6 +137,7 @@
 ## [0.18.0] - 2026-04-21
 
 ### New
+
 - **`pisen api` command** — new `pisen api` / `pisen -A` subcommand fetches live status
   directly from the monitor API over HTTP, displaying VIP, MASTER/BACKUP state,
   FTL + DNS health, DNS latency, query stats and DHCP lease count per node.
@@ -112,19 +158,23 @@
   Dashboard shows a warning banner while any override is active.
 
 ### Improved
+
 - **Dynamic copyright year in `pisen --version`** — copyright string now shows
   `© 2025-YYYY` with the current year instead of a hardcoded static year.
 
 ### Fixed
+
 - **curl flags in install docs** — replaced `curl -sL` (silently ignores HTTP errors)
   with `curl -fsSL` / `curl -fL --show-error` across README and installation guides,
   so download failures produce a clear error instead of a confusing tar/gzip message.
 
 ### Documentation
+
 - **CLI docs updated** — `docs/usage/cli-tool.md` now lists `pisen api` (`-A`) with
   an example output block.
 
 ### Tests
+
 - **`tests/test_dns_latency.py`** — 10 unit tests covering `check_dns()` return type,
   success paths (latency rounded, multiple IPs), and all failure paths (nonzero exit,
   empty stdout, whitespace-only, timeout, OS error, unexpected exception).
@@ -134,6 +184,7 @@
 ## [0.16.9] - 2026-04-21
 
 ### Improved
+
 - **Dashboard metric labels clarified** — header lease pill now explicitly
   shows `DHCP Leases (MASTER)` and node metric label now shows
   `Clients Today`, making clear that DHCP lease count and DNS client count
@@ -142,6 +193,7 @@
 ## [0.16.8] - 2026-04-15
 
 ### Security
+
 - **DHCP disabled on world-writable .env** — when `keepalived_notify.sh`
   detects a world-writable `/etc/keepalived/.env` and refuses to source it,
   `DHCP_ENABLED` is now explicitly set to `false` instead of falling through
@@ -149,6 +201,7 @@
   compromised configuration.
 
 ### Fixed
+
 - **Octal-safe IP validation in sync script** — `validate_ip()` now uses
   `10#$octet` to force base-10 arithmetic, preventing bash from interpreting
   leading-zero octets (e.g., `08`, `09`) as invalid octal numbers.
@@ -173,6 +226,7 @@
   fixture explicitly depends on `require_docker` to guarantee execution order.
 
 ### Documentation
+
 - **TODO_USER.md** version reference updated.
 - **Testing docs** — added missing `test_vip_status_present` and
   `test_history_entries_have_fields` to integration test table.
@@ -197,6 +251,7 @@
 ## [0.16.7] - 2026-04-15
 
 ### Fixed
+
 - **DHCP misconfiguration false positive at startup** — the DHCP warning
   debounce timer now initializes to current time instead of zero, giving
   keepalived 5 minutes after monitor startup to complete VRRP negotiation
@@ -207,6 +262,7 @@
 ## [0.16.6] - 2026-04-15
 
 ### New
+
 - **UDP DNS mock responder** — `docker/mock-pihole/mock_pihole.py` now serves
   real DNS A-record responses on UDP:53 via `build_dns_response()`. Monitor
   `dig` checks now pass in the Docker test environment (closes F4).
@@ -214,6 +270,7 @@
   status (resolving + failure) and 3 unit tests for the DNS response builder.
 
 ### Fixed
+
 - **`pisen` shell command hardening** — removed dynamic shell interpolation for
   VIP output display and now print matching lines directly from `ip addr`
   command output. This reduces command-injection surface from config-derived values.
@@ -222,11 +279,13 @@
   return non-zero status and expose failures to script-level error handling.
 
 ### Improved
+
 - **Docker security intent made explicit** — added clear comments in Dockerfiles
   that production `sentinel-node` requires root for keepalived/VRRP networking,
   while mock/fake-client images are test-only.
 
 ### Documentation
+
 - **HTTPS / reverse proxy guidance** — Nginx and Caddy example configs added to
   README with `TRUST_PROXY_HEADERS` opt-in explanation (closes D3).
 - **Testing guide refreshed** — updated to 243 tests across 12 files, coverage
@@ -237,6 +296,7 @@
 ## [0.16.5] - 2026-04-15
 
 ### Fixed
+
 - **`StatusResponse` missing `dhcp_failover` field** — `/api/status` returned
   `dhcp_failover` in the dict but `StatusResponse` did not define it, causing
   FastAPI to strip it from every response. Dashboard DHCP toggle state now
@@ -268,15 +328,18 @@
   call but never used it. Removed; `--data-urlencode` handles encoding already.
 
 ### Changed
+
 - **`_get_client_ip()` now requires opt-in for proxy header trust** — set
   `TRUST_PROXY_HEADERS=true` in `.env` if the monitor runs behind a reverse proxy.
 
 ### Documentation
+
 - **`requirements-dev.txt`** — added `requests>=2.31.0` for integration tests.
 
 ## [0.16.4] - 2026-04-15
 
 ### Fixed
+
 - **DHCP failover default changed from `True` to `False`** — new installations
   and upgraded setups without a saved `dhcp_failover` setting no longer assume
   DHCP is in use. This eliminates false "DHCP Misconfigured ⚠️" warnings on
@@ -287,6 +350,7 @@
 ## [0.16.3] - 2026-04-12
 
 ### New
+
 - **Docker integration test suite** — 16 end-to-end tests validating the full
   monitoring pipeline (mock Pi-hole → monitor polling → status API → event
   logging). Tests cover: FTL failure/recovery, DHCP state, stats reporting,
@@ -299,6 +363,7 @@
   verification procedures for Docker test environment.
 
 ### Fixed
+
 - **`PiHoleStatus` Pydantic model missing stats fields** — `queries`, `blocked`,
   and `clients` were computed in the status endpoint but stripped by the response
   model. Now included in the schema and visible in `/api/status`.
@@ -313,6 +378,7 @@
 ## [0.16.2] - 2026-04-12
 
 ### Fixed
+
 - **Critical: DHCP auto-detection disabled failover during Pi-hole outage** —
   When a Pi-hole's API was unreachable (FTL crash, network issue, restart),
   the DHCP status defaulted to `False`, causing the monitor to incorrectly
@@ -325,6 +391,7 @@
 ## [0.16.1] - 2026-04-12
 
 ### Security
+
 - **Shell injection prevention in sync script** — Added `validate_ip()` function
   with regex validation for `PRIMARY_IP` and `SECONDARY_IP` in
   `sync-pihole-config.sh`. Rejects malformed values before they reach rsync/ssh
@@ -346,6 +413,7 @@
 ## [0.16.0] - 2026-04-12
 
 ### New
+
 - **Automatic DHCP failover detection** — Monitor now auto-detects whether DHCP
   is in use by polling both Pi-holes' API. No manual toggle needed. State changes
   require 3 consecutive identical readings (30s debounce) to prevent flip-flopping.
@@ -362,11 +430,13 @@
   DHCP to be enabled later without regenerating keepalived.conf.
 
 ### Fixed
+
 - **Bug: Dashboard stats showing 0** — Fixed Pi-hole v5 API field names
   (`dns_queries_today`, `ads_blocked_today`, `unique_clients`) replaced with
   Pi-hole v6 field names (`queries.total`, `queries.blocked`, `clients.total`).
 
 ### Security
+
 - **Shell injection in setup.py** — Replaced `bash -c "echo '...'"` patterns in
   both local and remote deploy with safe alternatives (`sudo tee` with stdin,
   `tempfile` + `remote_copy`).
@@ -382,19 +452,21 @@
 ## [0.15.0] - 2026-04-12
 
 ### New
+
 - **DHCP failover toggle on dashboard** — Users who don't run DHCP on their
   Pi-holes can now disable DHCP failover monitoring with a single click on
-  the main dashboard.  When disabled:
-  - No more "DHCP Misconfigured ⚠️" warnings in the event log
-  - Node cards show "DHCP N/A" instead of misconfiguration warnings
-  - Leases pill is dimmed in the header
-  - keepalived stops toggling DHCP on state transitions
-  - A banner shows the exact commands to apply the change on the Pi-holes
+  the main dashboard. When disabled:
+    - No more "DHCP Misconfigured ⚠️" warnings in the event log
+    - Node cards show "DHCP N/A" instead of misconfiguration warnings
+    - Leases pill is dimmed in the header
+    - keepalived stops toggling DHCP on state transitions
+    - A banner shows the exact commands to apply the change on the Pi-holes
 - **System settings API** — New `GET/POST /api/settings/system` endpoints for
   persistent system-wide settings (currently: `dhcp_failover` toggle).
   Settings are stored in `notify_settings.json` under the `system` key.
 
 ### Fixed
+
 - **Bug: `DHCP_ENABLED` missing from keepalived .env** — `setup.py` now writes
   `DHCP_ENABLED=true/false` to the generated keepalived environment files.
   Previously `check_dhcp_service.sh` expected this variable but it was never
@@ -406,13 +478,14 @@
 ## [0.14.3] - 2026-04-12
 
 ### Fixed
+
 - **Event debounce for sync-related flapping** — When the config sync timer
   restarts Pi-hole FTL on the secondary (~12-32 s), the monitor no longer
   floods the event log with "went OFFLINE / is back ONLINE / Pi-hole is back
-  UP" events.  A node must stay offline for 30 seconds before an event is
-  logged.  Transient outages (< 30 s) are suppressed silently.
+  UP" events. A node must stay offline for 30 seconds before an event is
+  logged. Transient outages (< 30 s) are suppressed silently.
 - **Orphaned "Pi-hole service is back UP" events** — When a node goes offline,
-  `pihole=False` is a side-effect of unreachability.  Recovery no longer
+  `pihole=False` is a side-effect of unreachability. Recovery no longer
   generates a spurious "Pi-hole service is back UP" event unless a
   corresponding "Pi-hole service is DOWN" was actually logged.
 - **False pihole/DNS state transitions** — `previous_pihole` and
@@ -420,21 +493,24 @@
   online, preventing false transitions from offline→online recovery.
 
 ### Improved
+
 - **Unified event + notification debounce** — Events and notifications now
   share the same debounce pipeline: 30 s event debounce + 30 s notification
   delay = ~60 s total (previously: events were immediate, notifications
-  delayed 60 s).  This eliminates dashboard event spam while keeping the
+  delayed 60 s). This eliminates dashboard event spam while keeping the
   same total notification delay.
 
 ## [0.14.2] - 2026-03-30
 
 ### Security
+
 - **Sync: secrets no longer exposed in process args** — pwhash, domain, cert,
   and upstreams preserve blocks now read values directly from the live TOML file
   via python3 heredocs instead of passing them as command-line arguments
   (previously visible in `ps` output and audit logs on the secondary host)
 
 ### Fixed
+
 - **port67_bound() false positive** — tightened grep from `:67` to `:67\b` to
   avoid matching ports like 6700 or 6789
 - **SYNC_MAX_BACKUPS validation** — now validated as numeric with sane range
@@ -449,6 +525,7 @@
 ## [0.14.1] - 2026-03-30
 
 ### Fixed
+
 - **Critical: DHCP active state not preserved during sync** — sed patterns used
   `^active = ` anchor which failed on Pi-hole v6 TOML files where keys are
   indented with 2 spaces. Fixed all 10 sed patterns in sync-pihole-config.sh to
@@ -459,6 +536,7 @@
 ## [0.14.0] - 2026-03-30
 
 ### New
+
 - **Pi-hole Stats** — node cards now show Queries, Blocked (%), and Clients
   from Pi-hole API (in-memory, no DB overhead)
 - **Chart redesign** — mixed chart with colored background bands (green=Primary
@@ -468,6 +546,7 @@
   badges for VIP/Leases/Updated, and settings icon
 
 ### Improved
+
 - **Status labels** — clearer dashboard terminology: FTL Running/Down, VIP
   Assigned/—, DHCP Active/Standby/Misconfigured, DNS Resolving/Failing
 - **Dark mode** — fixed low-contrast text in status items, events, chart, header,
@@ -481,12 +560,14 @@
   cards, chart, and feature list; updated version and Pi-hole 6.0+ requirement
 
 ### Fixed
+
 - **History API** — now returns online, pihole, dns, dhcp_leases per node
   (was only primary/secondary state)
 
 ## [0.13.0] - 2026-03-29
 
 ### Improved
+
 - **Documentation overhaul** — quick-start.md fully rewritten: removed obsolete
   manual API key steps (setup.py handles this automatically), added DHCP
   troubleshooting, corrected endpoint references.
@@ -497,20 +578,23 @@
 - **CLI tool docs** — expanded with command table, example output, and install
   instructions.
 - **README.md** — fixed `pisen sync --run` (doesn't exist) → `systemctl start
-  pihole-sync.service`.
+pihole-sync.service`.
 
 ### Fixed
+
 - **pisen CLI** — removed hardcoded development path from
   version file lookup; now uses `Path(__file__)` relative resolution with
   production fallback.
 
 ### Documentation
+
 - **Versioning rule** — PATCH ceiling: after `x.y.9`, bump to `x.(y+1).0`.
   Never use double-digit patch numbers to avoid sorting/readability confusion.
 
 ## [0.12.9] - 2026-03-29
 
 ### Fixed
+
 - **DHCP failover: port 67 now reliably binds/unbinds** — `dhcp_control.sh` now
   checks both TOML config and actual port state. If FTL inotify misses the config
   change (e.g. after cold boot), the script falls back to `systemctl restart pihole-FTL`.
@@ -521,6 +605,7 @@
 ## [0.12.8] - 2026-03-29
 
 ### Fixed
+
 - **Dashboard: "Server Online" text no longer static** — label now dynamically switches
   to "Server Offline" when the node is unreachable. Previously the green/red dot changed
   but the text always said "Server Online".
@@ -528,6 +613,7 @@
 ## [0.12.7] - 2026-03-29
 
 ### Improved
+
 - **IP validation rejects non-routable addresses** — `validate_ip()` now rejects
   unspecified (`0.0.0.0`), multicast (`224.0.0.0/4`), and reserved (`240.0.0.0/4`,
   `255.255.255.255`) addresses. Prevents impossible configurations in setup wizard.
@@ -538,6 +624,7 @@
 ## [0.12.6-beta.6] - 2026-03-29
 
 ### Improved
+
 - **IP validation rejects non-routable addresses** — `validate_ip()` now rejects
   unspecified (`0.0.0.0`), multicast (`224.0.0.0/4`), and reserved (`240.0.0.0/4`,
   `255.255.255.255`) addresses. Prevents impossible configurations in setup wizard.
@@ -546,15 +633,17 @@
 ## [0.12.6-beta.5] - 2026-03-29
 
 ### Fixed
+
 - **🔧 Python syntax error in sync preserve heredoc** — `f.write(live_pw + '\n')` had
   a literal newline instead of the `\n` escape sequence, causing `SyntaxError: unterminated
-  string literal` when the sync timer ran. The pwhash and upstreams python blocks were
+string literal` when the sync timer ran. The pwhash and upstreams python blocks were
   affected. Also fixed `$STAGED` being hardcoded in the python `open()` call instead of
   passed via `sys.argv[2]`. Sync now completes successfully end-to-end.
 
 ## [0.12.6-beta.4] - 2026-03-29
 
 ### Fixed
+
 - **🔧 FTL restart loop eliminated** — `dhcp_control.sh` no longer runs
   `systemctl restart pihole-FTL` when toggling DHCP. Pi-hole FTL v6 auto-detects
   TOML config changes via inotify and binds/unbinds port 67 without restart.
@@ -563,6 +652,7 @@
   Added port-binding verification loop (waits up to 5s for port 67 to bind/unbind).
 
 ### Security
+
 - **🔒 Sync now preserves `webserver.domain` and `webserver.tls.cert`** — previously
   the sync would overwrite the secondary's hostname (`pihole2.home` → `pihole1.home`)
   and TLS certificate path, causing SSL/TLS domain mismatch warnings and potentially
@@ -571,42 +661,46 @@
 ## [0.12.6-beta.3] - 2026-03-29
 
 ### Security
+
 - **🔒 Complete rewrite of node-specific value preservation in `sync_to_secondary()`** —
   beta.2's heredoc fix had three remaining flaws:
-  1. **Quoted heredoc blocked `PIHOLE_DIR`**: `<< 'REMOTE_PWHASH'` prevented variable expansion,
-     so `${PIHOLE_DIR}` was a literal string on the remote — grep found nothing.
-  2. **sed corrupted hash**: the BALLOON-SHA256 hash contains `$`, `&`, `|` which are special
-     in sed replacement strings — hash was silently mangled.
-  3. **Staging file permissions**: rsync preserved source ownership (`pihole:pihole` 644),
-     making `/tmp/pihole.toml.new` unwritable in some contexts + readable by all users.
+    1. **Quoted heredoc blocked `PIHOLE_DIR`**: `<< 'REMOTE_PWHASH'` prevented variable expansion,
+       so `${PIHOLE_DIR}` was a literal string on the remote — grep found nothing.
+    2. **sed corrupted hash**: the BALLOON-SHA256 hash contains `$`, `&`, `|` which are special
+       in sed replacement strings — hash was silently mangled.
+    3. **Staging file permissions**: rsync preserved source ownership (`pihole:pihole` 644),
+       making `/tmp/pihole.toml.new` unwritable in some contexts + readable by all users.
 
-  **Fix**: single quoted heredoc with `PIHOLE_DIR` passed via env; python3 for all values
-  containing special characters (pwhash, upstreams); `chown root:root && chmod 600` on
-  staging file immediately after rsync. Verified end-to-end on live Pi-holes.
+    **Fix**: single quoted heredoc with `PIHOLE_DIR` passed via env; python3 for all values
+    containing special characters (pwhash, upstreams); `chown root:root && chmod 600` on
+    staging file immediately after rsync. Verified end-to-end on live Pi-holes.
 
 ### Removed
+
 - **🗑️ `API.md`** — duplicate of `docs/api/README.md`
 - **🗑️ `AUDIT_REPORT_20251116.md`** — obsolete audit from November 2025, no longer relevant
 
 ## [0.12.6-beta.2] - 2026-03-29
 
 ### Security
+
 - **🔒 pwhash preservation now runs entirely on the secondary node** — the previous fix (beta.1)
   had two flaws:
-  1. **Correctness bug**: the bcrypt hash (`$2y$10$...`) was stored in a local bash variable and
-     interpolated into a double-quoted SSH command string. Bash expanded `$2` and `$10` as
-     positional parameters (empty), silently corrupting the hash and leaving the password
-     unrestorable.
-  2. **Security bug**: the hash was briefly stored in a local shell variable and embedded as a
-     command-line argument, making it visible in `ps aux` and SSH audit logs.
+    1. **Correctness bug**: the bcrypt hash (`$2y$10$...`) was stored in a local bash variable and
+       interpolated into a double-quoted SSH command string. Bash expanded `$2` and `$10` as
+       positional parameters (empty), silently corrupting the hash and leaving the password
+       unrestorable.
+    2. **Security bug**: the hash was briefly stored in a local shell variable and embedded as a
+       command-line argument, making it visible in `ps aux` and SSH audit logs.
 
-  **Fix**: the extraction and sed restore now run in a single heredoc on the remote machine.
-  The hash never leaves the secondary node — not as a command argument, not as a local
-  variable, not in any log.
+    **Fix**: the extraction and sed restore now run in a single heredoc on the remote machine.
+    The hash never leaves the secondary node — not as a command argument, not as a local
+    variable, not in any log.
 
 ## [0.12.6-beta.1] - 2026-03-29
 
 ### Fixed
+
 - **🐛 Secondary Pi-hole web password overwritten by sync** — `sync_to_secondary()` copied the
   entire `pihole.toml` from primary to secondary as a base file, then only restored `dhcp.active`,
   `upstreams`, and `listeningMode`. The `[webserver.api] pwhash` (bcrypt password hash) was never
@@ -616,6 +710,7 @@
 ## [0.12.5-beta.10] - 2026-03-29
 
 ### Fixed
+
 - **🐛 Config sync no longer overwrites secondary's upstream DNS** — when syncing the `[dns]` section
   of `pihole.toml`, the secondary's `upstreams` value (e.g. `["127.0.0.1#5335"]` for unbound)
   is now preserved. Previously, the primary's upstream DNS was pushed to the secondary, causing
@@ -629,6 +724,7 @@
 ## [0.12.5-beta.9] - 2026-03-29
 
 ### Improved
+
 - **🔧 Deployment success screen simplified** — removed verbose status commands and failover test
   instructions (moved to README). Screen now shows dashboard URL, essential log commands, and
   a prominent warning when built-in sync is disabled but DHCP is active, reminding the user
@@ -637,6 +733,7 @@
 ## [0.12.5-beta.8] - 2026-03-29
 
 ### Improved
+
 - **🔧 Config sync is now optional in setup** — the setup wizard now asks "Enable built-in config
   sync? (Y/n)" before the interval question. Answering `n` skips the sync deployment step
   entirely, for users who already use nebula-sync, gravity-sync, or a similar solution.
@@ -645,6 +742,7 @@
 ## [0.12.5-beta.7] - 2026-03-29
 
 ### Security
+
 - **🔒 `sudo -n` for non-root SSH users** — `_s(user)` helper now returns `"sudo -n "` instead of
   `"sudo "`. The `-n` flag makes sudo fail immediately (exit 1) when a password would be required,
   preventing silent hangs over non-TTY SSH sessions where a password prompt can never be answered.
@@ -656,6 +754,7 @@
 ## [0.12.5-beta.6] - 2026-03-29
 
 ### Fixed
+
 - **🐛 sync-pihole-config.sh:** backup rotation was missing on secondary node — every 10-minute sync
   created a new tar.gz (including gravity.db) without ever deleting old ones, causing disk full.
 - **🐛 sync-pihole-config.sh:** `SYNC_MAX_BACKUPS` variable added (default: 3) to control how many
@@ -665,25 +764,32 @@
 ## [0.12.5-beta.5] - 2026-03-29
 
 ### Improved
+
 - **🔧 Conditional sudo for non-root SSH users** — added `_s(user)` helper that returns `"sudo "` when the SSH user is not root and an empty string when it is. All privileged remote commands in `install_remote_dependencies()`, `configure_timezone_and_ntp()`, `deploy_monitor_remote()`, and `deploy_keepalived_remote()` now use this helper instead of always or never prepending `sudo`. Root SSH users continue to work as before without any sudo overhead.
 
 ## [0.12.5-beta.4] - 2026-03-29
 
 ### Fixed
+
 - **🐛 SSH deployment with non-root user** — all privileged remote commands in `setup.py` now use `sudo`. Previously, `install_remote_dependencies()`, `configure_timezone_and_ntp()`, `deploy_monitor_remote()`, and `deploy_keepalived_remote()` ran commands like `apt-get`, `useradd`, `mkdir /opt/...`, `cp /etc/...`, `chown`, `chmod`, and `systemctl` without `sudo`, causing them to fail silently with exit code 100 when the SSH user was not root. The script defaults to SSH user `root` but non-root users with passwordless sudo are now supported.
 - **🐛 apt-get update error visibility** — stderr is no longer suppressed (`>/dev/null` instead of `>/dev/null 2>&1`) so permission errors and repository failures are visible when `apt-get update` fails.
 
 ## [0.12.5-beta.3] - 2026-03-28
 
 ### Changed
+
 - **📚 Release workflow:** removed prerelease detection step; prerelease flag is now always false (release.yml).
+
 ## [0.12.5-beta.2] - 2026-03-28
 
 ### Changed
+
 - **📚 Release workflow:** prerelease flag always set to false in GitHub Release step (release.yml).
+
 # Changelog
 
 ## Legend
+
 - 🎉 New feature
 - 🔧 Improvement / Enhancement
 - 🐛 Bug fix
@@ -697,21 +803,23 @@ All notable changes to Pi-hole Sentinel will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-
 ## [0.12.5-beta.1] - 2026-03-28
 
 ### Improved
+
 - **🔧 Release workflow:** whitespace opgeschoond, stapnaam verbeterd, tweede tarball toegevoegd voor stabiele download-URL.
 - **🔧 Installatie-instructies:** README.md vereenvoudigd, download en setup nu in één stap, minder kans op fouten.
 
 ## [0.12.4-beta.10] - 2026-03-28
 
 ### Improved
+
 - **🔧 Release workflow triggers on main merge** — release.yml no longer requires manual tags. Automatically creates git tag, clean tarball, and GitHub Release when code is merged to main. Skips if tag already exists.
 
 ## [0.12.4-beta.9] - 2026-03-28
 
 ### Fixed
+
 - **🐛 API docs auth mismatch** — `/api/version` and `/api/client-config` were documented as unauthenticated but require `X-API-Key` in code. Updated docs and overview table to reflect actual auth requirements.
 - **🐛 Version fallback stuck on "loading..."** — `loadVersionFallback()` in index.html and settings.html now sends `X-API-Key` header and falls back to "unknown" on failure instead of staying on "loading..." forever.
 - **🐛 Stale version strings in API docs** — replaced all pinned version literals in docs/api/README.md with `<current version>` placeholders and linked header/footer to VERSION file.
@@ -721,55 +829,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.12.4-beta.8] - 2026-03-28
 
 ### Fixed
+
 - **🐛 Removed most hardcoded version strings** — monitor.py, pisen CLI, and settings.html now read the version dynamically from the VERSION file. API docs use placeholder values instead of pinned versions to avoid staleness.
 
 ## [0.12.4-beta.7] - 2026-03-28
 
 ### Fixed
+
 - **🐛 Config sync no longer overwrites web API password** — sync now uses section-based TOML merging instead of copying the entire pihole.toml. Only `[dhcp]` and `[dns]` sections are synced (matching nebula-sync behavior). Web password, webserver settings, and other node-specific config are never touched.
 
 ### Improved
+
 - **🔧 Sync options now match nebula-sync** — `SYNC_CONFIG` replaced with granular `SYNC_CONFIG_DHCP` and `SYNC_CONFIG_DNS` toggles. Old `SYNC_CONFIG=true` still works (enables both). Local DHCP active state and DNS listening mode are always preserved.
 
 ## [0.12.4-beta.6] - 2026-03-28
 
 ### Fixed
+
 - **🐛 Chart.js SRI hash was truncated** — integrity hash was cut short, causing both primary and fallback CDN to fail. Charts now load correctly.
 
 ## [0.12.4-beta.5] - 2026-03-28
 
 ### Fixed
+
 - **🐛 CSP blocked Chart.js fallback CDN** — added `cdnjs.cloudflare.com` to Content-Security-Policy script-src, fixing blank dashboard charts
 
 ## [0.12.4-beta.4] - 2026-03-28
 
 ### Fixed
+
 - **🐛 Download URLs in install docs** — previous commands failed because `/releases/latest` ignores pre-releases and `wget` can't use shell wildcards in URLs. Now uses GitHub API `/releases` endpoint which works for both stable and beta releases.
 
 ## [0.12.4-beta.3] - 2026-03-28
 
 ### Fixed
+
 - **🐛 Uninstall: removed invalid `pihole -a setdns` command** — this Pi-hole v5 command doesn't exist in v6, causing the full pihole help text to print during uninstall. DHCP state is preserved in pihole.toml after sentinel removal; no pihole command needed.
 
 ## [0.12.4-beta.2] - 2026-03-28
 
 ### New
+
 - **🎉 Clean release tarballs** — `.gitattributes` export-ignore excludes dev/test files (docker/, tests/, CLAUDE.md, etc.) from `git archive` output
 - **🎉 Automated GitHub Releases** — workflow automatically creates a git tag and GitHub Release with clean tarball on every merge to `main`
 
 ## [0.12.4-beta.1] - 2026-03-28
 
 ### Security
+
 - **🔒 Rate limiting on all write endpoints** — POST endpoints for settings, commands, and snooze now rate-limited (20 req/min per IP)
 - **🔒 Safe template formatting** — switched from `format(**vars)` to `format_map(defaultdict)` to prevent KeyError injection from malformed templates
 - **🔒 Explicit state tracking** — replaced fragile `hasattr(monitor_loop, ...)` pattern with explicit state dict
 
 ### Improved
+
 - **🔧 Database cleanup batching** — large DELETEs are now batched (5000 rows) with async yields between batches to prevent database locks during cleanup
 
 ## [0.12.3-beta.10] - 2026-03-28
 
 ### Security
+
 - **🔒 SSRF protection** — webhook URLs (Discord, Ntfy, custom) are validated at save time and send time; blocks private/loopback/reserved IPs and non-HTTP schemes
 - **🔒 Security headers** — all responses now include X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, and Content-Security-Policy
 - **🔒 Auth on /api/version** — version endpoint now requires API key to prevent version enumeration
@@ -779,50 +898,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.12.3-beta.9] - 2026-03-28
 
 ### Fixed
+
 - **🐛 Uninstall no longer re-asks IPs** — when choosing uninstall from the deployment menu (option 4), IPs already collected in earlier steps are reused instead of prompting again
 
 ## [0.12.3-beta.8] - 2026-03-28
 
 ### Improved
+
 - **🔧 Monitor location default** — "Separate server" is now the default option (Enter to select)
 
 ## [0.12.3-beta.7] - 2026-03-28
 
 ### Improved
+
 - **🔧 Required field validation** — all IP address inputs in setup and uninstall now reject empty values and validate format inline, preventing accidental blank entries
 
 ## [0.12.3-beta.6] - 2026-03-28
 
 ### Fixed
+
 - **🐛 Cross-node SSH key read failure** — `subprocess.run` SSH call to read the public key from Pi-holes used `BatchMode=yes` without the installer's identity file (`-i key_path`), causing "failed to read key" error
 
 ## [0.12.3-beta.5] - 2026-03-28
 
 ### Improved
+
 - **🔧 Uninstall UX simplified** — removed confusing "IP input method" / "last octet" flow; now asks plain IP addresses directly with clear prompts
 
 ## [0.12.3-beta.4] - 2026-03-28
 
 ### Fixed
+
 - **🐛 Cross-node SSH auth failure** — `ssh_key_path` was not set before `_setup_cross_node_ssh` ran, causing `remote_exec` to fall back to `BatchMode=yes` without a key. Key path is now stored immediately after distribution.
 
 ## [0.12.3-beta.3] - 2026-03-28
 
 ### Fixed
+
 - **🐛 Cross-node SSH setup** — setup.py now generates SSH keys on each Pi-hole and distributes public keys between them (primary ↔ secondary), enabling the sync script to SSH from pihole1 → pihole2
 - Host key acceptance pre-configured to prevent first-sync hang on StrictHostKeyChecking prompt
 
 ## [0.12.3-beta.2] - 2026-03-28
 
 ### Fixed
+
 - **🐛 pisen CLI not deployed** — `bin/pisen` is now copied to `/usr/local/bin/pisen` during keepalived deployment on both Pi-hole nodes
 
 ### Improved
+
 - **🔧 Shared SSH password option** — setup now asks "Use the same SSH password for all servers?" (default: yes) to avoid entering the same password 2-3 times
 
 ## [0.12.3-beta.1] - 2026-03-28
 
 ### New
+
 - **🎉 Config sync deployment** — setup.py now deploys sync service as step [4/4] in full SSH deployment
 - **🎉 Configurable sync options** — per-feature toggles: gravity, custom DNS, CNAME, DHCP leases, pihole.toml config (all enabled by default)
 - **🎉 Sync interval** — configurable during setup (default: every 10 minutes), replaces fixed 6-hour timer
@@ -830,11 +959,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **🎉 Automatic IP injection** — PRIMARY_IP/SECONDARY_IP auto-configured in keepalived .env and sync.conf by setup.py
 
 ### Improved
+
 - **🔧 Setup menu simplified** — deployment options reduced from 6 to 4 (full deploy, generate only, advanced, uninstall)
 - **🔧 Sync script hardening** — IPs validated at startup, safe config parsing (no `source`), clear error on missing config
 - **🔧 nebula-sync feature parity** — built-in sync now covers all nebula-sync capabilities including DHCP active state exclusion
 
 ### Security
+
 - **🔒 CRITICAL:** API key no longer exposed via unauthenticated `/api/client-config` endpoint; key is now injected server-side via HTML meta tags
 - **🔒 CRITICAL:** API key comparison uses `hmac.compare_digest()` for timing-safe verification
 - **🔒 CRITICAL:** Generated API key written to secured file (mode 600) instead of plaintext log output
@@ -847,6 +978,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **🔒 MEDIUM:** Add SRI integrity hash to Chart.js CDN script tag
 
 ### Changed
+
 - Consolidated testing documentation into one file: `docs/development/testing.md`
 - Reduced and refocused `CLAUDE.md` to remove duplicated workflow/reference content
 - Updated `PLAN.md` for `develop` branch context and English-only documentation text
@@ -855,12 +987,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated docs links to remove references to deleted testing files and removed CLAUDE anchor links
 
 ### Removed
+
 - `dashboard/.env.test` from git tracking (sensitive env file)
 - `merge-to-testing.sh` helper script (superseded by PR merge workflow)
 - `docs/development/TESTING_WORKFLOW.md` (merged)
 - `docs/development/TEST_COVERAGE_PLAN.md` (merged)
 
 ### Added
+
 - Placeholder documentation for future installer container in `docker/sentinel-installer/README.md`
 
 ## [0.12.2] Session Summary - 2026-03-28
@@ -869,6 +1003,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > Individual beta entries are consolidated in this summary for readability.
 
 ### New
+
 - **🎉 ⌨️ System Commands panel** — run `systemctl status`, last 200 log lines, VIP check,
   and last 500 DB events directly from the browser dashboard
 - **🎉 ANSI colour rendering** in command output modal — `active (running)` green,
@@ -877,6 +1012,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when a server is unreachable (was incorrectly green/red based on stale data)
 
 ### Fixed
+
 - **🐛 Fault debounce (60 s)** — brief FTL restarts (e.g. keepalived DHCP apply) no longer
   trigger spurious fault notifications
 - **🐛 Paired recovery notifications** — every fault notification is guaranteed to be followed
@@ -903,6 +1039,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > Consolidates all `0.12.1-beta.1` through `0.12.1-beta.10` changes.
 
 ### New
+
 - **🎉 Pre-flight credential checks** — SSH + Pi-hole API validated on all servers before deployment
 - **🎉 Automatic rollback** — if deployment fails, all already-deployed servers revert to backup
 - **🎉 Uninstall option** — menu option 6 removes all Sentinel files from all servers
@@ -911,6 +1048,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **🎉 Fault notifications** at all 4 detection points (host offline, service down per node)
 
 ### Fixed
+
 - **🐛 VRRP v2** — `vrrp_version 3` → `2`; v3 does not support PASS auth or `preempt_delay`
 - **🐛 Interface auto-detect** — keepalived config uses Pi-hole's interface, not installer machine's
 - **🐛 `auth_pass` length** — 32 → 8 characters (keepalived PASS max)
@@ -927,10 +1065,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.12.0-beta.10] - 2026-03-28
 
 ### Fixed
-  - Without this fix: MASTER transition → `systemctl restart pihole-FTL` → health check fails → secondary takes over → secondary FTL restart → primary recovers and preempts back → FTL restart again → **infinite loop** that fully overloaded the Pi and caused it to lock up
-  - FTL is now only restarted when the DHCP state actually changes
+
+- Without this fix: MASTER transition → `systemctl restart pihole-FTL` → health check fails → secondary takes over → secondary FTL restart → primary recovers and preempts back → FTL restart again → **infinite loop** that fully overloaded the Pi and caused it to lock up
+- FTL is now only restarted when the DHCP state actually changes
 - **🐛 keepalived primary config: `preempt_delay 60` added**
-  - Primary now waits 60 seconds after FTL recovery before reclaiming MASTER from secondary
+    - Primary now waits 60 seconds after FTL recovery before reclaiming MASTER from secondary
 - **🐛 keepalived primary config: `fall 3→5` / `rise 2→3`**
 - **🐛 check_pihole_service.sh: unnecessary `sleep 1` removed**
 - **🐛 keepalived/pihole2/keepalived.conf: `weight -25 → -60` (aligned with generated config)**
@@ -941,25 +1080,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.12.0-beta.9-setup] - 2026-03-28
 
 ### Fixed
+
 - **🐛 setup.py: dependency install appeared to hang on dnsutils**
-  - Added `DEBIAN_FRONTEND=noninteractive`, `NEEDRESTART_MODE=a`, `DPkg::Lock::Timeout=120`
-  - Removed silent `-qq` output; added explicit timeout (30 min)
+    - Added `DEBIAN_FRONTEND=noninteractive`, `NEEDRESTART_MODE=a`, `DPkg::Lock::Timeout=120`
+    - Removed silent `-qq` output; added explicit timeout (30 min)
 
 ---
 
 ## [0.12.0-beta.9] - 2026-02-13
 
 ### Fixed
+
 - Dashboard API key loading via `/api/client-config` to avoid hardcoded placeholders in HTML
 - Failover notification master/backup name selection uses correct primary/secondary config
 - Favicon arrow alignment in dashboard tabs
 
 ### Changed
+
 - Dashboard HTML served as static files; UI now fetches client config at runtime
 - Makefile test targets use `python3 -m pytest` for consistent invocation
 - CI workflow and docs now reference only the root requirements file
 
 ### Removed
+
 - Deprecated `docker/keepalived-sidecar/` directory
 - Redundant `dashboard/requirements.txt` and empty `dashboard/.env`
 
@@ -970,12 +1113,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.12.0-beta.8] - 2026-02-06
 
 ### Fixed
+
 - **🐛 index.html: System Commands JS outside `<script>` tag** — ~120 lines of JS were raw text in the HTML body, moved to the main `<script>` block
 - **🐛 index.html: System Commands card nested inside footer** — Commands card and modal moved out of `<div class="footer">`, placed correctly as a standalone section
 - **🐛 monitor.py: SnoozeResponse 500 error** — GET/POST/DELETE `/api/notifications/snooze` returned fields that did not match the Pydantic model (`enabled`/`active` vs `snoozed`/`remaining_seconds`)
 - **🐛 index.html: Events API response parsing** — Frontend expected a flat array but API returns `{total_events, recent_events, ...}`. JS updated to use `data.recent_events` and field names `event_type`/`description`/`timestamp`
 
 ### Added
+
 - **✨ Runtime API key injection** — `serve_index()` and `serve_settings()` now replace `YOUR_API_KEY_HERE` with `CONFIG['api_key']` via `HTMLResponse`. Dashboard works directly in Docker without `sed`
 - **✨ Docker: 12 fake network clients** — `docker/fake-client/` with ARP-based lease discovery, `docker-compose.test.yml` extended to 17 containers
 - **✨ Mock Pi-hole ARP auto-discovery** — `mock_pihole.py` reads `ip neigh show` for automatic DHCP lease simulation
@@ -984,6 +1129,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **✨ `.github/copilot-instructions.md`** — AI agent instructions for GitHub Copilot
 
 ### Changed
+
 - **📚 📝 TODO_USER.md fully rewritten** — Master bug/fix list with 10 bugs (B1-B10), 5 features (F1-F5), 4 docs items (D1-D4), pisen CLI analysis, Docker test status
 - **📚 📝 Events API response** — Now returns `{total_events, recent_events, failover_count, last_failover}` instead of a flat array
 
@@ -994,29 +1140,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.12.0-beta.7] - 2025-12-07
 
 ### Security
+
 - **🔒 🚫 CRITICAL: Added foolproof git hook protection against unauthorized merges**
-  - Created `.githooks/pre-merge-commit` hook to block AI agents from merging to testing/main
-  - Hook enforces CLAUDE.md mandatory rule: "Only user may merge to testing/main"
-  - Provides clear error messages and instructions (Dutch/English)
-  - User can override with `--no-verify` if needed
+    - Created `.githooks/pre-merge-commit` hook to block AI agents from merging to testing/main
+    - Hook enforces CLAUDE.md mandatory rule: "Only user may merge to testing/main"
+    - Provides clear error messages and instructions (Dutch/English)
+    - User can override with `--no-verify` if needed
 
 ### Documentation
+
 - **📚 Extensive CLAUDE.md updates for merge restrictions**
-  - Added new section: "Critical: NEVER Merge to Protected Branches"
-  - 150+ lines of detailed rules, examples, and workflows
-  - Clear forbidden vs. correct workflows for AI agents
-  - Installation instructions for git hooks
+    - Added new section: "Critical: NEVER Merge to Protected Branches"
+    - 150+ lines of detailed rules, examples, and workflows
+    - Clear forbidden vs. correct workflows for AI agents
+    - Installation instructions for git hooks
 - **📚 📝 Updated `.githooks/README.md`**
-  - Documented pre-merge-commit hook functionality
-  - Added testing instructions for merge protection
-  - Updated installation methods (Option 1 & 2)
-  - Added security notes about hook importance
+    - Documented pre-merge-commit hook functionality
+    - Added testing instructions for merge protection
+    - Updated installation methods (Option 1 & 2)
+    - Added security notes about hook importance
 - **🔧 Updated Development Workflows section**
-  - Clear explanation of what pre-merge-commit hook does
-  - Testing instructions for both hooks
-  - Critical warning for AI assistants
+    - Clear explanation of what pre-merge-commit hook does
+    - Testing instructions for both hooks
+    - Critical warning for AI assistants
 
 ### Fixed
+
 - Fixed corrupt shebang in `bin/pisen` (removed erroneous prefix)
 
 **Version:** 0.12.0-beta.6 → 0.12.0-beta.7
@@ -1026,6 +1175,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.11.0-beta.6] - 2025-12-07
 
 ### Documentation
+
 - Added `docs/usage/cli-tool.md` and `docs/README.md`
 - Updated `README.md` with CLI tool and docs links
 
@@ -1034,9 +1184,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.11.0-beta.4] - 2025-12-07
 
 ### New
+
 - Frontend: System Commands section, modal, CSS, JS in `dashboard/index.html`
 
 ### Improved
+
 - UI: Mobile-friendly command buttons, copy output, dark mode support
 
 ---
@@ -1052,6 +1204,7 @@ All features and improvements from develop branch (v0.10.0-beta.14 through v0.10
 Version: 0.12.0-beta.5 → 0.12.0-beta.6
 
 #### Commits from develop:
+
 - 66e9d35 docs: major documentation restructuring with docs/ directory
 - fe796be feat: improve merge helper commit message detail
 - 14d1199 feat: add Discord link in settings UI
@@ -1063,6 +1216,7 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 #### Major Changes:
 
 **📚 Documentation Restructuring (v0.10.0-beta.16):**
+
 - Created organized `docs/` directory structure
 - Moved all documentation to logical locations
 - README.md reduced from 749 to 410 lines (45% reduction)
@@ -1070,21 +1224,25 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 - Better navigation and maintainability
 
 **🧪 Unit Test Framework (v0.10.0-beta.14):**
+
 - Added pytest framework with 100+ tests
 - Test coverage for validation, VIP detection, API handlers, DHCP parsing
 - Makefile for development commands
 - Comprehensive test documentation
 
 **📬 Improved Test Notifications (v0.10.0-beta.15):**
+
 - Test notifications now show default template examples
 - Updated for all services (Telegram, Discord, Pushover, Ntfy, Webhook)
 
 **🔧 Merge Helper Script (v0.10.0-beta.15):**
+
 - Automated develop → testing merge script
 - Auto-increments version numbers
 - Generates detailed commit messages
 
 **Resolved conflicts:**
+
 - VERSION: Updated to 0.12.0-beta.6
 - README.md: Used new structure with testing version/license
 - CHANGELOG.md: Merged entries
@@ -1098,43 +1256,45 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 📚 Documentation
 
 #### Major Documentation Restructuring
+
 - **Created `docs/` directory structure** for organized documentation
-  - `docs/installation/` - Installation guides
-  - `docs/maintenance/` - Maintenance and sync guides
-  - `docs/development/` - Development and testing guides
-  - `docs/api/` - API documentation
-  - `docs/configuration/` - (Future) Configuration guides
-  - `docs/usage/` - (Future) Usage guides
-  - `docs/troubleshooting/` - (Future) Troubleshooting guides
+    - `docs/installation/` - Installation guides
+    - `docs/maintenance/` - Maintenance and sync guides
+    - `docs/development/` - Development and testing guides
+    - `docs/api/` - API documentation
+    - `docs/configuration/` - (Future) Configuration guides
+    - `docs/usage/` - (Future) Usage guides
+    - `docs/troubleshooting/` - (Future) Troubleshooting guides
 
 - **Moved existing documentation to docs/ structure:**
-  - `QUICKSTART.md` → `docs/installation/quick-start.md`
-  - `EXISTING-SETUP.md` → `docs/installation/existing-setup.md`
-  - `SYNC-SETUP.md` → `docs/maintenance/sync.md`
-  - `DEVELOPMENT.md` → `docs/development/README.md`
-  - `TESTING-GUIDE.md` → `docs/development/testing.md`
-  - `API.md` → `docs/api/README.md`
+    - `QUICKSTART.md` → `docs/installation/quick-start.md`
+    - `EXISTING-SETUP.md` → `docs/installation/existing-setup.md`
+    - `SYNC-SETUP.md` → `docs/maintenance/sync.md`
+    - `DEVELOPMENT.md` → `docs/development/README.md`
+    - `TESTING-GUIDE.md` → `docs/development/testing.md`
+    - `API.md` → `docs/api/README.md`
 
 - **Created `docs/README.md` navigation index:**
-  - Central documentation hub with clear navigation
-  - Links to all documentation sections
-  - Quick links to common resources
-  - Documentation map showing structure
+    - Central documentation hub with clear navigation
+    - Links to all documentation sections
+    - Quick links to common resources
+    - Documentation map showing structure
 
 - **Restructured README.md (major improvement):**
-  - Reduced from **749 lines to 410 lines** (45% reduction)
-  - Focused on overview, features, and quick start
-  - Removed detailed content (moved to `docs/`)
-  - Improved readability and navigation
-  - Clear links to detailed documentation
-  - Maintained all essential information
+    - Reduced from **749 lines to 410 lines** (45% reduction)
+    - Focused on overview, features, and quick start
+    - Removed detailed content (moved to `docs/`)
+    - Improved readability and navigation
+    - Clear links to detailed documentation
+    - Maintained all essential information
 
 - **Updated CLAUDE.md:**
-  - Updated codebase structure section with `docs/` directory
-  - Updated Additional Resources with new file locations
-  - All documentation references now point to correct locations
+    - Updated codebase structure section with `docs/` directory
+    - Updated Additional Resources with new file locations
+    - All documentation references now point to correct locations
 
 **Impact:**
+
 - ✅ Much easier to navigate documentation
 - ✅ README.md is concise and focused
 - ✅ Detailed guides in logical locations
@@ -1148,16 +1308,17 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 🔧 Improved
 
 #### Notification System
+
 - **Updated test notification messages with default template examples:**
-  - Shows actual default templates instead of generic messages
-  - Helps users understand what notifications will look like
-  - Updated for all services: Telegram, Discord, Pushover, Ntfy, Webhook
-  - **Telegram:** HTML formatted with failover, recovery, fault, startup examples
-  - **Discord:** Embed fields with default template examples
-  - **Pushover:** Plain text format with template examples
-  - **Ntfy:** Compact format optimized for mobile
-  - **Webhook:** JSON payload with all template examples and metadata
-  - **Impact:** Users can see exactly how notifications will appear before enabling them
+    - Shows actual default templates instead of generic messages
+    - Helps users understand what notifications will look like
+    - Updated for all services: Telegram, Discord, Pushover, Ntfy, Webhook
+    - **Telegram:** HTML formatted with failover, recovery, fault, startup examples
+    - **Discord:** Embed fields with default template examples
+    - **Pushover:** Plain text format with template examples
+    - **Ntfy:** Compact format optimized for mobile
+    - **Webhook:** JSON payload with all template examples and metadata
+    - **Impact:** Users can see exactly how notifications will appear before enabling them
 
 ---
 
@@ -1166,38 +1327,41 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### ✨ New
 
 #### Testing Infrastructure
+
 - **Added comprehensive unit test framework:**
-  - Created `tests/` directory with full pytest configuration
-  - Added 4 test modules with 100+ test cases:
-    - `test_validation.py` - Input validation (IP, interface, port, username)
-    - `test_vip_detection.py` - VIP MAC address detection logic
-    - `test_api_handlers.py` - Pi-hole API request/response handling
-    - `test_dhcp_parsing.py` - DHCP configuration parsing and failover
-  - Added `pytest.ini` with coverage configuration (60% minimum threshold)
-  - Added `conftest.py` with shared fixtures and test utilities
-  - Added `requirements-dev.txt` with development dependencies
-  - Added `Makefile` with common development commands
-  - Added `tests/README.md` with testing guide and examples
-  - **Impact:** Enables automated testing, prevents regressions, improves code quality
-  - **Priority:** 🔴 HIGH - Addresses audit recommendation #1
+    - Created `tests/` directory with full pytest configuration
+    - Added 4 test modules with 100+ test cases:
+        - `test_validation.py` - Input validation (IP, interface, port, username)
+        - `test_vip_detection.py` - VIP MAC address detection logic
+        - `test_api_handlers.py` - Pi-hole API request/response handling
+        - `test_dhcp_parsing.py` - DHCP configuration parsing and failover
+    - Added `pytest.ini` with coverage configuration (60% minimum threshold)
+    - Added `conftest.py` with shared fixtures and test utilities
+    - Added `requirements-dev.txt` with development dependencies
+    - Added `Makefile` with common development commands
+    - Added `tests/README.md` with testing guide and examples
+    - **Impact:** Enables automated testing, prevents regressions, improves code quality
+    - **Priority:** 🔴 HIGH - Addresses audit recommendation #1
 
 ### 🔧 Improved
 
 #### Documentation
+
 - **Enhanced test documentation:**
-  - Comprehensive test organization guide
-  - Test category markers (unit, integration, slow, network, asyncio)
-  - Coverage reporting instructions
-  - CI/CD integration examples
-  - Debugging and troubleshooting guide
+    - Comprehensive test organization guide
+    - Test category markers (unit, integration, slow, network, asyncio)
+    - Coverage reporting instructions
+    - CI/CD integration examples
+    - Debugging and troubleshooting guide
 
 #### Development Workflow
+
 - **Added development tooling:**
-  - `make test` - Run all tests with coverage
-  - `make test-unit` - Run only unit tests
-  - `make lint` - Run code linters
-  - `make format` - Format code with black and isort
-  - `make clean` - Remove generated files
+    - `make test` - Run all tests with coverage
+    - `make test-unit` - Run only unit tests
+    - `make lint` - Run code linters
+    - `make format` - Format code with black and isort
+    - `make clean` - Remove generated files
 
 ---
 
@@ -1206,13 +1370,14 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 🐛 Fixed
 
 #### Setup Script
+
 - **Fixed Python version compatibility in setup.py:**
-  - Replaced hardcoded `python3.11-dev` and `python3.11-venv` with generic `python3-dev` and `python3-venv`
-  - **Issue:** Setup failed on systems with Python 3.13+ (Debian Trixie, Ubuntu 24.10+)
-  - **Root cause:** Hardcoded version-specific package names in setup.py and system-requirements.txt
-  - Updated both `setup.py` (lines 240-242) and `system-requirements.txt` (lines 3, 9)
-  - **Impact:** Setup now works on any Python 3.8+ system regardless of exact version
-  - Tested on Python 3.13.5 (Debian Trixie)
+    - Replaced hardcoded `python3.11-dev` and `python3.11-venv` with generic `python3-dev` and `python3-venv`
+    - **Issue:** Setup failed on systems with Python 3.13+ (Debian Trixie, Ubuntu 24.10+)
+    - **Root cause:** Hardcoded version-specific package names in setup.py and system-requirements.txt
+    - Updated both `setup.py` (lines 240-242) and `system-requirements.txt` (lines 3, 9)
+    - **Impact:** Setup now works on any Python 3.8+ system regardless of exact version
+    - Tested on Python 3.13.5 (Debian Trixie)
 
 ---
 
@@ -1221,14 +1386,15 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 🐛 Fixed
 
 #### Monitor Service
+
 - **Improved FTL auth timeout and error logging:**
-  - Increased auth API timeout from 5 to 10 seconds to handle slower responses
-  - **Issue:** After Trixie upgrade on pihole2, occasional "Server disconnected" errors
-  - **Root cause:** FTL auth requests timing out under load or during restarts
-  - Improved error logging from debug to warning level
-  - Added exception class name to error messages for better debugging
-  - **Impact:** Fewer false "Pi-hole service down" alerts during normal operation
-  - Helps diagnose intermittent connectivity issues with pihole2
+    - Increased auth API timeout from 5 to 10 seconds to handle slower responses
+    - **Issue:** After Trixie upgrade on pihole2, occasional "Server disconnected" errors
+    - **Root cause:** FTL auth requests timing out under load or during restarts
+    - Improved error logging from debug to warning level
+    - Added exception class name to error messages for better debugging
+    - **Impact:** Fewer false "Pi-hole service down" alerts during normal operation
+    - Helps diagnose intermittent connectivity issues with pihole2
 
 ---
 
@@ -1237,19 +1403,20 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 🐛 Fixed
 
 #### Monitor Dashboard
+
 - **Fixed timezone display for all users regardless of location:**
-  - Dashboard showed UTC timestamps, causing confusion for users in different timezones
-  - **Solution:** Frontend now converts UTC to browser's local timezone automatically
-  - Database stores timestamps in UTC (universal standard)
-  - JavaScript adds ' UTC' suffix and converts to user's local time
-  - Works automatically for any timezone without server configuration
-  - **Impact:** Dutch users see CET/CEST, US users see EST/PST, etc.
-  - Changed 7 timestamp conversions in index.html:
-    - Last update display (line 792)
-    - Chart labels (line 980)
-    - Failover event times (lines 1064, 1067, 1090)
-    - Event list times (line 1111)
-  - **Best practice:** UTC in database, local display in browser
+    - Dashboard showed UTC timestamps, causing confusion for users in different timezones
+    - **Solution:** Frontend now converts UTC to browser's local timezone automatically
+    - Database stores timestamps in UTC (universal standard)
+    - JavaScript adds ' UTC' suffix and converts to user's local time
+    - Works automatically for any timezone without server configuration
+    - **Impact:** Dutch users see CET/CEST, US users see EST/PST, etc.
+    - Changed 7 timestamp conversions in index.html:
+        - Last update display (line 792)
+        - Chart labels (line 980)
+        - Failover event times (lines 1064, 1067, 1090)
+        - Event list times (line 1111)
+    - **Best practice:** UTC in database, local display in browser
 
 ---
 
@@ -1258,14 +1425,15 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 🐛 Fixed
 
 #### CI/CD Workflows
+
 - **Made PR comment step optional in enforce-merge-direction workflow:**
-  - Added `continue-on-error: true` to comment posting step
-  - Workflow now succeeds even if repository-level permissions block PR comments
-  - Core merge direction check still enforces rules correctly
-  - **Root cause:** Repository workflow permissions set to "Read" instead of "Read and write"
-  - **Workaround:** Comment step failures no longer fail the entire workflow
-  - **To enable comments:** Settings → Actions → General → Workflow permissions → "Read and write"
-  - Merge direction enforcement is functional, comments are optional enhancement
+    - Added `continue-on-error: true` to comment posting step
+    - Workflow now succeeds even if repository-level permissions block PR comments
+    - Core merge direction check still enforces rules correctly
+    - **Root cause:** Repository workflow permissions set to "Read" instead of "Read and write"
+    - **Workaround:** Comment step failures no longer fail the entire workflow
+    - **To enable comments:** Settings → Actions → General → Workflow permissions → "Read and write"
+    - Merge direction enforcement is functional, comments are optional enhancement
 
 ---
 
@@ -1274,12 +1442,13 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 🐛 Fixed
 
 #### CI/CD Workflows
+
 - **Added missing permissions to enforce-merge-direction workflow:**
-  - Workflow failed with "Resource not accessible by integration" (HTTP 403)
-  - Added `permissions` block with `pull-requests: write` and `issues: write`
-  - GitHub Actions token now has permission to post PR comments
-  - Workflow can now successfully complete both check and comment steps
-  - Error occurred in step 2 (Add merge direction comment) due to missing permissions
+    - Workflow failed with "Resource not accessible by integration" (HTTP 403)
+    - Added `permissions` block with `pull-requests: write` and `issues: write`
+    - GitHub Actions token now has permission to post PR comments
+    - Workflow can now successfully complete both check and comment steps
+    - Error occurred in step 2 (Add merge direction comment) due to missing permissions
 
 ---
 
@@ -1288,18 +1457,20 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 🐛 Fixed
 
 #### CI/CD Workflows
+
 - **Fixed critical YAML syntax error in enforce-merge-direction workflow:**
-  - JavaScript template literals (backticks) in `script:` section caused YAML parser conflict
-  - Converted template literals to string concatenation for YAML compatibility
-  - Workflow was completely non-functional due to syntax error (never triggered on PRs)
-  - **Impact:** Merge direction enforcement now works correctly
-  - **Root cause:** Line 111-120 had invalid YAML syntax preventing workflow execution
-  - Validated fix with Python YAML parser - syntax now correct
-  - Required check can now be added to branch protection rules after workflow runs
+    - JavaScript template literals (backticks) in `script:` section caused YAML parser conflict
+    - Converted template literals to string concatenation for YAML compatibility
+    - Workflow was completely non-functional due to syntax error (never triggered on PRs)
+    - **Impact:** Merge direction enforcement now works correctly
+    - **Root cause:** Line 111-120 had invalid YAML syntax preventing workflow execution
+    - Validated fix with Python YAML parser - syntax now correct
+    - Required check can now be added to branch protection rules after workflow runs
 
 ### 🔧 Improved
 
 #### Developer Experience
+
 - Merge direction enforcement workflow will now trigger on pull requests
 - GitHub Actions will recognize the check after first successful run
 - Can be added as required status check in branch protection settings
@@ -1311,22 +1482,25 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 🐛 Fixed
 
 #### Code Quality
+
 - **Fixed Python SyntaxWarning in setup.py:**
-  - Fixed invalid escape sequence warning in `escape_for_sed()` docstring (line 137)
-  - Changed docstring to raw string (r"""...""") to properly handle backslash documentation
-  - No functional changes, purely cosmetic fix for Python 3.12+ compatibility
+    - Fixed invalid escape sequence warning in `escape_for_sed()` docstring (line 137)
+    - Changed docstring to raw string (r"""...""") to properly handle backslash documentation
+    - No functional changes, purely cosmetic fix for Python 3.12+ compatibility
 
 #### Test Infrastructure
+
 - **Improved security scan accuracy:**
-  - Reduced false positives in `run-security-scans.sh`
-  - Now correctly excludes safe patterns: `getpass()`, `.get()`, function parameters
-  - Excludes template strings like `PRIMARY_PASSWORD={...}`
-  - Fixed grep regex errors with unmatched braces
-  - Security scan now reports "✓ No hardcoded secrets found" instead of warnings on safe code
+    - Reduced false positives in `run-security-scans.sh`
+    - Now correctly excludes safe patterns: `getpass()`, `.get()`, function parameters
+    - Excludes template strings like `PRIMARY_PASSWORD={...}`
+    - Fixed grep regex errors with unmatched braces
+    - Security scan now reports "✓ No hardcoded secrets found" instead of warnings on safe code
 
 ### 🔧 Improved
 
 #### Developer Experience
+
 - Test suite now runs cleanly without warnings or false positives
 - More accurate security feedback for developers
 - Better distinction between actual security issues and safe password handling
@@ -1338,33 +1512,37 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### ✨ New
 
 #### Test Automation Infrastructure
+
 - **Implemented complete test automation script suite:**
-  - Created `.github/scripts/` directory with 8 automated test scripts
-  - **`run-syntax-checks.sh`** - Validates Python and Bash syntax across codebase
-  - **`run-quality-checks.sh`** - Checks code quality (print statements, line endings, required files)
-  - **`run-security-scans.sh`** - Scans for hardcoded secrets and file permission issues
-  - **`test-failover.sh`** - Automated failover testing with VIP transition timing
-  - **`test-dashboard.sh`** - Dashboard API endpoint validation with JSON response verification
-  - **`generate-test-summary.sh`** - Generates test summaries from test reports
-  - **`nightly-tests.sh`** - Nightly automated test execution with email notifications
-  - **`run-all-tests.sh`** - Master script to run all automated tests sequentially
-  - All scripts are executable (755 permissions) and follow bash best practices
+    - Created `.github/scripts/` directory with 8 automated test scripts
+    - **`run-syntax-checks.sh`** - Validates Python and Bash syntax across codebase
+    - **`run-quality-checks.sh`** - Checks code quality (print statements, line endings, required files)
+    - **`run-security-scans.sh`** - Scans for hardcoded secrets and file permission issues
+    - **`test-failover.sh`** - Automated failover testing with VIP transition timing
+    - **`test-dashboard.sh`** - Dashboard API endpoint validation with JSON response verification
+    - **`generate-test-summary.sh`** - Generates test summaries from test reports
+    - **`nightly-tests.sh`** - Nightly automated test execution with email notifications
+    - **`run-all-tests.sh`** - Master script to run all automated tests sequentially
+    - All scripts are executable (755 permissions) and follow bash best practices
 
 ### 🔧 Improved
 
 #### Testing Workflow
+
 - **Closed gap between documentation and implementation:**
-  - CLAUDE.md and TEST_AUTOMATION_GUIDE.md extensively documented these scripts
-  - Scripts were referenced throughout testing documentation but were not implemented
-  - Now fully functional and tested - `run-all-tests.sh` successfully validates codebase
+    - CLAUDE.md and TEST_AUTOMATION_GUIDE.md extensively documented these scripts
+    - Scripts were referenced throughout testing documentation but were not implemented
+    - Now fully functional and tested - `run-all-tests.sh` successfully validates codebase
 
 #### Developer Experience
+
 - Developers can now run automated tests locally before pushing
 - CI/CD pipelines can use these scripts for automated quality gates
 - Nightly testing can be scheduled via cron for continuous validation
 - Test reports can be automatically generated and summarized
 
 ### 📚 Documentation
+
 - Scripts match exact specifications in TEST_AUTOMATION_GUIDE.md (lines 131-675)
 - All usage examples in documentation are now executable
 - Testing workflow is fully operational and reproducible
@@ -1376,32 +1554,35 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 📚 Documentation
 
 #### Git Workflow Rules for AI Assistants
+
 - **Added "Critical: Always Push Changes (Git Workflow)" mandatory rule to CLAUDE.md:**
-  - Explicitly requires pushing all changes to GitHub before ending any session
-  - Prevents lost work due to AI sandbox being temporary and isolated
-  - Includes session end checklist to verify all changes are pushed
-  - Emphasizes that GitHub is the only way to transfer work from AI to user
-  - Provides examples of correct vs incorrect workflow
-  - **Addresses critical issue** where unpushed changes are lost when sandbox closes
+    - Explicitly requires pushing all changes to GitHub before ending any session
+    - Prevents lost work due to AI sandbox being temporary and isolated
+    - Includes session end checklist to verify all changes are pushed
+    - Emphasizes that GitHub is the only way to transfer work from AI to user
+    - Provides examples of correct vs incorrect workflow
+    - **Addresses critical issue** where unpushed changes are lost when sandbox closes
 
 - **Added "Required: Provide Git Commands for Learning" rule to CLAUDE.md:**
-  - Requires AI to show exact git commands used during work
-  - Helps user learn git through repeated exposure and practice
-  - Includes command explanations and what they do
-  - Always provides pull commands after pushing
-  - Lists common git command categories with examples
-  - **Supports user's learning journey** with git workflow
+    - Requires AI to show exact git commands used during work
+    - Helps user learn git through repeated exposure and practice
+    - Includes command explanations and what they do
+    - Always provides pull commands after pushing
+    - Lists common git command categories with examples
+    - **Supports user's learning journey** with git workflow
 
 #### Cleanup
+
 - **Verified removal of private reference files:**
-  - Confirmed no references to `ai-versioning-instructions.md`
-  - Confirmed no references to Dutch quick reference guides
-  - These files were already removed in previous commits (3004b82)
-  - Only harmless mentions remain in audit report documenting past state
+    - Confirmed no references to `ai-versioning-instructions.md`
+    - Confirmed no references to Dutch quick reference guides
+    - These files were already removed in previous commits (3004b82)
+    - Only harmless mentions remain in audit report documenting past state
 
 ### 🔧 Improved
 
 #### Developer Experience
+
 - Better transparency in git operations through required command display
 - Reduced risk of lost work through mandatory push requirements
 - Enhanced learning through educational git command explanations
@@ -1414,18 +1595,20 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 📚 Documentation
 
 #### Development Environment Clarity
+
 - **Added "Critical: Development Environment Awareness" mandatory rule to CLAUDE.md:**
-  - Explicitly defines AI sandbox environment (`/home/user/pihole-sentinel/`)
-  - Explicitly defines user's local environment (`~/Workspace/pihole-sentinel/`)
-  - Clarifies GitHub as the only connection/sync point between environments
-  - Provides clear communication rules: AI should never instruct user to work in `/home/user/pihole-sentinel/`
-  - Defines workflow protocol: AI makes changes and commits, user pulls and reviews locally
-  - Includes examples of correct vs incorrect communication
-  - **Addresses recurring miscommunication issue** where AI forgets we work in separate environments
+    - Explicitly defines AI sandbox environment (`/home/user/pihole-sentinel/`)
+    - Explicitly defines user's local environment (`~/Workspace/pihole-sentinel/`)
+    - Clarifies GitHub as the only connection/sync point between environments
+    - Provides clear communication rules: AI should never instruct user to work in `/home/user/pihole-sentinel/`
+    - Defines workflow protocol: AI makes changes and commits, user pulls and reviews locally
+    - Includes examples of correct vs incorrect communication
+    - **Addresses recurring miscommunication issue** where AI forgets we work in separate environments
 
 ### 🔧 Improved
 
 #### Communication Protocol
+
 - AI assistants now have explicit guidelines to avoid confusing path references
 - Clear separation of responsibilities: AI does file operations, user does git pull/review
 - Better workflow clarity prevents back-and-forth about "where to run commands"
@@ -1437,37 +1620,41 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 🎉 New Features
 
 #### Version Management Enforcement
+
 - **Git Pre-Commit Hook for Version Management:**
-  - Added automated pre-commit hook to enforce version management rules
-  - Checks that VERSION file is updated for all code changes
-  - Checks that CHANGELOG.md is updated for all code changes
-  - Validates code quality (no print() statements, no CRLF line endings)
-  - Allows documentation-only changes without version updates
-  - Template hook available in `.githooks/` directory for easy installation
-  - Comprehensive installation guide in `.githooks/README.md`
+    - Added automated pre-commit hook to enforce version management rules
+    - Checks that VERSION file is updated for all code changes
+    - Checks that CHANGELOG.md is updated for all code changes
+    - Validates code quality (no print() statements, no CRLF line endings)
+    - Allows documentation-only changes without version updates
+    - Template hook available in `.githooks/` directory for easy installation
+    - Comprehensive installation guide in `.githooks/README.md`
 
 #### Enhanced AI Assistant Guidelines
+
 - **Mandatory Rules Section in CLAUDE.md:**
-  - Added prominent "MANDATORY RULES - READ FIRST" section
-  - Explicit version management requirements for every commit
-  - Pre-commit verification checklist for AI assistants
-  - Clear failure protocol for non-compliance
-  - Mandatory commit message format with version reference
+    - Added prominent "MANDATORY RULES - READ FIRST" section
+    - Explicit version management requirements for every commit
+    - Pre-commit verification checklist for AI assistants
+    - Clear failure protocol for non-compliance
+    - Mandatory commit message format with version reference
 
 ### 🔧 Improved
 
 #### Documentation
+
 - **Development Workflows:**
-  - Added "Initial Development Setup" section with git hook installation
-  - Clear instructions for testing the pre-commit hook
-  - Updated Table of Contents to reference mandatory rules
+    - Added "Initial Development Setup" section with git hook installation
+    - Clear instructions for testing the pre-commit hook
+    - Updated Table of Contents to reference mandatory rules
 
 #### Code Quality
+
 - **Automated Quality Gates:**
-  - Prevents commits without proper versioning
-  - Enforces logging best practices (no print() in production code)
-  - Ensures Unix line endings (LF) in bash scripts
-  - Provides clear error messages and remediation steps
+    - Prevents commits without proper versioning
+    - Enforces logging best practices (no print() in production code)
+    - Ensures Unix line endings (LF) in bash scripts
+    - Provides clear error messages and remediation steps
 
 ### 📚 Documentation
 
@@ -1476,11 +1663,11 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 - Added Development Workflows setup instructions
 - Documented commit message format requirements
 - **Merged Comprehensive Audit & Test Infrastructure from develop:**
-  - Added `AUDIT_REPORT_20251116.md` with complete code quality assessment (Score: 89/100 - Excellent)
-  - Added `.github/TEST_AUTOMATION_GUIDE.md` (700 lines) for automated test execution and CI/CD integration
-  - Added `.github/TEST_DOCUMENTATION_TEMPLATE.md` (802 lines) for standardized test reporting
-  - Enhanced `CLAUDE.md` with audit status badge and test infrastructure overview section
-  - Provides complete quality assurance framework for production readiness
+    - Added `AUDIT_REPORT_20251116.md` with complete code quality assessment (Score: 89/100 - Excellent)
+    - Added `.github/TEST_AUTOMATION_GUIDE.md` (700 lines) for automated test execution and CI/CD integration
+    - Added `.github/TEST_DOCUMENTATION_TEMPLATE.md` (802 lines) for standardized test reporting
+    - Enhanced `CLAUDE.md` with audit status badge and test infrastructure overview section
+    - Provides complete quality assurance framework for production readiness
 
 ---
 
@@ -1489,20 +1676,21 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 🐛 Fixed
 
 #### Code Quality & Security
+
 - **Critical Code Quality Improvements:**
-  - Addressed security vulnerabilities identified in audit
-  - Fixed potential code injection risks
-  - Improved input validation and sanitization
-  - Enhanced error handling across codebase
+    - Addressed security vulnerabilities identified in audit
+    - Fixed potential code injection risks
+    - Improved input validation and sanitization
+    - Enhanced error handling across codebase
 
 ### 📚 Documentation
 
 - **Branch Protection & Workflow:**
-  - Added comprehensive branch protection setup guide
-  - Created CODEOWNERS file for repository governance
-  - Documented branching strategy (main/develop/testing)
-  - Clarified branch protection settings for personal vs organization repos
-  - Added todo lists and workflow guidance
+    - Added comprehensive branch protection setup guide
+    - Created CODEOWNERS file for repository governance
+    - Documented branching strategy (main/develop/testing)
+    - Clarified branch protection settings for personal vs organization repos
+    - Added todo lists and workflow guidance
 
 ---
 
@@ -1511,19 +1699,20 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### ⚠️ Important Changes
 
 #### License Change
+
 - **Changed License from MIT to GPL v3.0:**
-  - More appropriate for infrastructure/systems software
-  - Ensures contributions remain open source
-  - Protects against proprietary forks
-  - Aligns with project philosophy
+    - More appropriate for infrastructure/systems software
+    - Ensures contributions remain open source
+    - Protects against proprietary forks
+    - Aligns with project philosophy
 
 ### 📚 Documentation
 
 - **Release Readiness & Repository Setup:**
-  - Added comprehensive release readiness audit report
-  - Documented GitHub About section configuration
-  - Improved repository metadata and discoverability
-  - Enhanced project presentation on GitHub
+    - Added comprehensive release readiness audit report
+    - Documented GitHub About section configuration
+    - Improved repository metadata and discoverability
+    - Enhanced project presentation on GitHub
 
 ---
 
@@ -1532,19 +1721,21 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 🐛 Fixed
 
 #### Documentation Safety
+
 - **Removed Dangerous Production Advice:**
-  - Removed 'git pull on production' recommendation from TESTING-GUIDE.md
-  - Prevents accidental production system corruption
-  - Promotes safer deployment practices
+    - Removed 'git pull on production' recommendation from TESTING-GUIDE.md
+    - Prevents accidental production system corruption
+    - Promotes safer deployment practices
 
 ### 🔧 Improved
 
 #### Documentation
+
 - **README Enhancements:**
-  - Added comprehensive introduction section
-  - Updated version badges to v0.9.0-beta.1
-  - Fixed badge version format for consistency
-  - Improved project description and value proposition
+    - Added comprehensive introduction section
+    - Updated version badges to v0.9.0-beta.1
+    - Fixed badge version format for consistency
+    - Improved project description and value proposition
 
 ---
 
@@ -1553,40 +1744,45 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 ### 🎉 New Features
 
 #### Automatic API Key Injection
+
 - **Automatic API key configuration during deployment:**
-  - Setup script now automatically injects Pi-hole API keys into `index.html`
-  - No manual configuration required after deployment
-  - Seamless dashboard experience out-of-the-box
-  - Secure handling of API credentials during deployment
+    - Setup script now automatically injects Pi-hole API keys into `index.html`
+    - No manual configuration required after deployment
+    - Seamless dashboard experience out-of-the-box
+    - Secure handling of API credentials during deployment
 
 #### Enhanced Dashboard Features
+
 - **Improved Settings Management:**
-  - Settings button repositioned to right side of header for better UX
-  - Auto-save notification settings when clicking Test button
-  - Better user warnings for unsaved notification settings
-  - Fixed masked notification values not being saved correctly
-  - Test notifications now use saved settings instead of form values
+    - Settings button repositioned to right side of header for better UX
+    - Auto-save notification settings when clicking Test button
+    - Better user warnings for unsaved notification settings
+    - Fixed masked notification values not being saved correctly
+    - Test notifications now use saved settings instead of form values
 
 #### Chart & Visualization Improvements
+
 - **Enhanced Historical Data Display:**
-  - Chart.js CDN fallback for better reliability
-  - Improved error handling for chart initialization
-  - Fixed timestamp timezone issues in charts
-  - Better debugging for chart rendering
+    - Chart.js CDN fallback for better reliability
+    - Improved error handling for chart initialization
+    - Fixed timestamp timezone issues in charts
+    - Better debugging for chart rendering
 
 ### 🔧 Improved
 
 #### API Compatibility
+
 - **Enhanced Pi-hole v6 API Support:**
-  - Fixed DHCP leases API call with proper `content_type=None`
-  - Added fallback to legacy PHP API for DHCP leases count
-  - Better handling of API response variations
+    - Fixed DHCP leases API call with proper `content_type=None`
+    - Added fallback to legacy PHP API for DHCP leases count
+    - Better handling of API response variations
 
 #### VIP Detection
+
 - **Improved Virtual IP Status:**
-  - Enhanced VIP status indicator with conflict detection
-  - Better visual feedback for VIP assignment
-  - Clearer indication of which node holds the VIP
+    - Enhanced VIP status indicator with conflict detection
+    - Better visual feedback for VIP assignment
+    - Clearer indication of which node holds the VIP
 
 ### 🐛 Fixed
 
@@ -1612,53 +1808,53 @@ Version: 0.12.0-beta.5 → 0.12.0-beta.6
 #### Dependencies
 
 - **Updated Python dependencies to newer, more secure versions:**
-  - `fastapi`: 0.68.0 → ≥0.104.0
-  - `uvicorn`: 0.15.0 → ≥0.24.0 (with standard extras)
-  - `aiohttp`: 3.8.1 → ≥3.9.0
-  - `aiosqlite`: 0.17.0 → ≥0.19.0
-  - `aiofiles`: 0.8.0 → ≥23.2.0
-  - `python-dotenv`: 0.19.0 → ≥1.0.0
-  - Added version constraints to root `requirements.txt`
+    - `fastapi`: 0.68.0 → ≥0.104.0
+    - `uvicorn`: 0.15.0 → ≥0.24.0 (with standard extras)
+    - `aiohttp`: 3.8.1 → ≥3.9.0
+    - `aiosqlite`: 0.17.0 → ≥0.19.0
+    - `aiofiles`: 0.8.0 → ≥23.2.0
+    - `python-dotenv`: 0.19.0 → ≥1.0.0
+    - Added version constraints to root `requirements.txt`
 
 #### Logging & Monitoring
 
 - **Replaced all `print()` statements with proper logging in `monitor.py`:**
-  - Added Python `logging` module with configurable levels
-  - Logs now written to `/var/log/pihole-monitor.log` (when directory exists)
-  - Better debugging with `logger.debug()`, `logger.info()`, `logger.warning()`, `logger.error()`
-  - Added `exc_info=True` for better error traceability
-  - Console output remains available via StreamHandler
+    - Added Python `logging` module with configurable levels
+    - Logs now written to `/var/log/pihole-monitor.log` (when directory exists)
+    - Better debugging with `logger.debug()`, `logger.info()`, `logger.warning()`, `logger.error()`
+    - Added `exc_info=True` for better error traceability
+    - Console output remains available via StreamHandler
 
 #### Error Handling
 
 - **Improved error handling in `sync-pihole-config.sh`:**
-  - Now distinguishes between "file doesn't exist" vs "sync failed" errors
-  - Checks if remote file exists before attempting rsync
-  - Better error messages for network/permission issues
-  - Exits with error on critical sync failures instead of continuing
+    - Now distinguishes between "file doesn't exist" vs "sync failed" errors
+    - Checks if remote file exists before attempting rsync
+    - Better error messages for network/permission issues
+    - Exits with error on critical sync failures instead of continuing
 
 #### VIP Detection
 
 - **Added retry logic to VIP detection (`check_who_has_vip`):**
-  - 3 retry attempts with 1-second delays between failures
-  - Better logging of MAC address detection attempts
-  - More reliable VIP detection in high-load scenarios
-  - Clearer warnings when VIP has no ARP entry
+    - 3 retry attempts with 1-second delays between failures
+    - Better logging of MAC address detection attempts
+    - More reliable VIP detection in high-load scenarios
+    - Clearer warnings when VIP has no ARP entry
 
 #### Network Configuration
 
 - **Fixed hardcoded network interface in keepalived scripts:**
-  - `keepalived_notify.sh` now uses `${INTERFACE}` variable instead of hardcoded `eth0`
-  - Reads interface from environment with fallback to `eth0`
-  - Supports all network interface types (ens18, enp3s0, etc.)
+    - `keepalived_notify.sh` now uses `${INTERFACE}` variable instead of hardcoded `eth0`
+    - Reads interface from environment with fallback to `eth0`
+    - Supports all network interface types (ens18, enp3s0, etc.)
 
 #### Timezone Configuration
 
 - **Made timezone auto-detection in `setup.py`:**
-  - Automatically detects system timezone using `timedatectl`
-  - Falls back to `Europe/Amsterdam` if detection fails
-  - No longer hardcoded - adapts to system configuration
-  - Better logging of configured timezone
+    - Automatically detects system timezone using `timedatectl`
+    - Falls back to `Europe/Amsterdam` if detection fails
+    - No longer hardcoded - adapts to system configuration
+    - Better logging of configured timezone
 
 ### 🐛 Fixed
 
