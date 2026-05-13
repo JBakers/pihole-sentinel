@@ -1,6 +1,6 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
-**Last Updated:** 2026-05-10
+**Last Updated:** 2026-05-13
 
 **Version:** 0.19.0
 

@@ -1,6 +1,6 @@
 # PLAN.md — Pi-hole Sentinel Development Plan
 
-**Last Updated:** 2026-05-10
+**Last Updated:** 2026-05-13
 **Branch:** `develop`
 **Current Version:** 0.19.0
 
@@ -12,12 +12,103 @@
 
 ## Table of Contents
 
+- [Integrated Action Plan (Copilot Reviews + TODOs)](#integrated-action-plan)
 - [Current Status](#current-status)
 - [Open Bugs](#open-bugs)
 - [Open Improvements](#open-improvements)
 - [Low Priority / Later](#low-priority--later)
 - [Completed Items](#completed-items)
 - [Command Reference](#command-reference)
+
+---
+
+## Integrated Action Plan (Copilot Reviews + TODOs)
+
+### Summary: Next Steps (2026-05-13)
+
+**Recent Copilot Review Fixes Completed (v0.18.1–0.18.2):**
+- ✅ DNS latency response serialization in `/api/status` (v0.18.1)
+- ✅ Debug override endpoint response codes + gating (v0.18.2)
+- ✅ Async event loop refactor (`get_running_loop()` instead of `get_event_loop()`)
+
+**Active Work (from commits 14fc333, d62b573):**
+- ✅ Test coverage expanded to **54%** on monitor.py (339→399 tests, 17 files)
+- ✅ Windows compatibility fixes for pytest
+
+**Priority Queue (Next in Order):**
+
+| Rank | ID  | Task | Status | Est. Effort | Blocker |
+|------|-----|------|--------|-------------|---------|
+| 1️⃣  | D2  | Test coverage: 54% → **60%+** | 🔲 Open | 2–3 days | None |
+| 2️⃣  | M1-P1 | Multi-node Phase 1 (data layer) | 🔲 Open | 3–5 days | D2 (optional) |
+| 3️⃣  | M1-P2 | Multi-node Phase 2 (API layer) | 🔲 Open | 2–3 days | M1-P1 |
+| 4️⃣  | P2/P3 | `pisen` CLI improvements | ✅ Done | — | None |
+
+---
+
+### D2 — Test Coverage: 54% → 60%+ (NEXT PRIORITY)
+
+**Current state:**
+- `monitor.py` coverage: 54% (339→399 tests)
+- Gaps identified: `monitor_loop` async flow, rate-limit middleware, API endpoints (`/api/history`, `/api/events`, `execute_command`)
+
+**What needs testing:**
+1. `monitor_loop()` full async flow (polling, debounce, notifications)
+2. Rate-limit middleware (`rate_limit_check`, `write_rate_limit_check`)
+3. API endpoints: `/api/history?hours=24`, `/api/events?limit=50`, `/api/commands`
+4. Notification edge cases (retry, snooze expiry, service failures)
+5. Error paths: network failures, malformed responses, timeouts
+
+**Acceptance criteria:**
+- [ ] Coverage reaches **60%+** on `monitor.py`
+- [ ] `make test` passes with coverage report
+- [ ] New tests in `tests/test_*.py` files (no missing imports, Windows-compatible)
+
+---
+
+### M1 — Multi-Node Support (FUTURE: Breaking Change)
+
+**Planned for:** v1.0.0 (when 60% coverage achieved)
+**Branch:** `feature/multi-node-support`
+**Breaking change:** Yes (API format + config changes)
+
+**Scope:** Convert 2-node hardcoding → N-node dynamic architecture
+
+**Phases (sequential):**
+1. **Phase 1:** Config + DB layer (environment vars, schema, internal data flow)
+2. **Phase 2:** API layer (`/api/status`, `/api/history`, response models)
+3. **Phase 3:** UI layer (dynamic node cards, charts)
+4. **Phase 4:** Setup wizard (interactive N-node config)
+5. **Phase 5:** Tests + Docker (fixtures, integration tests)
+
+---
+
+### Recent Copilot Review Fixes (v0.18.1–0.18.2, Already Completed ✅)
+
+#### v0.18.1 (2026-04-21) — 6 Copilot Review Comments
+
+**Issues Fixed:**
+- ✅ DNS latency not exposed in `/api/status` — added `dns_latency_warn_ms` field to `StatusResponse` Pydantic model
+- ✅ Dashboard hardcoded 500ms threshold → now uses `dns_latency_warn_ms` from server response
+- ✅ Test-mode banner not hidden on non-2xx responses → added error handling in `index.html`
+- ✅ Check DNS "restored" event fired incorrectly on failure/offline → fixed state logic in `check_dns()`
+- ✅ Type annotation for `check_dns()` incomplete (`Tuple[bool, Optional[float]]`) → fixed
+- ✅ Debug override applied unconditionally → gated behind `if DEBUG_MODE` check
+
+**Commits:** `7f57ed0`, V0.18.1
+
+#### v0.18.2 (2026-04-21) — 3 Copilot Review Comments
+
+**Issues Fixed:**
+- ✅ `dns_latency_warn_ms` field stripped from `/api/status` — added to model (not just internal)
+- ✅ `/api/debug/override/status` returned 403 when DEBUG_MODE disabled → now returns 200 (prevents log noise)
+- ✅ `asyncio.get_event_loop().time()` used in async functions → replaced with `get_running_loop().time()` (5 sites)
+
+**Commits:** `4c4b39a`, v0.18.2
+
+**Status:** All Copilot review comments have been resolved. No pending Copilot feedback.
+
+---
 
 ---
 
@@ -419,9 +510,16 @@ No open bugs.
 | ID  | Improvement                                                                | Priority |
 | --- | -------------------------------------------------------------------------- | -------- |
 | D2  | Expand test coverage (currently 54% monitor.py, target 60%+)               | Medium   |
-| P2  | `pisen` CLI: make copyright year dynamic                                   | Low      |
-| P3  | `pisen` CLI: add `--api` mode (HTTP client to monitor API)                 | Low      |
 | M1  | Multi-node support: N Pi-holes (3+) instead of hardcoded primary/secondary | Medium   |
+
+---
+
+## ✅ Completed Improvements (v0.18.0+)
+
+| ID  | Improvement                                      | Completed |
+| --- | ------------------------------------------------ | ---------- |
+| P2  | `pisen` CLI: dynamic copyright year             | v0.18.0    |
+| P3  | `pisen` CLI: `--api` mode (HTTP API client)     | v0.18.0    |
 
 ### M1 — Multi-Node Support (N Pi-holes)
 
