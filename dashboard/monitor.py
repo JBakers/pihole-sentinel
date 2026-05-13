@@ -60,6 +60,88 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+# ============================================================================
+# Configuration Loading (N-node support)
+# ============================================================================
+
+def load_node_config_from_env() -> list[dict]:
+    """
+    Load N-node configuration from environment variables.
+    
+    Supports both old format (PRIMARY_IP/SECONDARY_IP) and new format (PIHOLE_1_IP, PIHOLE_2_IP, ...).
+    
+    Returns list of node dicts: [{index, ip, name, password, ssh_user, ssh_port}, ...]
+    """
+    nodes = []
+    node_index = 1
+    
+    # Try new format first (PIHOLE_1_IP, PIHOLE_2_IP, ...)
+    while True:
+        ip_var = f"PIHOLE_{node_index}_IP"
+        password_var = f"PIHOLE_{node_index}_PASSWORD"
+        name_var = f"PIHOLE_{node_index}_NAME"
+        ssh_user_var = f"PIHOLE_{node_index}_SSH_USER"
+        ssh_port_var = f"PIHOLE_{node_index}_SSH_PORT"
+        
+        ip = os.getenv(ip_var)
+        if not ip:
+            # End of node list
+            break
+        
+        password = os.getenv(password_var)
+        if not password:
+            raise ValueError(f"Missing required {password_var}")
+        
+        node = {
+            "index": node_index,
+            "ip": ip,
+            "name": os.getenv(name_var, f"Node-{node_index}"),
+            "password": password,
+            "ssh_user": os.getenv(ssh_user_var, "root"),
+            "ssh_port": int(os.getenv(ssh_port_var, "22")),
+        }
+        nodes.append(node)
+        node_index += 1
+    
+    # Fallback: old 2-node format (PRIMARY_IP, SECONDARY_IP)
+    if not nodes:
+        logger.info("No PIHOLE_N_IP format found; attempting legacy PRIMARY_IP/SECONDARY_IP...")
+        
+        primary_ip = os.getenv("PRIMARY_IP")
+        secondary_ip = os.getenv("SECONDARY_IP")
+        
+        if primary_ip and secondary_ip:
+            logger.warning("Using deprecated PRIMARY_IP/SECONDARY_IP format. Please migrate to PIHOLE_N_IP format.")
+            nodes = [
+                {
+                    "index": 1,
+                    "ip": primary_ip,
+                    "name": os.getenv("PRIMARY_NAME", "Primary Pi-hole"),
+                    "password": os.getenv("PRIMARY_PASSWORD", ""),
+                    "ssh_user": os.getenv("PRIMARY_SSH_USER", "root"),
+                    "ssh_port": int(os.getenv("PRIMARY_SSH_PORT", "22")),
+                },
+                {
+                    "index": 2,
+                    "ip": secondary_ip,
+                    "name": os.getenv("SECONDARY_NAME", "Secondary Pi-hole"),
+                    "password": os.getenv("SECONDARY_PASSWORD", ""),
+                    "ssh_user": os.getenv("SECONDARY_SSH_USER", "root"),
+                    "ssh_port": int(os.getenv("SECONDARY_SSH_PORT", "22")),
+                },
+            ]
+    
+    # Validation
+    if not nodes:
+        raise ValueError("No Pi-hole nodes configured. Set PIHOLE_1_IP/PIHOLE_1_PASSWORD or PRIMARY_IP/SECONDARY_IP")
+    
+    if len(nodes) < 2:
+        raise ValueError(f"Minimum 2 nodes required, got {len(nodes)}")
+    
+    logger.info(f"Loaded {len(nodes)} Pi-hole nodes: {', '.join(n['name'] for n in nodes)}")
+    return nodes
+
+
 # Configuration from environment
 CONFIG = {
     "primary": {
@@ -73,6 +155,7 @@ CONFIG = {
         "password": os.getenv("SECONDARY_PASSWORD")
     },
     "vip": os.getenv("VIP_ADDRESS"),
+    "nodes": None,  # Lazy-loaded during app initialization
     "check_interval": int(os.getenv("CHECK_INTERVAL", "10")),
     "db_path": os.getenv("DB_PATH", "/opt/pihole-monitor/monitor.db"),
     "notify_config_path": os.getenv("NOTIFY_CONFIG_PATH", "/opt/pihole-monitor/notify_settings.json"),
@@ -102,12 +185,36 @@ if not CONFIG["api_key"]:
     except Exception as e:
         logger.error(f"Could not write API key file: {e}")
 
-# Verify required environment variables
-required_vars = ["PRIMARY_IP", "PRIMARY_PASSWORD", "SECONDARY_IP", "SECONDARY_PASSWORD", "VIP_ADDRESS"]
-missing_vars = [var for var in required_vars if not os.getenv(var)]
-if missing_vars:
-    logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
-    sys.exit(1)
+# Initialize nodes (lazy load - called during app startup)
+def _init_nodes():
+    """Load node configuration on app startup."""
+    if CONFIG["nodes"] is None:
+        CONFIG["nodes"] = load_node_config_from_env()
+    return CONFIG["nodes"]
+
+# Verify required environment variables (minimal check now, nodes validated in load_node_config_from_env)
+# NOTE: This check is deferred to app startup (see _validate_config) to allow testing/importing
+# without requiring all env vars to be set at module load time.
+
+
+# ============================================================================
+# Startup validation (called during app initialization)
+# ============================================================================
+
+def _validate_config():
+    """Validate configuration at app startup."""
+    required_vars = ["VIP_ADDRESS"]
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    if missing_vars:
+        logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+        sys.exit(1)
+    
+    # Initialize nodes
+    _init_nodes()
+    
+    if not CONFIG["vip"]:
+        logger.error("VIP_ADDRESS not set in environment")
+        sys.exit(1)
 
 # ============================================================================
 # Version reading (must be before FastAPI app initialization)
@@ -3247,6 +3354,9 @@ async def cancel_snooze(api_key: str = Depends(verify_api_key)):
         raise HTTPException(status_code=500, detail=f"Failed to cancel snooze: {str(e)}")
 
 if __name__ == "__main__":
+    # Validate configuration at startup
+    _validate_config()
+    
     if not os.path.exists(os.path.dirname(CONFIG["db_path"])):
         os.makedirs(os.path.dirname(CONFIG["db_path"]))
     uvicorn.run(
