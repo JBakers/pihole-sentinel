@@ -1,3 +1,12 @@
+## [0.20.1] - 2026-05-13
+
+### Fixed
+
+- **Docker test environment healthchecks** — added explicit `healthcheck`
+  definitions for the mock Pi-hole services in `docker-compose.test.yml` so
+  `depends_on: condition: service_healthy` can resolve reliably during local
+  test runs.
+
 ## [0.20.0] - 2026-05-13
 
 ### New
