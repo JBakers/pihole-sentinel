@@ -1215,8 +1215,46 @@ def _is_newer_version(latest: str, current: str) -> bool:
 
 
 async def init_db():
-    """Initialize SQLite database"""
+    """Initialize SQLite database with N-node normalized schema
+    
+    Supports migration from old 2-node schema to new normalized schema.
+    - New schema: poll_cycles + node_status (normalized, extensible)
+    - Old schema: status_history (2-node hardcoded, kept for backward compat)
+    """
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
+        # Check if we need to migrate from old schema
+        cursor = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='status_history'"
+        )
+        old_table_exists = await cursor.fetchone() is not None
+        
+        # Create new normalized tables
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS poll_cycles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                dhcp_leases INTEGER DEFAULT 0
+            )
+        """)
+
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS node_status (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                poll_id INTEGER NOT NULL,
+                node_index INTEGER NOT NULL,
+                node_name TEXT NOT NULL,
+                vrrp_state TEXT,  -- MASTER, BACKUP, FAULT
+                has_vip BOOLEAN DEFAULT 0,
+                online BOOLEAN DEFAULT 0,
+                pihole_ok BOOLEAN DEFAULT 0,
+                dns_ok BOOLEAN DEFAULT 0,
+                dhcp_ok BOOLEAN DEFAULT 0,
+                FOREIGN KEY(poll_id) REFERENCES poll_cycles(id),
+                UNIQUE(poll_id, node_index)
+            )
+        """)
+
+        # Create old table for backward compat (if it doesn't exist yet)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS status_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1247,22 +1285,104 @@ async def init_db():
         """)
 
         # Create indexes for better query performance
-        await db.execute("""
-            CREATE INDEX IF NOT EXISTS idx_status_timestamp
-            ON status_history(timestamp DESC)
-        """)
-
-        await db.execute("""
-            CREATE INDEX IF NOT EXISTS idx_events_timestamp
-            ON events(timestamp DESC)
-        """)
-
-        await db.execute("""
-            CREATE INDEX IF NOT EXISTS idx_events_type
-            ON events(event_type, timestamp DESC)
-        """)
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_poll_cycles_timestamp ON poll_cycles(timestamp DESC)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_node_status_poll_id ON node_status(poll_id)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_node_status_node_index ON node_status(node_index)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_status_timestamp ON status_history(timestamp DESC)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type, timestamp DESC)")
 
         await db.commit()
+        
+        # Migrate old data if needed (one-time operation)
+        if old_table_exists:
+            await _migrate_old_schema_to_new()
+
+
+async def _migrate_old_schema_to_new():
+    """Migrate data from old 2-node schema to new N-node normalized schema
+    
+    Conversion pattern:
+    - 1 old status_history row → 1 poll_cycles row + 2 node_status rows
+    - Preserves all data and timestamps
+    """
+    logger.info("Starting database migration: old 2-node schema → new N-node schema")
+    
+    try:
+        async with aiosqlite.connect(CONFIG["db_path"]) as db:
+            # Check if migration already done (poll_cycles has data)
+            cursor = await db.execute("SELECT COUNT(*) FROM poll_cycles")
+            existing_count = (await cursor.fetchone())[0]
+            
+            if existing_count > 0:
+                logger.info(f"Migration already complete: {existing_count} poll cycles exist")
+                return
+            
+            # Fetch all old records
+            cursor = await db.execute("""
+                SELECT id, timestamp, primary_state, secondary_state,
+                       primary_has_vip, secondary_has_vip,
+                       primary_online, secondary_online,
+                       primary_pihole, secondary_pihole,
+                       primary_dns, secondary_dns,
+                       dhcp_leases, primary_dhcp, secondary_dhcp
+                FROM status_history
+                ORDER BY timestamp ASC
+            """)
+            rows = await cursor.fetchall()
+            
+            if not rows:
+                logger.info("No data to migrate from old schema")
+                return
+            
+            logger.info(f"Migrating {len(rows)} old status_history rows...")
+            
+            # Migrate in batches
+            batch_size = 100
+            for batch_start in range(0, len(rows), batch_size):
+                batch = rows[batch_start:batch_start + batch_size]
+                
+                for row in batch:
+                    (old_id, timestamp, p_state, s_state,
+                     p_has_vip, s_has_vip,
+                     p_online, s_online,
+                     p_pihole, s_pihole,
+                     p_dns, s_dns,
+                     dhcp_leases, p_dhcp, s_dhcp) = row
+                    
+                    # Insert into poll_cycles
+                    cursor = await db.execute(
+                        """INSERT INTO poll_cycles (timestamp, dhcp_leases)
+                           VALUES (?, ?)""",
+                        (timestamp, dhcp_leases or 0)
+                    )
+                    poll_id = cursor.lastrowid
+                    
+                    # Insert primary node (index 1)
+                    await db.execute("""
+                        INSERT INTO node_status
+                        (poll_id, node_index, node_name, vrrp_state, has_vip, online, pihole_ok, dns_ok, dhcp_ok)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (poll_id, 1, "Primary", p_state,
+                          p_has_vip, p_online, p_pihole, p_dns, p_dhcp))
+                    
+                    # Insert secondary node (index 2)
+                    await db.execute("""
+                        INSERT INTO node_status
+                        (poll_id, node_index, node_name, vrrp_state, has_vip, online, pihole_ok, dns_ok, dhcp_ok)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (poll_id, 2, "Secondary", s_state,
+                          s_has_vip, s_online, s_pihole, s_dns, s_dhcp))
+                
+                await db.commit()
+                logger.info(f"Migrated {min(batch_start + batch_size, len(rows))}/{len(rows)} rows...")
+            
+            logger.info(f"✅ Migration complete: {len(rows)} old records migrated to new schema")
+            
+    except Exception as e:
+        logger.error(f"❌ Migration failed: {e}", exc_info=True)
+        raise
+
 
 async def cleanup_old_data():
     """Remove old status history and events to prevent database growth."""
@@ -1274,13 +1394,13 @@ async def cleanup_old_data():
 
     try:
         async with aiosqlite.connect(CONFIG["db_path"]) as db:
-            # Delete old status_history records in batches
+            # Delete old poll_cycles records (and cascade to node_status via FK)
             batch_size = 5000
             total_history = 0
             while True:
                 cursor = await db.execute(
-                    "DELETE FROM status_history WHERE rowid IN "
-                    "(SELECT rowid FROM status_history WHERE timestamp < ? LIMIT ?)",
+                    "DELETE FROM poll_cycles WHERE rowid IN "
+                    "(SELECT rowid FROM poll_cycles WHERE timestamp < ? LIMIT ?)",
                     (cutoff_history.isoformat(), batch_size)
                 )
                 deleted = cursor.rowcount
@@ -1309,7 +1429,7 @@ async def cleanup_old_data():
 
             logger.info(
                 f"Database cleanup completed: "
-                f"removed {total_history} status_history rows (>{retention_days_history} days), "
+                f"removed {total_history} poll_cycles (+ node_status) rows (>{retention_days_history} days), "
                 f"removed {total_events} event rows (>{retention_days_events} days)"
             )
     except Exception as e:
