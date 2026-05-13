@@ -190,6 +190,18 @@ def _init_nodes():
     """Load node configuration on app startup."""
     if CONFIG["nodes"] is None:
         CONFIG["nodes"] = load_node_config_from_env()
+    if CONFIG["nodes"]:
+        CONFIG["primary"] = {
+            "ip": CONFIG["nodes"][0]["ip"],
+            "name": CONFIG["nodes"][0]["name"],
+            "password": CONFIG["nodes"][0]["password"],
+        }
+    if len(CONFIG["nodes"]) > 1:
+        CONFIG["secondary"] = {
+            "ip": CONFIG["nodes"][1]["ip"],
+            "name": CONFIG["nodes"][1]["name"],
+            "password": CONFIG["nodes"][1]["password"],
+        }
     return CONFIG["nodes"]
 
 # Verify required environment variables (minimal check now, nodes validated in load_node_config_from_env)
@@ -359,6 +371,8 @@ class ErrorResponse(BaseModel):
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     # Startup
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        _validate_config()
     await init_db()
     await get_http_session()
     # Duplicate log removed here - log_event is called inside monitor_loop startup logic
@@ -1394,21 +1408,40 @@ async def cleanup_old_data():
 
     try:
         async with aiosqlite.connect(CONFIG["db_path"]) as db:
+            cursor = await db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='poll_cycles'"
+            )
+            has_poll_cycles = await cursor.fetchone() is not None
+
             # Delete old poll_cycles records (and cascade to node_status via FK)
             batch_size = 5000
             total_history = 0
-            while True:
-                cursor = await db.execute(
-                    "DELETE FROM poll_cycles WHERE rowid IN "
-                    "(SELECT rowid FROM poll_cycles WHERE timestamp < ? LIMIT ?)",
-                    (cutoff_history.isoformat(), batch_size)
-                )
-                deleted = cursor.rowcount
-                total_history += deleted
-                if deleted < batch_size:
-                    break
-                await db.commit()
-                await asyncio.sleep(0.1)  # Yield between batches
+            if has_poll_cycles:
+                while True:
+                    cursor = await db.execute(
+                        "DELETE FROM poll_cycles WHERE rowid IN "
+                        "(SELECT rowid FROM poll_cycles WHERE timestamp < ? LIMIT ?)",
+                        (cutoff_history.isoformat(), batch_size)
+                    )
+                    deleted = cursor.rowcount
+                    total_history += deleted
+                    if deleted < batch_size:
+                        break
+                    await db.commit()
+                    await asyncio.sleep(0.1)  # Yield between batches
+            else:
+                while True:
+                    cursor = await db.execute(
+                        "DELETE FROM status_history WHERE rowid IN "
+                        "(SELECT rowid FROM status_history WHERE timestamp < ? LIMIT ?)",
+                        (cutoff_history.isoformat(), batch_size)
+                    )
+                    deleted = cursor.rowcount
+                    total_history += deleted
+                    if deleted < batch_size:
+                        break
+                    await db.commit()
+                    await asyncio.sleep(0.1)
 
             # Delete old events in batches
             total_events = 0
@@ -1429,7 +1462,7 @@ async def cleanup_old_data():
 
             logger.info(
                 f"Database cleanup completed: "
-                f"removed {total_history} poll_cycles (+ node_status) rows (>{retention_days_history} days), "
+                f"removed {total_history} {'poll_cycles (+ node_status)' if has_poll_cycles else 'status_history'} rows (>{retention_days_history} days), "
                 f"removed {total_events} event rows (>{retention_days_events} days)"
             )
     except Exception as e:
@@ -1582,86 +1615,93 @@ async def check_dns(ip: str) -> Tuple[bool, Optional[float]]:
         logger.debug(f"DNS check error for {ip}: {e}")
         return False, None
 
-async def check_who_has_vip(vip: str, primary_ip: str, secondary_ip: str, max_retries: int = 3) -> tuple:
+def _extract_mac_from_arp(output: str) -> Optional[str]:
+    """Extract MAC address from `ip neigh show` output."""
+    parts = output.split()
+    try:
+        lladdr_idx = parts.index('lladdr')
+        return parts[lladdr_idx + 1].upper()
+    except (ValueError, IndexError):
+        return None
+
+
+async def check_who_has_vip(
+    vip: str,
+    primary_ip: str | list[str],
+    secondary_ip: Optional[str] = None,
+    max_retries: int = 3,
+) -> tuple:
     """
-    Check which Pi-hole has the VIP by comparing MAC addresses.
-    Connect to VIP and both servers, then compare which server's MAC matches the VIP's MAC.
-    Includes retry logic for reliability.
+    Check which Pi-hole node has the VIP by comparing MAC addresses.
+
+    Backward compatible with the legacy 2-node signature:
+    - check_who_has_vip(vip, primary_ip, secondary_ip)
+
+    New N-node form:
+    - check_who_has_vip(vip, [ip1, ip2, ip3, ...])
     """
+    if isinstance(primary_ip, list):
+        node_ips = primary_ip
+    else:
+        node_ips = [primary_ip]
+        if secondary_ip is not None:
+            node_ips.append(secondary_ip)
+
     for attempt in range(max_retries):
         try:
-            # Get MAC address by checking ARP table after making connections
-            # First connect to each IP to ensure ARP entries exist
-            # Use context manager to prevent file descriptor leaks
-            for ip in [vip, primary_ip, secondary_ip]:
+            for ip in [vip, *node_ips]:
                 try:
                     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                         sock.settimeout(1)
                         sock.connect_ex((ip, 80))
                 except (OSError, socket.error):
-                    # Socket errors are expected for unreachable hosts
                     pass
 
-            # Small delay for ARP table to populate
             await asyncio.sleep(0.2)
 
-            # Read ARP table entries using async subprocess
             async def get_arp_entry(ip_addr: str) -> str:
-                """Get ARP entry for IP address using async subprocess."""
                 try:
                     proc = await asyncio.create_subprocess_exec(
                         "/usr/sbin/ip", "neigh", "show", ip_addr,
                         stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
+                        stderr=asyncio.subprocess.PIPE,
                     )
-                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=2)
+                    stdout, _stderr = await asyncio.wait_for(proc.communicate(), timeout=2)
                     return stdout.decode()
                 except Exception:
                     return ""
 
-            # Run ARP lookups concurrently for better performance
-            vip_output, primary_output, secondary_output = await asyncio.gather(
-                get_arp_entry(vip),
-                get_arp_entry(primary_ip),
-                get_arp_entry(secondary_ip)
+            outputs = await asyncio.gather(get_arp_entry(vip), *[get_arp_entry(ip) for ip in node_ips])
+            vip_output = outputs[0]
+            node_outputs = outputs[1:]
+
+            vip_mac = _extract_mac_from_arp(vip_output)
+            node_macs = [_extract_mac_from_arp(output) for output in node_outputs]
+
+            logger.debug(
+                f"VIP check (attempt {attempt + 1}/{max_retries}): VIP_MAC={vip_mac}, NODE_MACS={node_macs}"
             )
 
-            def extract_mac(output):
-                """Extract MAC address from 'ip neigh show' output"""
-                parts = output.split()
-                try:
-                    lladdr_idx = parts.index('lladdr')
-                    return parts[lladdr_idx + 1].upper()
-                except (ValueError, IndexError):
-                    return None
+            if not vip_mac:
+                logger.warning(
+                    f"VIP {vip} has no ARP entry (attempt {attempt + 1}/{max_retries}) - possible keepalived failure"
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(1)
+                    continue
+                return tuple(False for _ in node_ips)
 
-            vip_mac = extract_mac(vip_output)
-            primary_mac = extract_mac(primary_output)
-            secondary_mac = extract_mac(secondary_output)
-
-            logger.debug(f"VIP check (attempt {attempt + 1}/{max_retries}): VIP_MAC={vip_mac}, Primary_MAC={primary_mac}, Secondary_MAC={secondary_mac}")
-
-            if vip_mac and primary_mac and vip_mac == primary_mac:
-                return True, False
-            elif vip_mac and secondary_mac and vip_mac == secondary_mac:
-                return False, True
-            else:
-                # If VIP MAC not found, likely no MASTER (both BACKUP)
-                if not vip_mac:
-                    logger.warning(f"VIP {vip} has no ARP entry (attempt {attempt + 1}/{max_retries}) - possible keepalived failure")
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(1)  # Wait before retry
-                        continue
-                return False, False
+            matches = [bool(node_mac and vip_mac == node_mac) for node_mac in node_macs]
+            return tuple(matches)
 
         except Exception as e:
             logger.error(f"Error checking VIP (attempt {attempt + 1}/{max_retries}): {e}")
             if attempt < max_retries - 1:
-                await asyncio.sleep(1)  # Wait before retry
+                await asyncio.sleep(1)
             else:
-                return False, False
+                return tuple(False for _ in node_ips)
 
-    return False, False
+    return tuple(False for _ in node_ips)
 
 async def log_event(event_type: str, message: str):
     async with aiosqlite.connect(CONFIG["db_path"]) as db:
@@ -1741,261 +1781,254 @@ _OVERRIDE_TTL_SECONDS = 600  # 10 minutes safety auto-expire
 _debug_overrides: dict = {}  # "primary"/"secondary" → {"state": "offline", "expires": float}
 
 async def monitor_loop():
-    previous_state = None
-    previous_primary_online = None
-    previous_secondary_online = None
-    previous_primary_pihole = None
-    previous_secondary_pihole = None
-    previous_primary_dns = None
-    previous_primary_has_vip = None
-    previous_secondary_has_vip = None
+    nodes = _init_nodes()
+    previous_states: dict[int, str] = {}
+    previous_online: dict[int, bool] = {}
+    previous_pihole: dict[int, bool] = {}
+    previous_dns: dict[int, bool] = {}
+    previous_has_vip: dict[int, bool] = {}
     startup = True
+
+    def _node_role(index: int) -> str:
+        if index == 1:
+            return "primary"
+        if index == 2:
+            return "secondary"
+        return f"node_{index}"
+
+    def _node_label(node: dict) -> str:
+        return node.get("name") or f"Node {node.get('index', '?')}"
 
     while True:
         try:
-            primary_data = await check_pihole_simple(CONFIG["primary"]["ip"], CONFIG["primary"]["password"])
-            secondary_data = await check_pihole_simple(CONFIG["secondary"]["ip"], CONFIG["secondary"]["password"])
+            node_payloads = await asyncio.gather(
+                *[check_pihole_simple(node["ip"], node["password"]) for node in nodes]
+            )
 
-            # Apply debug overrides (test mode) — only when DEBUG_MODE=true
             if DEBUG_MODE:
                 now_ts = asyncio.get_running_loop().time()
-                for node, node_data in (("primary", primary_data), ("secondary", secondary_data)):
-                    override = _debug_overrides.get(node)
+                for node, node_data in zip(nodes, node_payloads):
+                    role = _node_role(node["index"])
+                    override = _debug_overrides.get(role)
                     if override and now_ts < override["expires"]:
-                        # Force all health fields to offline state
-                        node_data.update({"online": False, "pihole": False,
-                                           "dns": False, "dhcp_enabled": None})
+                        node_data.update({"online": False, "pihole": False, "dns": False, "dhcp_enabled": None})
                     elif override:
-                        # Expired — clean up silently
-                        _debug_overrides.pop(node, None)
+                        _debug_overrides.pop(role, None)
 
-            # Update Pi-hole stats cache
-            for key in ("queries", "blocked", "clients"):
-                _pihole_stats["primary"][key] = primary_data.get(key, 0)
-                _pihole_stats["secondary"][key] = secondary_data.get(key, 0)
-            # dns_latency_ms is updated after check_dns calls below
+            for role, node_data in zip(("primary", "secondary"), node_payloads[:2]):
+                for key in ("queries", "blocked", "clients"):
+                    _pihole_stats[role][key] = node_data.get(key, 0)
 
-            # Check DNS functionality separately (returns ok + latency)
-            primary_dns_ok, primary_dns_latency = await check_dns(CONFIG["primary"]["ip"]) if primary_data["online"] else (False, None)
-            secondary_dns_ok, secondary_dns_latency = await check_dns(CONFIG["secondary"]["ip"]) if secondary_data["online"] else (False, None)
-            primary_dns = primary_dns_ok
-            secondary_dns = secondary_dns_ok
-            _pihole_stats["primary"]["dns_latency_ms"] = primary_dns_latency
-            _pihole_stats["secondary"]["dns_latency_ms"] = secondary_dns_latency
+            dns_results = await asyncio.gather(
+                *[
+                    check_dns(node["ip"]) if node_data["online"] else asyncio.sleep(0, result=(False, None))
+                    for node, node_data in zip(nodes, node_payloads)
+                ]
+            )
 
-            # Log DNS latency degradation / recovery events
-            for node, dns_ok, latency in (
-                ("primary", primary_dns_ok, primary_dns_latency),
-                ("secondary", secondary_dns_ok, secondary_dns_latency),
-            ):
-                node_label = node.capitalize()
-                if dns_ok and latency is not None and latency > DNS_LATENCY_WARN_MS:
-                    if node not in _dns_degraded:
-                        _dns_degraded.add(node)
-                        await log_event("warning", f"DNS latency degraded on {node_label}: {latency:.0f} ms (threshold {DNS_LATENCY_WARN_MS:.0f} ms)")
-                        logger.warning(f"{node_label} DNS latency degraded: {latency:.0f} ms")
-                elif node in _dns_degraded and dns_ok and latency is not None and latency <= DNS_LATENCY_WARN_MS:
-                    _dns_degraded.discard(node)
-                    await log_event("success", f"DNS latency restored on {node_label}: {latency:.0f} ms")
-                    logger.info(f"{node_label} DNS latency restored")
-                elif node in _dns_degraded and (not dns_ok or latency is None):
-                    _dns_degraded.discard(node)
-                    # DNS is offline/failing — clear degraded flag silently
+            node_states: list[dict] = []
+            for node, node_data, (dns_ok, dns_latency) in zip(nodes, node_payloads, dns_results):
+                role = _node_role(node["index"])
+                node_name = _node_label(node)
+                node_data["dns"] = dns_ok
+                node_data["dns_latency_ms"] = dns_latency
+                if role in ("primary", "secondary"):
+                    _pihole_stats[role]["dns_latency_ms"] = dns_latency
 
-            primary_has_vip, secondary_has_vip = await check_who_has_vip(CONFIG["vip"], CONFIG["primary"]["ip"], CONFIG["secondary"]["ip"])
+                if dns_ok and dns_latency is not None and dns_latency > DNS_LATENCY_WARN_MS:
+                    if role not in _dns_degraded:
+                        _dns_degraded.add(role)
+                        await log_event("warning", f"DNS latency degraded on {node_name}: {dns_latency:.0f} ms (threshold {DNS_LATENCY_WARN_MS:.0f} ms)")
+                        logger.warning(f"{node_name} DNS latency degraded: {dns_latency:.0f} ms")
+                elif role in _dns_degraded and dns_ok and dns_latency is not None and dns_latency <= DNS_LATENCY_WARN_MS:
+                    _dns_degraded.discard(role)
+                    await log_event("success", f"DNS latency restored on {node_name}: {dns_latency:.0f} ms")
+                    logger.info(f"{node_name} DNS latency restored")
+                elif role in _dns_degraded and (not dns_ok or dns_latency is None):
+                    _dns_degraded.discard(role)
 
-            primary_state = "MASTER" if primary_has_vip else "BACKUP"
-            secondary_state = "MASTER" if secondary_has_vip else "BACKUP"
+                node_states.append({
+                    "index": node["index"],
+                    "role": role,
+                    "name": node_name,
+                    "ip": node["ip"],
+                    "state": "BACKUP",
+                    "has_vip": False,
+                    "online": node_data["online"],
+                    "pihole": node_data["pihole"],
+                    "dns": dns_ok,
+                    "dns_latency_ms": dns_latency,
+                    "dhcp": node_data.get("dhcp_enabled"),
+                    "queries": node_data.get("queries", 0),
+                    "blocked": node_data.get("blocked", 0),
+                    "clients": node_data.get("clients", 0),
+                    "dhcp_leases": node_data.get("dhcp_leases", 0),
+                })
 
-            # Log initial status on startup
+            vip_hits = await check_who_has_vip(CONFIG["vip"], [node["ip"] for node in nodes])
+            vip_hits = list(vip_hits)[:len(node_states)]
+            if len(vip_hits) < len(node_states):
+                vip_hits.extend([False] * (len(node_states) - len(vip_hits)))
+
+            for node_state, has_vip in zip(node_states, vip_hits):
+                node_state["has_vip"] = has_vip
+                node_state["state"] = "MASTER" if has_vip else "BACKUP"
+
+            current_master = next((node for node in node_states if node["has_vip"]), None)
+            current_master_index = current_master["index"] if current_master else None
+            current_master_name = current_master["name"] if current_master else "No MASTER"
+            previous_master_index = next((index for index, state in previous_states.items() if state == "MASTER"), None)
+            previous_master_name = next((node["name"] for node in node_states if node["index"] == previous_master_index), None)
+
             if startup:
-                current_master = "Primary" if primary_state == "MASTER" else "Secondary"
-                await log_event("info", f"Monitor started - {current_master} is MASTER")
-                await log_event("info", f"Primary: {'Online' if primary_data['online'] else 'Offline'}, Pi-hole: {'OK' if primary_data['pihole'] else 'Down'}")
-                await log_event("info", f"Secondary: {'Online' if secondary_data['online'] else 'Offline'}, Pi-hole: {'OK' if secondary_data['pihole'] else 'Down'}")
+                if current_master:
+                    await log_event("info", f"Monitor started - {current_master_name} is MASTER")
+                else:
+                    await log_event("warning", "Monitor started - no MASTER detected")
+
+                for node_state in node_states[:2]:
+                    await log_event(
+                        "info",
+                        f"{node_state['name']}: {'Online' if node_state['online'] else 'Offline'}, Pi-hole: {'OK' if node_state['pihole'] else 'Down'}",
+                    )
+
                 await send_notification("startup", {
-                    "master": CONFIG.get('primary' if primary_state == 'MASTER' else 'secondary', {}).get('name', f'{current_master} Pi-hole'),
-                    "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                    "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                    "vip": CONFIG['vip'],
-                    "vip_address": CONFIG['vip'],
+                    "master": current_master_name,
+                    "backup": next((node["name"] for node in node_states if not node["has_vip"]), current_master_name),
+                    "primary": node_states[0]["name"] if node_states else "Primary Pi-hole",
+                    "secondary": node_states[1]["name"] if len(node_states) > 1 else (node_states[0]["name"] if node_states else "Secondary Pi-hole"),
+                    "nodes": node_states,
+                    "vip": CONFIG["vip"],
+                    "vip_address": CONFIG["vip"],
                     "time": datetime.now().strftime("%H:%M:%S"),
                     "date": datetime.now().strftime("%Y-%m-%d"),
                 })
                 startup = False
 
-            # Detect online/offline changes (with debounce)
-            # A node must stay offline for EVENT_DEBOUNCE_SECONDS before an
-            # event is logged.  This suppresses transient outages caused by
-            # config-sync FTL restarts (~12-32 s).
-            for node in ("primary", "secondary"):
-                node_data = primary_data if node == "primary" else secondary_data
-                node_label = "Primary" if node == "primary" else "Secondary"
-                previous_online = previous_primary_online if node == "primary" else previous_secondary_online
-                fault_key = f"{node}_offline"
+            for node_state in node_states:
+                node_key = f"node_{node_state['index']}"
+                node_label = node_state["name"]
 
-                if node_data["online"]:
-                    # Node is online — clear any pending offline state
-                    if node in _offline_since:
-                        was_logged = node in _offline_event_logged
-                        _offline_since.pop(node, None)
-                        _offline_event_logged.discard(node)
+                if node_state["online"]:
+                    if node_key in _offline_since:
+                        was_logged = node_key in _offline_event_logged
+                        _offline_since.pop(node_key, None)
+                        _offline_event_logged.discard(node_key)
                         if was_logged:
-                            # Offline event was sent earlier → log recovery
-                            await _cancel_fault(fault_key, {
-                                "node": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
-                                "master": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
-                                "backup": CONFIG.get('secondary' if node == 'primary' else 'primary', {}).get('name', f'{"Secondary" if node == "primary" else "Primary"} Pi-hole'),
-                                "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                                "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                                "reason": f"{CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole')} is back online",
-                                "vip": CONFIG['vip'], "vip_address": CONFIG['vip'],
+                            await _cancel_fault(node_key, {
+                                "node": node_label,
+                                "node_name": node_label,
+                                "master": current_master_name,
+                                "backup": next((n["name"] for n in node_states if n["index"] != node_state["index"]), node_label),
+                                "primary": node_states[0]["name"] if node_states else "Primary Pi-hole",
+                                "secondary": node_states[1]["name"] if len(node_states) > 1 else (node_states[0]["name"] if node_states else "Secondary Pi-hole"),
+                                "reason": f"{node_label} is back online",
+                                "vip": CONFIG["vip"],
+                                "vip_address": CONFIG["vip"],
                                 "time": datetime.now().strftime("%H:%M:%S"),
                                 "date": datetime.now().strftime("%Y-%m-%d"),
                             })
                             await log_event("success", f"{node_label} is back ONLINE")
                             logger.info(f"{node_label} is back ONLINE")
                         else:
-                            # Recovered before debounce expired → suppress silently
-                            _cancel_fault_pending(fault_key)
+                            _cancel_fault_pending(node_key)
                             logger.debug(f"{node_label} recovered within debounce window, suppressing event")
                 else:
-                    # Node is offline
-                    if previous_online is not None and node not in _offline_since:
-                        # First detection of offline state
-                        _offline_since[node] = datetime.now()
+                    if previous_online.get(node_state["index"]) is not None and node_key not in _offline_since:
+                        _offline_since[node_key] = datetime.now()
                         logger.debug(f"{node_label} went offline, starting {EVENT_DEBOUNCE_SECONDS}s debounce")
-                    elif node in _offline_since and node not in _offline_event_logged:
-                        # Check if debounce period has elapsed
-                        elapsed = (datetime.now() - _offline_since[node]).total_seconds()
+                    elif node_key in _offline_since and node_key not in _offline_event_logged:
+                        elapsed = (datetime.now() - _offline_since[node_key]).total_seconds()
                         if elapsed >= EVENT_DEBOUNCE_SECONDS:
-                            _offline_event_logged.add(node)
+                            _offline_event_logged.add(node_key)
                             await log_event("warning", f"{node_label} went OFFLINE")
                             logger.warning(f"{node_label} went OFFLINE")
-                            _arm_fault(fault_key, {
-                                "node": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
-                                "node_name": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
-                                "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                                "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                                "reason": f"{CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole')} is unreachable",
-                                "vip": CONFIG['vip'],
-                                "vip_address": CONFIG['vip'],
+                            _arm_fault(node_key, {
+                                "node": node_label,
+                                "node_name": node_label,
+                                "primary": node_states[0]["name"] if node_states else "Primary Pi-hole",
+                                "secondary": node_states[1]["name"] if len(node_states) > 1 else (node_states[0]["name"] if node_states else "Secondary Pi-hole"),
+                                "reason": f"{node_label} is unreachable",
+                                "vip": CONFIG["vip"],
+                                "vip_address": CONFIG["vip"],
                                 "time": datetime.now().strftime("%H:%M:%S"),
                                 "date": datetime.now().strftime("%Y-%m-%d"),
                             })
 
-            # Detect Pi-hole service changes (with debounce)
-            # Only track pihole service state when the node is online — when a
-            # node goes offline, pihole=False is a side-effect, not a real FTL
-            # crash.  This prevents orphaned "is back UP" events on recovery.
-            for node in ("primary", "secondary"):
-                node_data = primary_data if node == "primary" else secondary_data
-                node_label = "Primary" if node == "primary" else "Secondary"
-                previous_pihole = previous_primary_pihole if node == "primary" else previous_secondary_pihole
-                fault_key = f"{node}_pihole_down"
+            for node_state in node_states:
+                node_key = f"node_{node_state['index']}"
 
-                if not node_data["online"]:
-                    # Node is offline — don't track pihole state changes.
-                    # Clear any pending pihole-down debounce since the offline
-                    # debounce handles this case.
-                    _pihole_down_since.pop(node, None)
+                if not node_state["online"]:
+                    _pihole_down_since.pop(node_key, None)
                     continue
 
-                if node_data["pihole"]:
-                    # Pi-hole service is up
-                    if node in _pihole_down_since:
-                        was_logged = node in _pihole_down_event_logged
-                        _pihole_down_since.pop(node, None)
-                        _pihole_down_event_logged.discard(node)
+                if node_state["pihole"]:
+                    if node_key in _pihole_down_since:
+                        was_logged = node_key in _pihole_down_event_logged
+                        _pihole_down_since.pop(node_key, None)
+                        _pihole_down_event_logged.discard(node_key)
                         if was_logged:
-                            await _cancel_fault(fault_key, {
-                                "node": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
-                                "master": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
-                                "backup": CONFIG.get('secondary' if node == 'primary' else 'primary', {}).get('name', f'{"Secondary" if node == "primary" else "Primary"} Pi-hole'),
-                                "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                                "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                                "reason": f"Pi-hole service on {CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole')} is back up",
-                                "vip": CONFIG['vip'], "vip_address": CONFIG['vip'],
+                            await _cancel_fault(node_key, {
+                                "node": node_state["name"],
+                                "node_name": node_state["name"],
+                                "master": current_master_name,
+                                "backup": next((n["name"] for n in node_states if n["index"] != node_state["index"]), node_state["name"]),
+                                "primary": node_states[0]["name"] if node_states else "Primary Pi-hole",
+                                "secondary": node_states[1]["name"] if len(node_states) > 1 else (node_states[0]["name"] if node_states else "Secondary Pi-hole"),
+                                "reason": f"Pi-hole service on {node_state['name']} is back up",
+                                "vip": CONFIG["vip"],
+                                "vip_address": CONFIG["vip"],
                                 "time": datetime.now().strftime("%H:%M:%S"),
                                 "date": datetime.now().strftime("%Y-%m-%d"),
                             })
-                            await log_event("success", f"Pi-hole service on {node_label} is back UP")
-                            logger.info(f"{node_label} Pi-hole service is back UP")
+                            await log_event("success", f"Pi-hole service on {node_state['name']} is back UP")
+                            logger.info(f"{node_state['name']} Pi-hole service is back UP")
                         else:
-                            _cancel_fault_pending(fault_key)
-                            logger.debug(f"{node_label} Pi-hole recovered within debounce window")
-                    elif previous_pihole is False:
-                        # Was down before monitoring started or from a previous
-                        # logged cycle — but no debounce entry exists (e.g. node
-                        # was offline and came back with pihole already up).
-                        # Cancel any lingering fault silently.
-                        _cancel_fault_pending(fault_key)
+                            _cancel_fault_pending(node_key)
+                            logger.debug(f"{node_state['name']} Pi-hole recovered within debounce window")
+                    elif previous_pihole.get(node_state["index"]) is False:
+                        _cancel_fault_pending(node_key)
                 else:
-                    # Pi-hole service is down while node is online
-                    if previous_pihole is not None and node not in _pihole_down_since:
-                        _pihole_down_since[node] = datetime.now()
-                        logger.debug(f"{node_label} Pi-hole service went down, starting {EVENT_DEBOUNCE_SECONDS}s debounce")
-                    elif node in _pihole_down_since and node not in _pihole_down_event_logged:
-                        elapsed = (datetime.now() - _pihole_down_since[node]).total_seconds()
+                    if previous_pihole.get(node_state["index"]) is not None and node_key not in _pihole_down_since:
+                        _pihole_down_since[node_key] = datetime.now()
+                        logger.debug(f"{node_state['name']} Pi-hole service went down, starting {EVENT_DEBOUNCE_SECONDS}s debounce")
+                    elif node_key in _pihole_down_since and node_key not in _pihole_down_event_logged:
+                        elapsed = (datetime.now() - _pihole_down_since[node_key]).total_seconds()
                         if elapsed >= EVENT_DEBOUNCE_SECONDS:
-                            _pihole_down_event_logged.add(node)
-                            await log_event("warning", f"Pi-hole service on {node_label} is DOWN")
-                            logger.warning(f"{node_label} Pi-hole service is DOWN")
-                            _arm_fault(fault_key, {
-                                "node": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
-                                "node_name": CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole'),
-                                "primary": CONFIG.get('primary', {}).get('name', 'Primary Pi-hole'),
-                                "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary Pi-hole'),
-                                "reason": f"Pi-hole service on {CONFIG.get(node, {}).get('name', f'{node_label} Pi-hole')} is down",
-                                "vip": CONFIG['vip'],
-                                "vip_address": CONFIG['vip'],
+                            _pihole_down_event_logged.add(node_key)
+                            await log_event("warning", f"Pi-hole service on {node_state['name']} is DOWN")
+                            logger.warning(f"{node_state['name']} Pi-hole service is DOWN")
+                            _arm_fault(node_key, {
+                                "node": node_state["name"],
+                                "node_name": node_state["name"],
+                                "primary": node_states[0]["name"] if node_states else "Primary Pi-hole",
+                                "secondary": node_states[1]["name"] if len(node_states) > 1 else (node_states[0]["name"] if node_states else "Secondary Pi-hole"),
+                                "reason": f"Pi-hole service on {node_state['name']} is down",
+                                "vip": CONFIG["vip"],
+                                "vip_address": CONFIG["vip"],
                                 "time": datetime.now().strftime("%H:%M:%S"),
                                 "date": datetime.now().strftime("%Y-%m-%d"),
                             })
 
-            # Detect VIP changes (not during failover)
-            if previous_primary_has_vip is not None and previous_secondary_has_vip is not None:
-                if previous_primary_has_vip != primary_has_vip or previous_secondary_has_vip != secondary_has_vip:
-                    current = "Primary" if primary_has_vip else "Secondary"
-                    previous = "Primary" if previous_primary_has_vip else "Secondary"
-                    await log_event("warning", f"VIP switched from {previous} to {current}")
-                    logger.warning(f"VIP switched from {previous} to {current}")
+            previous_vip_owner = next((index for index, state in previous_states.items() if state == "MASTER"), None)
+            if previous_vip_owner is not None and previous_vip_owner != current_master_index:
+                if len(node_states) == 2:
+                    transition_event, reason = describe_master_transition(
+                        "primary" if previous_vip_owner == 1 else "secondary",
+                        "primary" if current_master_index == 1 else "secondary",
+                        node_payloads[0],
+                        node_payloads[1],
+                        node_states[0]["dns"],
+                        node_states[1]["dns"],
+                        previous_online.get(1),
+                        previous_pihole.get(1),
+                        previous_dns.get(1),
+                    )
+                else:
+                    transition_event = "failover"
+                    reason = f"MASTER changed from {previous_master_name or 'unknown'} to {current_master_name}"
 
-            dhcp_leases = 0
-            if primary_state == "MASTER":
-                dhcp_leases = primary_data.get("dhcp_leases", 0)
-            elif secondary_state == "MASTER":
-                dhcp_leases = secondary_data.get("dhcp_leases", 0)
-            else:
-                # Fallback: if no master (splitting brain or transition), take max lease count
-                # This prevents graph dips to 0 during short transitions
-                p_leases = primary_data.get("dhcp_leases", 0)
-                s_leases = secondary_data.get("dhcp_leases", 0)
-                dhcp_leases = max(p_leases, s_leases)
-
-            async with aiosqlite.connect(CONFIG["db_path"]) as db:
-                await db.execute("""
-                    INSERT INTO status_history (primary_state, secondary_state, primary_has_vip, secondary_has_vip, primary_online, secondary_online, primary_pihole, secondary_pihole, primary_dns, secondary_dns, dhcp_leases, primary_dhcp, secondary_dhcp)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (primary_state, secondary_state, primary_has_vip, secondary_has_vip, primary_data["online"], secondary_data["online"], primary_data["pihole"], secondary_data["pihole"], primary_dns, secondary_dns, dhcp_leases, primary_data.get("dhcp_enabled", False), secondary_data.get("dhcp_enabled", False)))
-                await db.commit()
-
-            # Detect failover
-            current_master = "primary" if primary_state == "MASTER" else "secondary"
-            if previous_state and previous_state != current_master:
-                master_name = "Primary" if current_master == "primary" else "Secondary"
-                transition_event, reason = describe_master_transition(
-                    previous_state,
-                    current_master,
-                    primary_data,
-                    secondary_data,
-                    primary_dns,
-                    secondary_dns,
-                    previous_primary_online,
-                    previous_primary_pihole,
-                    previous_primary_dns,
-                )
-
+                master_name = current_master_name
                 if transition_event == "recovery":
                     await log_event("recovery", f"{master_name} reclaimed MASTER")
                     logger.info(f"RECOVERY: {master_name} reclaimed MASTER")
@@ -2005,109 +2038,135 @@ async def monitor_loop():
                     logger.warning(f"FAILOVER: {master_name} is now MASTER")
                     await log_event("info", f"Failover reason: {reason}")
 
-                # Send notification
-                # Determine which node is master and which is backup
-                if current_master == "primary":
-                    master_node = CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole')
-                    backup_node = CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole')
-                else:
-                    master_node = CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole')
-                    backup_node = CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole')
-
+                backup_name = next((node["name"] for node in node_states if node["index"] != current_master_index), master_name)
                 template_vars = {
                     "node_name": master_name,
                     "node": master_name,
-                    "master": master_node,
-                    "backup": backup_node,
-                    "primary": CONFIG.get('primary', {}).get('name', 'Primary-Pi-hole'),
-                    "secondary": CONFIG.get('secondary', {}).get('name', 'Secondary-Pi-hole'),
+                    "master": master_name,
+                    "backup": backup_name,
+                    "primary": node_states[0]["name"] if node_states else "Primary Pi-hole",
+                    "secondary": node_states[1]["name"] if len(node_states) > 1 else (node_states[0]["name"] if node_states else "Secondary Pi-hole"),
+                    "nodes": node_states,
                     "reason": reason,
-                    "vip_address": CONFIG['vip'],
-                    "vip": CONFIG['vip'],
+                    "vip_address": CONFIG["vip"],
+                    "vip": CONFIG["vip"],
                     "time": datetime.now().strftime("%H:%M:%S"),
-                    "date": datetime.now().strftime("%Y-%m-%d")
+                    "date": datetime.now().strftime("%Y-%m-%d"),
                 }
                 await send_notification(transition_event, template_vars)
-                # Mark failover as active issue for reminders
                 notification_state["active_issues"]["failover"] = transition_event == "failover"
 
-            # Check for recovery - clear active issues
-            if previous_state and previous_state != current_master:
-                # If we switched back to primary as master, clear failover issue
-                if current_master == "primary":
+            if previous_vip_owner is not None and previous_vip_owner != current_master_index:
+                if current_master_index == 1:
                     notification_state["active_issues"]["failover"] = False
                     notification_state["active_issues"]["fault"] = False
 
-            # Track fault state (both offline or both pihole down)
-            both_offline = not primary_data["online"] and not secondary_data["online"]
-            both_pihole_down = not primary_data["pihole"] and not secondary_data["pihole"]
-            if both_offline or both_pihole_down:
-                notification_state["active_issues"]["fault"] = True
+            all_offline = all(not node["online"] for node in node_states)
+            all_pihole_down = all(not node["pihole"] for node in node_states)
+            notification_state["active_issues"]["fault"] = all_offline or all_pihole_down
+
+            dhcp_leases = 0
+            if current_master is not None:
+                dhcp_leases = current_master.get("dhcp_leases", 0)
             else:
-                notification_state["active_issues"]["fault"] = False
+                dhcp_leases = max((node["dhcp_leases"] for node in node_states), default=0)
 
-            # Check and send reminder notifications if needed
-            await check_and_send_reminders()
+            async with aiosqlite.connect(CONFIG["db_path"]) as db:
+                poll_cursor = await db.execute(
+                    "INSERT INTO poll_cycles (dhcp_leases) VALUES (?)",
+                    (dhcp_leases,)
+                )
+                poll_id = poll_cursor.lastrowid
 
-            previous_state = current_master
-            previous_primary_online = primary_data["online"]
-            previous_secondary_online = secondary_data["online"]
-            # Only update pihole/dns previous state when the node is online.
-            # When offline, pihole=False is a side-effect, not a real state
-            # change.  Preserving the last-known-good value prevents false
-            # "is back UP" events when the node comes back online.
-            if primary_data["online"]:
-                previous_primary_pihole = primary_data["pihole"]
-                previous_primary_dns = primary_dns
-            if secondary_data["online"]:
-                previous_secondary_pihole = secondary_data["pihole"]
-            previous_primary_has_vip = primary_has_vip
-            previous_secondary_has_vip = secondary_has_vip
+                for node_state in node_states:
+                    await db.execute("""
+                        INSERT INTO node_status
+                        (poll_id, node_index, node_name, vrrp_state, has_vip, online, pihole_ok, dns_ok, dhcp_ok)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        poll_id,
+                        node_state["index"],
+                        node_state["name"],
+                        node_state["state"],
+                        node_state["has_vip"],
+                        node_state["online"],
+                        node_state["pihole"],
+                        node_state["dns"],
+                        bool(node_state.get("dhcp")) if node_state.get("dhcp") is not None else False,
+                    ))
 
-            # Check DHCP misconfiguration (with debounce)
-            # Only warn every 5 minutes to avoid log spam
-            # Skip entirely when DHCP failover is disabled
-            # Initialize last_dhcp_warning to current_time so the first
-            # warning is suppressed for 5 minutes after startup — this
-            # gives keepalived time to complete VRRP negotiation and
-            # enable/disable DHCP before we flag a misconfiguration.
+                legacy_primary = node_states[0] if node_states else None
+                legacy_secondary = node_states[1] if len(node_states) > 1 else legacy_primary
+                if legacy_primary and legacy_secondary:
+                    await db.execute("""
+                        INSERT INTO status_history (primary_state, secondary_state, primary_has_vip, secondary_has_vip, primary_online, secondary_online, primary_pihole, secondary_pihole, primary_dns, secondary_dns, dhcp_leases, primary_dhcp, secondary_dhcp)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        legacy_primary["state"],
+                        legacy_secondary["state"],
+                        legacy_primary["has_vip"],
+                        legacy_secondary["has_vip"],
+                        legacy_primary["online"],
+                        legacy_secondary["online"],
+                        legacy_primary["pihole"],
+                        legacy_secondary["pihole"],
+                        legacy_primary["dns"],
+                        legacy_secondary["dns"],
+                        dhcp_leases,
+                        bool(legacy_primary.get("dhcp")) if legacy_primary.get("dhcp") is not None else False,
+                        bool(legacy_secondary.get("dhcp")) if legacy_secondary.get("dhcp") is not None else False,
+                    ))
+
+                await db.commit()
+
             current_time = time.time()
             if not hasattr(monitor_loop, "_state"):
                 monitor_loop._state = {"last_dhcp_warning": current_time}
 
-            # Auto-detect DHCP usage from Pi-hole API responses
-            primary_dhcp = primary_data.get("dhcp_enabled")
-            secondary_dhcp = secondary_data.get("dhcp_enabled")
+            primary_dhcp = node_states[0].get("dhcp") if node_states else None
+            secondary_dhcp = node_states[1].get("dhcp") if len(node_states) > 1 else None
             await _update_dhcp_auto_detection(primary_dhcp, secondary_dhcp)
 
             if _dhcp_auto_detected:
                 should_warn = (current_time - monitor_loop._state["last_dhcp_warning"]) > 300
+                misconfigured_msg = None
+                for node_state in node_states:
+                    dhcp_enabled = node_state.get("dhcp")
+                    if dhcp_enabled is None:
+                        continue
+                    if node_state["state"] == "MASTER" and not dhcp_enabled:
+                        misconfigured_msg = f"⚠️ DHCP misconfiguration: {node_state['name']} is MASTER but DHCP is DISABLED"
+                        break
+                    if node_state["state"] == "BACKUP" and dhcp_enabled:
+                        misconfigured_msg = f"⚠️ DHCP misconfiguration: {node_state['name']} is BACKUP but DHCP is ENABLED"
+                        break
 
-                # MASTER should have DHCP enabled, BACKUP should have it disabled
-                misconfigured = False
-                msg = ""
-
-                if primary_state == "MASTER" and not primary_dhcp:
-                    msg = "⚠️ DHCP misconfiguration: Primary is MASTER but DHCP is DISABLED"
-                    misconfigured = True
-                elif primary_state == "BACKUP" and primary_dhcp:
-                    msg = "⚠️ DHCP misconfiguration: Primary is BACKUP but DHCP is ENABLED"
-                    misconfigured = True
-                elif secondary_state == "MASTER" and not secondary_dhcp:
-                    msg = "⚠️ DHCP misconfiguration: Secondary is MASTER but DHCP is DISABLED"
-                    misconfigured = True
-                elif secondary_state == "BACKUP" and secondary_dhcp:
-                    msg = "⚠️ DHCP misconfiguration: Secondary is BACKUP but DHCP is ENABLED"
-                    misconfigured = True
-
-                if misconfigured and should_warn:
-                    await log_event("warning", msg)
-                    logger.warning(msg)
+                if misconfigured_msg and should_warn:
+                    await log_event("warning", misconfigured_msg)
+                    logger.warning(misconfigured_msg)
                     monitor_loop._state["last_dhcp_warning"] = current_time
-                elif misconfigured and not should_warn:
-                    logger.debug(f"Suppressing DHCP warning (debounce): {msg}")
+                elif misconfigured_msg and not should_warn:
+                    logger.debug(f"Suppressing DHCP warning (debounce): {misconfigured_msg}")
 
-            logger.debug(f"[{datetime.now()}] Primary: {primary_state}, Secondary: {secondary_state}, Leases: {dhcp_leases}")
+            logger.debug(
+                f"[{datetime.now()}] "
+                + ", ".join(f"{node['name']}: {node['state']}" for node in node_states)
+                + f", Leases: {dhcp_leases}"
+            )
+
+            previous_states = {node["index"]: node["state"] for node in node_states}
+            previous_online = {node["index"]: node["online"] for node in node_states}
+            previous_pihole = {
+                node["index"]: node["pihole"]
+                for node in node_states
+                if node["online"]
+            }
+            previous_dns = {
+                node["index"]: node["dns"]
+                for node in node_states
+                if node["online"]
+            }
+            previous_has_vip = {node["index"]: node["has_vip"] for node in node_states}
 
         except Exception as e:
             logger.error(f"Error in monitor loop: {e}", exc_info=True)

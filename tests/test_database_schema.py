@@ -15,22 +15,6 @@ dashboard_path = Path(__file__).parent.parent / "dashboard"
 sys.path.insert(0, str(dashboard_path))
 
 # Patch CONFIG before importing monitor to avoid env var errors
-import builtins
-original_getenv = os.getenv
-
-def patched_getenv(key, default=None):
-    """Patch os.getenv to provide test defaults"""
-    test_defaults = {
-        "VIP_ADDRESS": "10.0.0.100",
-        "PIHOLE_1_IP": "10.0.0.1",
-        "PIHOLE_1_PASSWORD": "test",
-        "PIHOLE_2_IP": "10.0.0.2",
-        "PIHOLE_2_PASSWORD": "test",
-    }
-    return test_defaults.get(key, default)
-
-os.getenv = patched_getenv
-
 # Now import monitor
 import monitor
 from monitor import init_db, _migrate_old_schema_to_new
@@ -324,7 +308,7 @@ class TestBackwardCompatibility:
         
         conn.close()
     
-    @fixture(scope="function")
+    @pytest.fixture(scope="function")
     async def temp_db(self):
         """Create temporary database"""
         with tempfile.TemporaryDirectory() as tmpdir:

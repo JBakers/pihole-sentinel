@@ -1,3 +1,34 @@
+## [0.20.0] - 2026-05-13
+
+### New
+
+- **M1-P1 Task 1.1 — Dynamic N-node config loading** — `monitor.py` now loads
+  `PIHOLE_1_IP`, `PIHOLE_2_IP`, ... node definitions dynamically, with per-node
+  SSH settings and backward-compatible fallback for legacy `PRIMARY_IP`/
+  `SECONDARY_IP` variables.
+- **M1-P1 Task 1.2 — Normalized database schema + migration** — added
+  `poll_cycles` and `node_status` tables, plus automatic migration from the old
+  2-node `status_history` layout on startup.
+
+### Improved
+
+- **M1-P1 Task 1.3 — Polling loop refactor** — `monitor_loop()` now iterates
+  over the configured node list, while still writing legacy `status_history`
+  rows for backward compatibility during this phase.
+- **M1-P1 Task 1.4 — VIP detection generalization** — `check_who_has_vip()`
+  now accepts a node list and returns one VIP match flag per node, while
+  preserving the legacy 2-node call signature for existing tests.
+- **M1-P1 Task 1.5 — Fault debounce generalization** — offline and Pi-hole-down
+  debounce tracking now uses per-node keys instead of hardcoded primary/
+  secondary state.
+
+### Tests
+
+- Added `tests/test_node_config.py` for dynamic node loading and legacy
+  compatibility.
+- Added `tests/test_database_schema.py` for the normalized schema and migration.
+- Full test suite passes: 564 passed, 28 skipped.
+
 ## [0.19.0] - 2026-05-10
 
 ### Security
