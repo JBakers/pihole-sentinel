@@ -1,7 +1,7 @@
 # PLAN.md — Pi-hole Sentinel Development Plan
 
 **Last Updated:** 2026-05-13
-**Branch:** `develop`
+**Branch:** `feature/multi-node-support`
 **Current Version:** 0.20.1
 
 > **📌 This is the central planning and TODO document.**
@@ -39,14 +39,31 @@
 
 | Rank | ID  | Task | Status | Est. Effort | Blocker |
 |------|-----|------|--------|-------------|---------|
-| 1️⃣  | D2  | Test coverage: 54% → **60%+** | 🔲 Open | 2–3 days | None |
-| 2️⃣  | M1-P1 | Multi-node Phase 1 (data layer) | 🔲 Open | 3–5 days | D2 (optional) |
-| 3️⃣  | M1-P2 | Multi-node Phase 2 (API layer) | 🔲 Open | 2–3 days | M1-P1 |
-| 4️⃣  | P2/P3 | `pisen` CLI improvements | ✅ Done | — | None |
+| 1️⃣  | M1-P2 | Multi-node Phase 2 (API layer) | 🔲 Open | 2–3 days | M1-P1 ✅ |
+| 2️⃣  | M1-P3 | Multi-node Phase 3 (Dashboard UI) | 🔲 Open | 2–3 days | M1-P2 |
+| 3️⃣  | M1-P4 | Multi-node Phase 4 (Setup wizard) | 🔲 Open | 2–3 days | M1-P2 |
+| 4️⃣  | D2  | Test coverage: 54% → **60%+** | 🔲 Open | 2–3 days | None |
 
 ---
 
-### D2 — Test Coverage: 54% → 60%+ (NEXT PRIORITY)
+### Session Handover (2026-05-13)
+
+- ✅ **M1-P1 completed on `feature/multi-node-support`**
+    - Task 1.1: Dynamic N-node config loading
+    - Task 1.2: Normalized DB schema (`poll_cycles`, `node_status`) + migration
+    - Task 1.3: Polling loop refactor to node list
+    - Task 1.4: VIP detection generalized for node arrays
+    - Task 1.5: Fault debounce generalized per node key
+- ✅ **Docker test compose improved**
+    - Added mock Pi-hole healthchecks in `docker-compose.test.yml` for reliable `service_healthy` dependencies
+- ✅ **Validation status**
+    - Full suite in current environment: `564 passed, 28 skipped`
+    - Skips are environment-dependent (Docker not running and Windows chmod limitation)
+- ➡️ **Next coding target**: Start M1-P2 API response migration (`/api/status`, `/api/history`) from primary/secondary shape to `nodes[]`
+
+---
+
+### D2 — Test Coverage: 54% → 60%+
 
 **Current state:**
 - `monitor.py` coverage: 54% (339→399 tests)
@@ -66,7 +83,7 @@
 
 ---
 
-### M1 — Multi-Node Support (FUTURE: Breaking Change)
+### M1 — Multi-Node Support (Breaking Change)
 
 **Planned for:** v1.0.0 (when 60% coverage achieved)
 **Branch:** `feature/multi-node-support`
@@ -114,7 +131,7 @@
 
 ## Current Status
 
-### Branch: `develop` — v0.19.0
+### Branch: `feature/multi-node-support` — v0.20.1
 
 | Item                                           | Status                                                         |
 | ---------------------------------------------- | -------------------------------------------------------------- |
@@ -130,7 +147,8 @@
 | `pisen api` CLI command                        | ✅ Working (v0.18.0)                                           |
 | DNS latency health check                       | ✅ Working (v0.18.0, default 500ms)                            |
 | Debug override mode (`DEBUG_MODE=true`)        | ✅ Working (v0.18.0)                                           |
-| Unit tests                                     | ✅ 539 tests passing — target 60%+ still open (see D2)         |
+| Unit tests                                     | ✅ 564 tests passing (28 skipped: env-dependent)                |
+| M1-P1 (Multi-node Phase 1)                     | ✅ Completed on feature branch                                  |
 | Container architecture (v2.0)                  | 🔲 Separate branch: `feature/container-architecture`           |
 
 ---
@@ -509,8 +527,11 @@ No open bugs.
 
 | ID  | Improvement                                                                | Priority |
 | --- | -------------------------------------------------------------------------- | -------- |
+| M1-P2 | Multi-node API migration (`/api/status`, `/api/history` to `nodes[]`)     | High     |
+| M1-P3 | Dashboard dynamic node rendering (remove hardcoded primary/secondary cards) | High     |
+| M1-P4 | setup.py multi-node wizard/config generation                                | Medium   |
+| M1-P5 | Multi-node test + docker fixtures                                           | Medium   |
 | D2  | Expand test coverage (currently 54% monitor.py, target 60%+)               | Medium   |
-| M1  | Multi-node support: N Pi-holes (3+) instead of hardcoded primary/secondary | Medium   |
 
 ---
 
