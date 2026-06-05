@@ -53,7 +53,7 @@ install-dev:
 
 # Testing
 test:
-	python3 -m pytest -m "not integration" --cov=dashboard --cov=setup --cov-report=term-missing --cov-report=html
+	python3 -m pytest -m "not integration" --cov=dashboard --cov-report=term-missing --cov-report=html
 
 test-unit:
 	python3 -m pytest -m unit -v
@@ -62,7 +62,7 @@ test-integration:
 	python3 -m pytest -m integration -v
 
 test-cov:
-	python3 -m pytest --cov=dashboard --cov=setup --cov-report=html
+	python3 -m pytest --cov=dashboard --cov-report=html
 	@echo "Coverage report generated in htmlcov/index.html"
 
 test-fast:

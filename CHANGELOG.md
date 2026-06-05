@@ -1,3 +1,33 @@
+## [0.21.0] - 2026-06-05
+
+### New
+
+- **M1-P2 — Multi-node API responses** — `/api/status` now returns a `nodes[]`
+  array with per-node status for all N configured Pi-holes. `/api/history` now
+  returns a `nodes[]` array per poll cycle. Both endpoints retain backward-
+  compatible `primary`/`secondary` fields for existing dashboard and API clients.
+- **`NodeStatusResponse` Pydantic model** — new response model for individual
+  node status in the N-node architecture.
+- **`.github/SECURITY.md`** — vulnerability disclosure policy added.
+- **`.github/CONTRIBUTING.md`** — contributor guide with dev setup, branch
+  naming, commit convention, test requirements, and PR checklist.
+- **`.github/CODE_OF_CONDUCT.md`** — Contributor Covenant v2.1 added.
+- **`.github/SUPPORT.md`** — support guide directing users to Discussions,
+  Issues, and docs.
+
+### Improved
+
+- **`_pihole_stats` refactored** — stats dict is now keyed by `node_index`
+  (int, 1-based) instead of hardcoded `"primary"`/`"secondary"` strings,
+  enabling N-node stat tracking.
+- **Test coverage: 71%** on `monitor.py` (was 54%, target was 60%+).
+- **Coverage config** — removed `--cov=setup` from `pytest.ini` and `Makefile`;
+  coverage now correctly reflects `dashboard/monitor.py` only.
+- **README** — removed hardcoded stale version note (`v0.16.8`); replaced with
+  a link to `CHANGELOG.md`.
+- **PLAN.md** — translated all Dutch content to English (policy: .md files must
+  be in English); updated to reflect completed work and new open items.
+
 ## [0.20.1] - 2026-05-13
 
 ### Fixed

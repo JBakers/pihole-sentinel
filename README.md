@@ -39,10 +39,8 @@
 > **Your feedback and testing help make Pi-hole Sentinel production-ready!** Please [report any issues](https://github.com/JBakers/pihole-sentinel/issues) you encounter.
 
 > [!NOTE]
-> **Current development status (2026-04-15):**
-> - Version: `0.16.8` (see [VERSION](VERSION))
-> - Default test suite: 220+ tests (`make test`)
-> - Docker integration suite: 18 integration tests (`make docker-integration`)
+> See [CHANGELOG.md](CHANGELOG.md) for the latest release notes and version history.
+
 ---
 
 ## Introduction
