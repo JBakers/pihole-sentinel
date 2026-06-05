@@ -1,3 +1,36 @@
+## [0.23.0] - 2026-06-05
+
+### New
+
+- **M1-P4 — N-node setup wizard** — `setup.py` now installs an arbitrary
+  number of Pi-hole nodes (minimum 2) instead of a fixed primary/secondary
+  pair. The wizard asks "How many Pi-hole nodes?" up front, then collects an
+  IP, web password and SSH details for each node.
+- **Per-node keepalived generation** — each node gets its own
+  `node{i}_keepalived.conf` with a VRRP priority that descends by 10
+  (node 1 = 150/MASTER, node 2 = 140/BACKUP, node 3 = 130/BACKUP, …) and a
+  unique `router_id PIHOLE{i}`.
+- **N-node `monitor.env`** — generated config now writes the new
+  `PIHOLE_{i}_IP/NAME/PASSWORD/SSH_USER/SSH_PORT` format for all nodes, plus
+  legacy `PRIMARY_*`/`SECONDARY_*` aliases for backward compatibility.
+- **Star-topology cross-node SSH** — node 1 (hub) sets up bidirectional
+  passwordless SSH with every other node and pushes config sync to all peers
+  (`SYNC_PEER_IPS` in `sync.conf`).
+
+### Improved
+
+- **Deployment loop** — keepalived deployment, preflight credential checks,
+  connectivity verification and uninstall now iterate over the full node list
+  instead of a hardcoded primary/secondary pair.
+- **`_config_nodes()` helper** — centralises node iteration with a legacy
+  fallback that synthesises a 2-node list from old `primary_*`/`secondary_*`
+  config keys, keeping existing call sites working.
+
+### Tests
+
+- Added `TestNodeHelpers`, `TestGenerateConfigsNNode` and `TestPreflightNNode`
+  in `tests/test_setup.py` (10 new tests). Full suite: 574 passed.
+
 ## [0.22.0] - 2026-06-05
 
 ### New

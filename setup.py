@@ -102,17 +102,76 @@ class SetupConfig:
         self.config = {}
 
     @staticmethod
-    def _ask_required(prompt, validator=None, error_msg=None):
-        """Ask for input and repeat until a non-empty, valid value is given."""
+    def _ask_required(prompt, validator=None, error_msg=None, default=None):
+        """Ask for input and repeat until a non-empty, valid value is given.
+
+        If ``default`` is provided, an empty input returns the default value.
+        """
         while True:
             value = input(prompt).strip()
             if not value:
-                print(f"{Colors.RED}This field is required.{Colors.END}")
-                continue
+                if default is not None:
+                    value = default
+                else:
+                    print(f"{Colors.RED}This field is required.{Colors.END}")
+                    continue
             if validator and not validator(value):
                 print(f"{Colors.RED}{error_msg or 'Invalid input.'}{Colors.END}")
                 continue
             return value
+
+    @staticmethod
+    def _node_label(index, total):
+        """Short interactive label for a node prompt (e.g. 'Primary Pi-hole')."""
+        if index == 1:
+            return "Primary Pi-hole"
+        if index == 2:
+            return "Secondary Pi-hole"
+        return f"Pi-hole node {index}"
+
+    @staticmethod
+    def _node_name(index, total):
+        """Display name stored in config / env for a node."""
+        if index == 1:
+            return "Primary Pi-hole"
+        if index == 2:
+            return "Secondary Pi-hole"
+        return f"Pi-hole {index}"
+
+    def _config_nodes(self):
+        """Return the configured node list (N-node aware, legacy fallback).
+
+        If ``self.config['nodes']`` exists it is returned as-is. Otherwise a
+        2-node list is synthesised from the legacy ``primary_*``/``secondary_*``
+        keys so older code paths and callers keep working.
+        """
+        nodes = self.config.get('nodes')
+        if nodes:
+            return nodes
+        legacy = []
+        if self.config.get('primary_ip'):
+            legacy.append({
+                'index': 1,
+                'ip': self.config['primary_ip'],
+                'name': 'Primary Pi-hole',
+                'password': self.config.get('primary_password', ''),
+                'ssh_user': self.config.get('primary_ssh_user', 'root'),
+                'ssh_port': self.config.get('primary_ssh_port', '22'),
+                'priority': 150,
+                'state': 'MASTER',
+            })
+        if self.config.get('secondary_ip'):
+            legacy.append({
+                'index': 2,
+                'ip': self.config['secondary_ip'],
+                'name': 'Secondary Pi-hole',
+                'password': self.config.get('secondary_password', ''),
+                'ssh_user': self.config.get('secondary_ssh_user', 'root'),
+                'ssh_port': self.config.get('secondary_ssh_port', '22'),
+                'priority': 140,
+                'state': 'BACKUP',
+            })
+        return legacy
 
     def validate_ip(self, ip):
         """Validate IP address format and reject non-routable addresses."""
@@ -483,6 +542,19 @@ class SetupConfig:
                 self.config['interface'] = interface
                 break
 
+        # Ask how many Pi-hole nodes to configure (minimum 2 for HA)
+        def _valid_node_count(v):
+            return v.isdigit() and int(v) >= 2
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}How many Pi-hole nodes do you want to configure?{Colors.END}")
+        print(f"{Colors.YELLOW}Minimum is 2 for High Availability. Add more for extra redundancy.{Colors.END}")
+        num_nodes = int(self._ask_required(
+            f"{Colors.BOLD}Number of Pi-hole nodes [2]:{Colors.END} ",
+            _valid_node_count,
+            "Must be a number >= 2",
+            default="2",
+        ))
+
         # Get IP addresses
         detected_range = detect_local_ip_range()
         if detected_range:
@@ -495,6 +567,8 @@ class SetupConfig:
             print(f"  2. Manual setup (enter full IP addresses)")
 
             setup_choice = input(f"\n{Colors.BOLD}Choice [1]:{Colors.END} ").strip() or "1"
+
+            node_ips = []
 
             if setup_choice == "1":
                 # Quick setup - IP range + last octet
@@ -531,17 +605,15 @@ class SetupConfig:
                     return v.isdigit() and 0 <= int(v) <= 255
 
                 print(f"\n{Colors.CYAN}Enter last octet for each device (using {ip_range}.X):{Colors.END}")
-                primary_octet = self._ask_required(f"Primary Pi-hole    ({ip_range}.): ", _valid_octet, "Must be 0-255")
-                secondary_octet = self._ask_required(f"Secondary Pi-hole  ({ip_range}.): ", _valid_octet, "Must be 0-255")
-                vip_octet = self._ask_required(f"Virtual IP (VIP)   ({ip_range}.): ", _valid_octet, "Must be 0-255")
-                gateway_octet = self._ask_required(f"Network gateway    ({ip_range}.): ", _valid_octet, "Must be 0-255")
-
-                # Validate octets
                 try:
-                    octets = [primary_octet, secondary_octet, vip_octet, gateway_octet]
-
-                    primary_ip = f"{ip_range}.{primary_octet}"
-                    secondary_ip = f"{ip_range}.{secondary_octet}"
+                    for i in range(1, num_nodes + 1):
+                        label = self._node_label(i, num_nodes)
+                        octet = self._ask_required(
+                            f"{label:<18} ({ip_range}.): ", _valid_octet, "Must be 0-255"
+                        )
+                        node_ips.append(f"{ip_range}.{octet}")
+                    vip_octet = self._ask_required(f"{'Virtual IP (VIP)':<18} ({ip_range}.): ", _valid_octet, "Must be 0-255")
+                    gateway_octet = self._ask_required(f"{'Network gateway':<18} ({ip_range}.): ", _valid_octet, "Must be 0-255")
                     vip = f"{ip_range}.{vip_octet}"
                     gateway = f"{ip_range}.{gateway_octet}"
                     self.config['ip_range'] = ip_range
@@ -552,45 +624,68 @@ class SetupConfig:
                 # Manual setup - full IP addresses
                 print(f"\n{Colors.CYAN}Manual Setup:{Colors.END}")
                 print("Enter full IP addresses:")
-                primary_ip = self._ask_required("Primary Pi-hole IP: ", self.validate_ip, "Invalid IP address")
-                secondary_ip = self._ask_required("Secondary Pi-hole IP: ", self.validate_ip, "Invalid IP address")
+                for i in range(1, num_nodes + 1):
+                    label = self._node_label(i, num_nodes)
+                    node_ips.append(self._ask_required(
+                        f"{label} IP: ", self.validate_ip, "Invalid IP address"
+                    ))
                 vip = self._ask_required("Virtual IP (VIP) address: ", self.validate_ip, "Invalid IP address")
                 gateway = self._ask_required("Network gateway IP: ", self.validate_ip, "Invalid IP address")
 
             # Validate all IPs
-            if not all(map(self.validate_ip, [primary_ip, secondary_ip, vip, gateway])):
+            all_ips = node_ips + [vip, gateway]
+            if not all(map(self.validate_ip, all_ips)):
                 print(f"{Colors.RED}Error: Invalid IP address format!{Colors.END}")
+                continue
+
+            # Check for duplicate node IPs
+            if len(set(node_ips)) != len(node_ips):
+                print(f"{Colors.RED}Error: Duplicate node IP addresses detected!{Colors.END}")
                 continue
 
             # Check if IPs are in same subnet
             try:
                 netmask = "24"  # Assuming /24 network
-                network = str(ip_network(f"{primary_ip}/{netmask}", strict=False).network_address)
+                network = str(ip_network(f"{node_ips[0]}/{netmask}", strict=False).network_address)
                 if not all(ip_address(ip) in ip_network(f"{network}/{netmask}")
-                          for ip in [primary_ip, secondary_ip, vip, gateway]):
+                          for ip in all_ips):
                     print(f"{Colors.RED}Error: IP addresses must be in the same subnet!{Colors.END}")
                     continue
             except ValueError as e:
                 print(f"{Colors.RED}Error: {e}{Colors.END}")
                 continue
 
+            # Build node list with VRRP priorities (descending by 10, first = MASTER)
+            nodes = []
+            for i, ip in enumerate(node_ips, start=1):
+                nodes.append({
+                    'index': i,
+                    'ip': ip,
+                    'name': self._node_name(i, num_nodes),
+                    'priority': 150 - (i - 1) * 10,
+                    'state': 'MASTER' if i == 1 else 'BACKUP',
+                })
+
             # Show summary
             print(f"\n{Colors.GREEN}✓ IP Configuration:{Colors.END}")
-            print(f"  Primary Pi-hole:  {primary_ip}")
-            print(f"  Secondary Pi-hole: {secondary_ip}")
-            print(f"  Virtual IP (VIP):  {vip}")
-            print(f"  Network gateway:   {gateway}")
+            for node in nodes:
+                print(f"  {node['name']:<20} {node['ip']}  "
+                      f"(priority {node['priority']}, {node['state']})")
+            print(f"  {'Virtual IP (VIP)':<20} {vip}")
+            print(f"  {'Network gateway':<20} {gateway}")
 
             confirm = input(f"\n{Colors.BOLD}Is this correct? (Y/n):{Colors.END} ").strip().lower()
             if confirm == 'n':
                 continue
 
             self.config.update({
-                'primary_ip': primary_ip,
-                'secondary_ip': secondary_ip,
+                'nodes': nodes,
+                # Backward-compat aliases (node 1 = primary, node 2 = secondary)
+                'primary_ip': nodes[0]['ip'],
+                'secondary_ip': nodes[1]['ip'],
                 'vip': vip,
                 'gateway': gateway,
-                'netmask': netmask
+                'netmask': netmask,
             })
             break
 
@@ -846,7 +941,12 @@ class SetupConfig:
                 break
             print(f"{Colors.RED}Error: Invalid port! Must be between 1-65535.{Colors.END}")
 
-        # Apply to all servers
+        # Apply to all Pi-hole nodes (same SSH user/port for all)
+        nodes = self.config.get('nodes', [])
+        for node in nodes:
+            node['ssh_user'] = ssh_user
+            node['ssh_port'] = ssh_port
+        # Backward-compat aliases (node 1 = primary, node 2 = secondary)
         self.config['primary_ssh_user'] = ssh_user
         self.config['primary_ssh_port'] = ssh_port
         self.config['secondary_ssh_user'] = ssh_user
@@ -863,8 +963,8 @@ class SetupConfig:
         servers = []
         if self.config['separate_monitor']:
             servers.append(('monitor', self.config['monitor_ip'], self.config['monitor_ssh_user'], self.config['monitor_ssh_port']))
-        servers.append(('primary', self.config['primary_ip'], self.config['primary_ssh_user'], self.config['primary_ssh_port']))
-        servers.append(('secondary', self.config['secondary_ip'], self.config['secondary_ssh_user'], self.config['secondary_ssh_port']))
+        for node in nodes:
+            servers.append((f"node{node['index']}", node['ip'], node['ssh_user'], node['ssh_port']))
 
         passwords = {}
         same_pw = input(f"\n{Colors.BOLD}Use the same SSH password for all servers? (Y/n):{Colors.END} ").strip().lower()
@@ -908,15 +1008,22 @@ class SetupConfig:
         # Store key path NOW so remote_exec can use it for cross-node setup
         self.config['ssh_key_path'] = key_path
 
-        # Setup cross-node SSH: primary ↔ secondary (needed for config sync)
-        print(f"\n{Colors.CYAN}Setting up cross-node SSH between Pi-holes...{Colors.END}")
-        cross_ok = self._setup_cross_node_ssh(
-            self.config['primary_ip'], self.config['primary_ssh_user'], self.config['primary_ssh_port'],
-            self.config['secondary_ip'], self.config['secondary_ssh_user'], self.config['secondary_ssh_port'],
-        )
-        if not cross_ok:
-            print(f"{Colors.YELLOW}⚠ Cross-node SSH setup failed — config sync may not work automatically{Colors.END}")
-            print(f"{Colors.YELLOW}  You can fix this manually: ssh-copy-id root@pihole2 (from pihole1){Colors.END}")
+        # Setup cross-node SSH in a STAR topology: node 1 (hub) ↔ every other
+        # node. Node 1 runs the sync service and pushes config to the rest, so
+        # it needs bidirectional passwordless SSH with each peer.
+        if len(nodes) >= 2:
+            hub = nodes[0]
+            print(f"\n{Colors.CYAN}Setting up cross-node SSH (star topology, hub = {hub['name']})...{Colors.END}")
+            for peer in nodes[1:]:
+                cross_ok = self._setup_cross_node_ssh(
+                    hub['ip'], hub['ssh_user'], hub['ssh_port'],
+                    peer['ip'], peer['ssh_user'], peer['ssh_port'],
+                )
+                if not cross_ok:
+                    print(f"{Colors.YELLOW}⚠ Cross-node SSH setup failed for "
+                          f"{hub['ip']} ↔ {peer['ip']} — config sync may not work automatically{Colors.END}")
+                    print(f"{Colors.YELLOW}  You can fix this manually: "
+                          f"ssh-copy-id {peer['ssh_user']}@{peer['ip']} (from {hub['ip']}){Colors.END}")
 
         # Securely clear passwords from memory immediately after use
         for key in passwords:
@@ -947,8 +1054,15 @@ class SetupConfig:
         print(f"  3. First time setup: The password was shown during Pi-hole installation")
         print(f"\n{Colors.GREEN}Tip: You can test if password works by logging into http://<pihole-ip>/admin{Colors.END}\n")
 
-        self.config['primary_password'] = getpass(f"{Colors.BOLD}Primary Pi-hole ({self.config['primary_ip']}) web password:{Colors.END} ")
-        self.config['secondary_password'] = getpass(f"{Colors.BOLD}Secondary Pi-hole ({self.config['secondary_ip']}) web password:{Colors.END} ")
+        nodes = self.config.get('nodes', [])
+        for node in nodes:
+            pw = getpass(f"{Colors.BOLD}{node['name']} ({node['ip']}) web password:{Colors.END} ")
+            node['password'] = pw
+        # Backward-compat aliases (node 1 = primary, node 2 = secondary)
+        if nodes:
+            self.config['primary_password'] = nodes[0]['password']
+        if len(nodes) > 1:
+            self.config['secondary_password'] = nodes[1]['password']
 
     def verify_configuration(self):
         """Verify the collected configuration."""
@@ -956,9 +1070,9 @@ class SetupConfig:
 
         print("\nTesting connectivity...")
         unreachable = []
-        for name, ip in [("Primary", self.config['primary_ip']),
-                        ("Secondary", self.config['secondary_ip']),
-                        ("Gateway", self.config['gateway'])]:
+        targets = [(node['name'], node['ip']) for node in self._config_nodes()]
+        targets.append(("Gateway", self.config['gateway']))
+        for name, ip in targets:
             if not self.check_host_reachable(ip):
                 unreachable.append(f"{name} ({ip})")
 
@@ -1012,16 +1126,8 @@ class SetupConfig:
                                 self.config['monitor_ip'],
                                 self.config['monitor_ssh_user'],
                                 self.config['monitor_ssh_port']))
-        ssh_targets += [
-            ("Primary Pi-hole",
-             self.config['primary_ip'],
-             self.config['primary_ssh_user'],
-             self.config['primary_ssh_port']),
-            ("Secondary Pi-hole",
-             self.config['secondary_ip'],
-             self.config['secondary_ssh_user'],
-             self.config['secondary_ssh_port']),
-        ]
+        for node in self._config_nodes():
+            ssh_targets.append((node['name'], node['ip'], node['ssh_user'], node['ssh_port']))
 
         for name, host, user, port in ssh_targets:
             label = f"SSH {user}@{host}"
@@ -1040,11 +1146,10 @@ class SetupConfig:
                 failures.append(f"{name}: SSH error — {e}")
 
         # --- Pi-hole API checks (only when passwords have been collected) ---
-        for name, ip, pw_key in [
-            ("Primary Pi-hole API",   self.config['primary_ip'],   'primary_password'),
-            ("Secondary Pi-hole API", self.config['secondary_ip'], 'secondary_password'),
-        ]:
-            password = self.config.get(pw_key, "")
+        for node in self._config_nodes():
+            ip = node['ip']
+            password = node.get('password', "")
+            name = f"{node['name']} API"
             print(f"  Checking {name} ({ip}) … ", end="", flush=True)
             ok, msg = self._check_pihole_api(ip, password)
             if ok:
@@ -1062,16 +1167,20 @@ class SetupConfig:
 
         print(f"\n{Colors.GREEN}✓ All credentials verified — starting deployment.{Colors.END}\n")
 
-    def generate_configs(self):
-        """Generate configuration files."""
-        print("\n=== Generating Configuration Files ===")
+    def _build_keepalived_conf(self, node):
+        """Build a keepalived.conf for a single node (N-node aware).
 
-        # Create primary keepalived config
-        primary_keepalived = f"""# Keepalived configuration for Primary Pi-hole
+        Args:
+            node: dict with keys index, priority, state.
+
+        The first node (index 1) is MASTER with the highest priority; every
+        other node is BACKUP with a priority that decreases by 10 per node.
+        """
+        return f"""# Keepalived configuration for {node['name']}
 # Generated by setup script - DO NOT EDIT MANUALLY
 
 global_defs {{
-    router_id PIHOLE1
+    router_id PIHOLE{node['index']}
     vrrp_version 2
     vrrp_garp_master_delay 1
     enable_script_security
@@ -1093,10 +1202,10 @@ vrrp_script chk_dhcp_service {{
 }}
 
 vrrp_instance VI_1 {{
-    state MASTER
+    state {node['state']}
     interface {self.config['interface']}
     virtual_router_id 51
-    priority 150
+    priority {node['priority']}
     advert_int 1
 
     authentication {{
@@ -1118,17 +1227,28 @@ vrrp_instance VI_1 {{
     notify_fault "/usr/local/bin/keepalived_notify.sh FAULT"
 }}"""
 
-        # Create secondary keepalived config (similar but with BACKUP state).
-        # preempt_delay only applies to BACKUP nodes attempting to preempt;
-        # it is not valid on state MASTER and keepalived 2.3.x exits with
-        # code 1 if it is present — so it is absent from the template above.
-        secondary_keepalived = primary_keepalived.replace(
-            "state MASTER", "state BACKUP"
-        ).replace(
-            "priority 150", "priority 100"
-        ).replace(
-            "router_id PIHOLE1", "router_id PIHOLE2"
-        )
+    def _build_node_env(self, node):
+        """Build the keepalived environment file for a single node."""
+        return f"""# {node['name']} Keepalived Environment
+# Generated by setup script
+
+INTERFACE={self.config['interface']}
+VIP_ADDRESS={self.config['vip']}
+VIP_NETMASK={self.config['netmask']}
+NETWORK_GATEWAY={self.config['gateway']}
+VRRP_AUTH_PASS={self.config['keepalived_password']}
+NODE_PRIORITY={node['priority']}
+NODE_STATE={node['state']}
+PRIMARY_IP={self.config['primary_ip']}
+SECONDARY_IP={self.config['secondary_ip']}
+DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
+"""
+
+    def generate_configs(self):
+        """Generate configuration files."""
+        print("\n=== Generating Configuration Files ===")
+
+        nodes = self.config.get('nodes', [])
 
         # Create monitor configuration
         # Generate secure API key for monitor dashboard (or reuse existing)
@@ -1151,19 +1271,41 @@ vrrp_instance VI_1 {{
 
             self.config['api_key'] = api_key  # Store for later use
 
-        monitor_env = f"""# Pi-hole HA Monitor Configuration
-# Generated by setup script
+        # Build per-node monitor.env blocks (new PIHOLE_N_* format)
+        node_blocks = []
+        for node in nodes:
+            i = node['index']
+            node_blocks.append(
+                f"# {node['name']}\n"
+                f"PIHOLE_{i}_IP={node['ip']}\n"
+                f"PIHOLE_{i}_NAME=\"{node['name']}\"\n"
+                f"PIHOLE_{i}_PASSWORD={node.get('password', '')}\n"
+                f"PIHOLE_{i}_SSH_USER={node.get('ssh_user', 'root')}\n"
+                f"PIHOLE_{i}_SSH_PORT={node.get('ssh_port', '22')}\n"
+            )
+        nodes_section = "\n".join(node_blocks)
 
-# Primary Pi-hole
+        # Legacy primary/secondary block (backward compatibility for node 1 & 2)
+        legacy_block = f"""# Legacy aliases (node 1 = primary, node 2 = secondary)
 PRIMARY_IP={self.config['primary_ip']}
 PRIMARY_NAME="Primary Pi-hole"
-PRIMARY_PASSWORD={self.config['primary_password']}
-
-# Secondary Pi-hole
+PRIMARY_PASSWORD={self.config.get('primary_password', '')}
 SECONDARY_IP={self.config['secondary_ip']}
 SECONDARY_NAME="Secondary Pi-hole"
-SECONDARY_PASSWORD={self.config['secondary_password']}
+SECONDARY_PASSWORD={self.config.get('secondary_password', '')}
+PRIMARY_SSH_USER={self.config.get('primary_ssh_user', 'root')}
+PRIMARY_SSH_PORT={self.config.get('primary_ssh_port', '22')}
+SECONDARY_SSH_USER={self.config.get('secondary_ssh_user', 'root')}
+SECONDARY_SSH_PORT={self.config.get('secondary_ssh_port', '22')}
+"""
 
+        monitor_env = f"""# Pi-hole Sentinel Monitor Configuration
+# Generated by setup script
+# {len(nodes)} Pi-hole node(s) configured
+
+# === Pi-hole Nodes (N-node format) ===
+{nodes_section}
+{legacy_block}
 # VIP Configuration
 VIP_ADDRESS={self.config['vip']}
 
@@ -1176,42 +1318,24 @@ API_KEY={api_key}
 
 # SSH Access to Pi-holes (for DHCP failover auto-push)
 SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
-PRIMARY_SSH_USER={self.config.get('primary_ssh_user', 'root')}
-PRIMARY_SSH_PORT={self.config.get('primary_ssh_port', '22')}
-SECONDARY_SSH_USER={self.config.get('secondary_ssh_user', 'root')}
-SECONDARY_SSH_PORT={self.config.get('secondary_ssh_port', '22')}
 """
 
-        # Create environment files
-        primary_env = f"""# Primary Pi-hole Keepalived Environment
-# Generated by setup script
-
-INTERFACE={self.config['interface']}
-VIP_ADDRESS={self.config['vip']}
-VIP_NETMASK={self.config['netmask']}
-NETWORK_GATEWAY={self.config['gateway']}
-VRRP_AUTH_PASS={self.config['keepalived_password']}
-NODE_PRIORITY=150
-NODE_STATE=MASTER
-PRIMARY_IP={self.config['primary_ip']}
-SECONDARY_IP={self.config['secondary_ip']}
-DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
-"""
-
-        secondary_env = primary_env.replace(
-            "NODE_PRIORITY=150", "NODE_PRIORITY=100"
-        ).replace(
-            "NODE_STATE=MASTER", "NODE_STATE=BACKUP"
-        )
-
-        # Save configurations
-        configs = {
-            'primary_keepalived.conf': primary_keepalived,
-            'secondary_keepalived.conf': secondary_keepalived,
-            'monitor.env': monitor_env,
-            'primary.env': primary_env,
-            'secondary.env': secondary_env
-        }
+        # Save configurations: monitor.env + per-node keepalived.conf and .env.
+        # Per-node files are named node{index}_keepalived.conf / node{index}.env.
+        # node1/node2 are also written as primary/secondary aliases so existing
+        # deployment code paths keep working.
+        configs = {'monitor.env': monitor_env}
+        for node in nodes:
+            i = node['index']
+            configs[f'node{i}_keepalived.conf'] = self._build_keepalived_conf(node)
+            configs[f'node{i}.env'] = self._build_node_env(node)
+        # Backward-compat aliases
+        if nodes:
+            configs['primary_keepalived.conf'] = self._build_keepalived_conf(nodes[0])
+            configs['primary.env'] = self._build_node_env(nodes[0])
+        if len(nodes) > 1:
+            configs['secondary_keepalived.conf'] = self._build_keepalived_conf(nodes[1])
+            configs['secondary.env'] = self._build_node_env(nodes[1])
 
         os.makedirs('generated_configs', mode=0o700, exist_ok=True)
         for filename, content in configs.items():
@@ -1611,12 +1735,32 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
             print(f"Error deploying keepalived: {e}")
             return False
 
-    def deploy_keepalived_remote(self, node_type="primary"):
-        """Deploy keepalived configuration to remote Pi-hole via SSH."""
-        host = self.config[f'{node_type}_ip']
-        user = self.config[f'{node_type}_ssh_user']
-        port = self.config[f'{node_type}_ssh_port']
-        password = self.config.get(f'{node_type}_ssh_pass')
+    def deploy_keepalived_remote(self, node):
+        """Deploy keepalived configuration to a remote Pi-hole node via SSH.
+
+        Args:
+            node: node dict from self.config['nodes'] (keys: index, ip,
+                  ssh_user, ssh_port, name) — or a legacy node_type string
+                  ("primary"/"secondary") for backward compatibility.
+        """
+        # Backward compatibility: accept "primary"/"secondary" strings
+        if isinstance(node, str):
+            node_type = node
+            idx = 1 if node_type == "primary" else 2
+            node = {
+                'index': idx,
+                'ip': self.config[f'{node_type}_ip'],
+                'ssh_user': self.config[f'{node_type}_ssh_user'],
+                'ssh_port': self.config[f'{node_type}_ssh_port'],
+                'name': f"{node_type.capitalize()} Pi-hole",
+            }
+
+        host = node['ip']
+        user = node['ssh_user']
+        port = node['ssh_port']
+        password = node.get('ssh_pass') or self.config.get('ssh_pass')
+        node_type = node['name']
+        config_basename = f"node{node['index']}"
         S = self._s(user)
 
         try:
@@ -1637,10 +1781,9 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
 
             # Copy necessary files
             print("Copying files...")
-            config_suffix = "primary" if node_type == "primary" else "secondary"
             files_to_copy = [
-                (f"generated_configs/{config_suffix}_keepalived.conf", "/tmp/pihole-sentinel-deploy/keepalived.conf"),
-                (f"generated_configs/{config_suffix}.env", "/tmp/pihole-sentinel-deploy/.env"),
+                (f"generated_configs/{config_basename}_keepalived.conf", "/tmp/pihole-sentinel-deploy/keepalived.conf"),
+                (f"generated_configs/{config_basename}.env", "/tmp/pihole-sentinel-deploy/.env"),
                 ("keepalived/scripts/check_pihole_service.sh", "/tmp/pihole-sentinel-deploy/check_pihole_service.sh"),
                 ("keepalived/scripts/check_dhcp_service.sh", "/tmp/pihole-sentinel-deploy/check_dhcp_service.sh"),
                 ("keepalived/scripts/dhcp_control.sh", "/tmp/pihole-sentinel-deploy/dhcp_control.sh"),
@@ -1763,12 +1906,17 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
             print(f"\nDeploying sync service to primary Pi-hole ({host})...")
 
             # Generate sync config
+            nodes = self.config.get('nodes', [])
+            # Star topology: node 1 (hub) syncs to every other node.
+            peer_ips = " ".join(n['ip'] for n in nodes[1:]) if nodes else self.config['secondary_ip']
             sync_conf_lines = [
                 "# Pi-hole Sentinel Sync Configuration",
                 "# Auto-generated by setup.py",
                 "",
                 f"PRIMARY_IP={self.config['primary_ip']}",
                 f"SECONDARY_IP={self.config['secondary_ip']}",
+                f"# Star topology: hub pushes to all peers (nodes 2..N)",
+                f"SYNC_PEER_IPS=\"{peer_ips}\"",
                 f"SYNC_INTERVAL_MINUTES={sync_interval}",
                 f"SYNC_GRAVITY={sync_options.get('gravity', 'true')}",
                 f"SYNC_CUSTOM_DNS={sync_options.get('custom_dns', 'true')}",
@@ -2076,8 +2224,22 @@ WantedBy=timers.target
         print(f"\n{Colors.CYAN}{Colors.BOLD}=== Which servers should be uninstalled? ==={Colors.END}")
         print(f"{Colors.CYAN}Enter the IP addresses of your Pi-hole servers.{Colors.END}\n")
 
-        self.config['primary_ip']   = self._ask_required(f"{Colors.BOLD}Primary Pi-hole IP:{Colors.END} ", self.validate_ip, "Invalid IP address")
-        self.config['secondary_ip'] = self._ask_required(f"{Colors.BOLD}Secondary Pi-hole IP:{Colors.END} ", self.validate_ip, "Invalid IP address")
+        def _valid_node_count(v):
+            return v.isdigit() and int(v) >= 2
+
+        num_nodes = int(self._ask_required(
+            f"{Colors.BOLD}Number of Pi-hole nodes [2]:{Colors.END} ",
+            _valid_node_count,
+            "Must be a number >= 2",
+            default="2",
+        ))
+
+        node_ips = []
+        for i in range(1, num_nodes + 1):
+            label = self._node_label(i, num_nodes)
+            node_ips.append(self._ask_required(
+                f"{Colors.BOLD}{label} IP:{Colors.END} ", self.validate_ip, "Invalid IP address"
+            ))
 
         has_monitor = input(f"\n{Colors.BOLD}Is the monitor on a separate server? (Y/n):{Colors.END} ").strip().lower() != "n"
         self.config['separate_monitor'] = has_monitor
@@ -2092,6 +2254,22 @@ WantedBy=timers.target
 
         ssh_user = input(f"\nSSH user for Pi-holes [{Colors.CYAN}root{Colors.END}]: ").strip() or "root"
         ssh_port = input(f"SSH port for Pi-holes [{Colors.CYAN}22{Colors.END}]: ").strip() or "22"
+
+        # Build node list + legacy aliases
+        nodes = []
+        for i, ip in enumerate(node_ips, start=1):
+            nodes.append({
+                'index': i,
+                'ip': ip,
+                'name': self._node_name(i, num_nodes),
+                'ssh_user': ssh_user,
+                'ssh_port': ssh_port,
+                'priority': 150 - (i - 1) * 10,
+                'state': 'MASTER' if i == 1 else 'BACKUP',
+            })
+        self.config['nodes'] = nodes
+        self.config['primary_ip']   = nodes[0]['ip']
+        self.config['secondary_ip'] = nodes[1]['ip']
         self.config['primary_ssh_user']   = ssh_user
         self.config['primary_ssh_port']   = ssh_port
         self.config['secondary_ssh_user'] = ssh_user
@@ -2151,14 +2329,12 @@ WantedBy=timers.target
             ok = all(_exec_quiet(host, user, port, c) for c in cmds)
             print(f"    {Colors.GREEN}✓ Done{Colors.END}" if ok else f"    {Colors.YELLOW}⚠ Some steps failed{Colors.END}")
 
-        # --- Pi-hole nodes (primary + secondary) ---
-        for label, ip_key, user_key, port_key in [
-            ("Primary Pi-hole",   "primary_ip",   "primary_ssh_user",   "primary_ssh_port"),
-            ("Secondary Pi-hole", "secondary_ip", "secondary_ssh_user", "secondary_ssh_port"),
-        ]:
-            host = self.config.get(ip_key)
-            user = self.config.get(user_key, "root")
-            port = self.config.get(port_key, "22")
+        # --- Pi-hole nodes (all configured nodes) ---
+        for node in self._config_nodes():
+            host = node.get('ip')
+            user = node.get('ssh_user', "root")
+            port = node.get('ssh_port', "22")
+            label = node.get('name', f"Node {node.get('index', '?')}")
             if not host:
                 continue
             print(f"  Uninstalling keepalived sentinel from {label} ({host})…")
@@ -2946,45 +3122,30 @@ def main():
                     print(f"\n{Colors.BOLD}[1/4] Deploying monitor locally on primary...{Colors.END}")
                     setup.deploy_monitor()
 
-                # Deploy primary
-                print(f"\n{Colors.BOLD}[2/4] Deploying primary keepalived to {setup.config['primary_ip']}...{Colors.END}")
-                ts = setup.backup_existing_configs(
-                    setup.config['primary_ip'],
-                    setup.config['primary_ssh_user'],
-                    setup.config['primary_ssh_port'],
-                    config_type="primary"
-                )
-                ok = setup.deploy_keepalived_remote("primary")
-                deployed_hosts.append({
-                    "type": "primary",
-                    "host": setup.config['primary_ip'],
-                    "user": setup.config['primary_ssh_user'],
-                    "port": setup.config['primary_ssh_port'],
-                    "backup_ts": ts,
-                })
-                if not ok:
-                    raise RuntimeError(f"Primary keepalived deployment failed on {setup.config['primary_ip']}")
+                # Deploy keepalived to every Pi-hole node
+                nodes = setup.config.get('nodes', [])
+                total = len(nodes)
+                for n_idx, node in enumerate(nodes, start=1):
+                    print(f"\n{Colors.BOLD}[2/4] Deploying keepalived to {node['name']} "
+                          f"({node['ip']}) [{n_idx}/{total}]...{Colors.END}")
+                    ts = setup.backup_existing_configs(
+                        node['ip'],
+                        node['ssh_user'],
+                        node['ssh_port'],
+                        config_type=f"node{node['index']}"
+                    )
+                    ok = setup.deploy_keepalived_remote(node)
+                    deployed_hosts.append({
+                        "type": f"node{node['index']}",
+                        "host": node['ip'],
+                        "user": node['ssh_user'],
+                        "port": node['ssh_port'],
+                        "backup_ts": ts,
+                    })
+                    if not ok:
+                        raise RuntimeError(f"Keepalived deployment failed on {node['ip']} ({node['name']})")
 
-                # Deploy secondary
-                print(f"\n{Colors.BOLD}[3/4] Deploying secondary keepalived to {setup.config['secondary_ip']}...{Colors.END}")
-                ts = setup.backup_existing_configs(
-                    setup.config['secondary_ip'],
-                    setup.config['secondary_ssh_user'],
-                    setup.config['secondary_ssh_port'],
-                    config_type="secondary"
-                )
-                ok = setup.deploy_keepalived_remote("secondary")
-                deployed_hosts.append({
-                    "type": "secondary",
-                    "host": setup.config['secondary_ip'],
-                    "user": setup.config['secondary_ssh_user'],
-                    "port": setup.config['secondary_ssh_port'],
-                    "backup_ts": ts,
-                })
-                if not ok:
-                    raise RuntimeError(f"Secondary keepalived deployment failed on {setup.config['secondary_ip']}")
-
-                # Deploy sync service to primary (optional)
+                # Deploy sync service to node 1 / primary (optional)
                 if setup.config.get('enable_sync', True):
                     print(f"\n{Colors.BOLD}[4/4] Deploying config sync to {setup.config['primary_ip']}...{Colors.END}")
                     sync_interval = setup.config.get('sync_interval', 10)

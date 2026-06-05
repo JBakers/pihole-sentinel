@@ -42,31 +42,31 @@
 | Rank | ID    | Task                                | Status  | Est. Effort | Blocker  |
 | ---- | ----- | ----------------------------------- | ------- | ----------- | -------- |
 | 1️⃣   | M1-P3 | Multi-node Phase 3 (Dashboard UI)   | ✅ Done | —           | M1-P2 ✅ |
-| 2️⃣   | M1-P4 | Multi-node Phase 4 (Setup wizard)   | 🔲 Open | 2–3 days    | M1-P3 ✅ |
-| 3️⃣   | M1-P5 | Multi-node Phase 5 (Tests + Docker) | 🔲 Open | 1–2 days    | M1-P3 ✅ |
+| 2️⃣   | M1-P4 | Multi-node Phase 4 (Setup wizard)   | ✅ Done    | —           | M1-P3 ✅ |
+| 3️⃣   | M1-P5 | Multi-node Phase 5 (Tests + Docker) | 🔲 Open    | 1–2 days    | M1-P4 ✅ |
 | 4️⃣   | R1    | Rename `setup.py` to `install.py`   | 🔲 Open | 1 day       | None     |
 
 ---
 
 ### Session Handover (2026-06-05)
 
+- ✅ **M1-P4 completed on `feature/multi-node-support`** (v0.23.0)
+    - `setup.py` installs N nodes (min 2); wizard asks node count, then per-node IP/password/SSH
+    - Per-node keepalived configs with descending VRRP priority (150/140/130…), router_id PIHOLE{i}
+    - `monitor.env` writes new PIHOLE_{i}_* format + legacy PRIMARY/SECONDARY aliases
+    - Star-topology cross-node SSH (node 1 = hub) + `SYNC_PEER_IPS` in sync.conf
+    - Deploy loop, preflight, verify, uninstall iterate over full node list
+    - `_config_nodes()` helper with legacy 2-node fallback
+    - 10 new tests (TestNodeHelpers, TestGenerateConfigsNNode, TestPreflightNNode); 574 passed
 - ✅ **M1-P3 completed on `feature/multi-node-support`** (v0.22.0)
     - `index.html` dashboard renders node cards dynamically from `nodes[]` API response
     - `ensureNodeCards(nodes)` creates/removes cards at runtime without page reload
-    - `updateNode(nodeIndex, ...)` now uses per-node ID prefix (`node-{index}-*`)
     - Chart legend, tooltips and background bands use actual node names from API
-    - Per-node color palette: green (1), amber (2), blue (3), purple (4), teal (5+)
-    - Full backward-compat: falls back to `data.primary`/`data.secondary` if `nodes[]` absent
 - ✅ **M1-P2 completed on `feature/multi-node-support`** (v0.21.0)
     - `/api/status` returns `nodes[]` array (N-node architecture) + backward-compat `primary`/`secondary`
     - `/api/history` returns `nodes[]` per poll cycle + backward-compat fields
-    - `_pihole_stats` refactored to `node_index`-keyed dict
-- ✅ **D2 completed: monitor.py coverage 71%** (target was 60%+)
-    - Removed `--cov=setup` from `pytest.ini` and `Makefile` (setup.py is not unit-testable in CI)
-- ✅ **Repo health items R2, R3, R5, R6, R14 completed**
-    - `.github/SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SUPPORT.md` created
-    - `README.md` stale version note removed
-- ➡️ **Next coding target**: M1-P4 (Setup wizard interactive N-node config) OR M1-P5 (Tests + Docker)
+- ➡️ **Next coding target**: M1-P5 (N-node Docker test fixtures + integration tests),
+    then update the sync bash script (`sync-pihole-config.sh`) to consume `SYNC_PEER_IPS`
 
 ---
 
