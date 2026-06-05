@@ -1,8 +1,8 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
-**Last Updated:** 2026-05-13
+**Last Updated:** 2026-06-05
 
-**Version:** 0.20.1
+**Version:** 0.22.0
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
@@ -14,6 +14,7 @@ This document provides comprehensive guidance for AI assistants working with the
 > This file (CLAUDE.md) is the **reference document** — PLAN.md is the **working document**.
 
 **Recent Updates (v0.12.4, March 2026):**
+
 - setup.py end-to-end deployment with preflight checks + automatic rollback
 - Fault debounce + paired recovery notifications
 - System Commands panel + ANSI colour rendering in dashboard
@@ -59,25 +60,25 @@ configuratiebestanden met secrets, SSH, authenticatie, autorisatie, privacy, of 
 geldt:
 
 1. ✅ **Neem altijd de VEILIGSTE weg, niet de makkelijkste**
-   - Bewaar nooit een secret in plaintext, log, environment variabele, of process argument
-   - Gebruik `hmac.compare_digest()` voor vergelijkingen (timing-safe)
-   - Gebruik `chmod 600` / `0o600` voor bestanden met secrets
-   - Gebruik `sed -i` restore-patronen voor node-specifieke waarden (wachtwoord, pwhash, keys)
+    - Bewaar nooit een secret in plaintext, log, environment variabele, of process argument
+    - Gebruik `hmac.compare_digest()` voor vergelijkingen (timing-safe)
+    - Gebruik `chmod 600` / `0o600` voor bestanden met secrets
+    - Gebruik `sed -i` restore-patronen voor node-specifieke waarden (wachtwoord, pwhash, keys)
 
 2. ✅ **Controleer altijd of node-specifieke waarden bewaard blijven bij sync/copy/deploy**
-   - Voorbeelden: `pwhash`, `upstreams`, `listeningMode`, `dhcp.active`, API keys
-   - Stel jezelf de vraag: *"Wat gebeurt er met de secondary/remote als dit script opnieuw draait?"*
+    - Voorbeelden: `pwhash`, `upstreams`, `listeningMode`, `dhcp.active`, API keys
+    - Stel jezelf de vraag: _"Wat gebeurt er met de secondary/remote als dit script opnieuw draait?"_
 
 3. ✅ **Valideer alle externe invoer op injectie** (shell, SQL, path traversal)
-   - Gebruik `--` separators in shell-commando's
-   - Gebruik `|` pipes niet met ongesaneerde variabelen
+    - Gebruik `--` separators in shell-commando's
+    - Gebruik `|` pipes niet met ongesaneerde variabelen
 
 4. ✅ **Documenteer security trade-offs expliciet**
-   - Als iets onveilig is maar bewust gekozen (bijv. `StrictHostKeyChecking=no`),
-     voeg dan een waarschuwing toe in de UI en een opmerking in de code
+    - Als iets onveilig is maar bewust gekozen (bijv. `StrictHostKeyChecking=no`),
+      voeg dan een waarschuwing toe in de UI en een opmerking in de code
 
 5. ✅ **Meld security-relevante bevindingen direct aan de gebruiker**
-   - Ook als ze buiten de scope van de gevraagde wijziging vallen
+    - Ook als ze buiten de scope van de gevraagde wijziging vallen
 
 **Geen uitzonderingen. Cybersecurity boven gemak.**
 
@@ -93,9 +94,9 @@ geldt:
 
 1. ✅ **Update `VERSION` file** with new semantic version
 2. ✅ **Update `CHANGELOG.md`** with detailed entry
-   - Add entry under appropriate version section
-   - Use categories: New, Improved, Fixed, Security, Documentation
-   - Include specific details of what changed
+    - Add entry under appropriate version section
+    - Use categories: New, Improved, Fixed, Security, Documentation
+    - Include specific details of what changed
 3. ✅ **Update `CLAUDE.md` header** (lines 3-4) with new version and date
 
 #### Semantic Versioning Rules (SemVer 2.0.0)
@@ -105,19 +106,19 @@ geldt:
 Given a version number **MAJOR.MINOR.PATCH**, increment:
 
 1. **MAJOR** version (X.0.0) when you make incompatible API changes or breaking changes
-   - Example: Changing configuration file format without backward compatibility
-   - Example: Removing or renaming required environment variables
-   - Example: Changing CLI arguments or options
+    - Example: Changing configuration file format without backward compatibility
+    - Example: Removing or renaming required environment variables
+    - Example: Changing CLI arguments or options
 
 2. **MINOR** version (0.X.0) when you add functionality in a backward compatible manner
-   - Example: Adding new features
-   - Example: Adding new optional configuration options
-   - Example: Significant architectural changes
+    - Example: Adding new features
+    - Example: Adding new optional configuration options
+    - Example: Significant architectural changes
 
 3. **PATCH** version (0.0.X) when you make backward compatible bug fixes
-   - Example: Fixing bugs without changing functionality
-   - Example: Performance improvements
-   - Example: Security patches that don't change behavior
+    - Example: Fixing bugs without changing functionality
+    - Example: Performance improvements
+    - Example: Security patches that don't change behavior
 
 **Pre-1.0 Development:**
 
@@ -133,6 +134,7 @@ double-digit patch numbers (e.g. `0.12.10`) — they cause sorting and readabili
 confusion. This means each minor version has a maximum of 10 patch releases (`.0` through `.9`).
 
 **Examples:**
+
 ```
 0.12.7   → Bug fix
 0.12.8   → Another fix or small improvement
@@ -141,6 +143,7 @@ confusion. This means each minor version has a maximum of 10 patch releases (`.0
 ```
 
 **Quick Decision Tree:**
+
 - 🔴 Breaking change? → Bump MINOR (in pre-1.0: 0.X.0)
 - 🟡 New feature? → Bump MINOR (0.X.0)
 - 🟢 Bug fix or improvement? → Bump PATCH (0.0.X)
@@ -174,6 +177,7 @@ Version: X.Y.Z
 #### AI Assistant Failure Protocol
 
 **If you (AI assistant) make a commit without updating VERSION and CHANGELOG.md:**
+
 - ❌ You have FAILED this task
 - ❌ The commit is INVALID
 - ✅ You must immediately create a follow-up commit fixing the version
@@ -217,6 +221,7 @@ Version: X.Y.Z
 Install hooks: `git config core.hooksPath .githooks`
 
 **If you accidentally start a merge on a protected branch:**
+
 1. `git merge --abort`
 2. `git checkout develop`
 3. Inform the user
@@ -311,43 +316,44 @@ Pi-hole Sentinel is a High Availability (HA) solution for Pi-hole DNS servers th
 ### How It Works
 
 1. **Keepalived (VRRP)**
-   - Runs on both Pi-holes
-   - Manages Virtual IP (VIP) assignment
-   - Monitors Pi-hole FTL service health
-   - Handles DHCP failover (if enabled)
-   - Uses priority-based master election (Primary: 150, Secondary: 100)
+    - Runs on both Pi-holes
+    - Manages Virtual IP (VIP) assignment
+    - Monitors Pi-hole FTL service health
+    - Handles DHCP failover (if enabled)
+    - Uses priority-based master election (Primary: 150, Secondary: 100)
 
 2. **Monitor Service (FastAPI)**
-   - Polls both Pi-holes every 10 seconds
-   - Checks: connectivity, Pi-hole service, VIP location, DNS resolution, DHCP status
-   - Stores status history in SQLite database
-   - Serves real-time web dashboard
-   - Manages notification settings and delivery
+    - Polls both Pi-holes every 10 seconds
+    - Checks: connectivity, Pi-hole service, VIP location, DNS resolution, DHCP status
+    - Stores status history in SQLite database
+    - Serves real-time web dashboard
+    - Manages notification settings and delivery
 
 3. **Health Check Flow**
-   ```
-   Monitor ─(TCP:80)──> Pi-hole 1 (Online?)
-           ─(API)────> Pi-hole 1 (FTL Running?)
-           ─(dig)────> Pi-hole 1 (DNS Working?)
-           ─(API)────> Pi-hole 1 (DHCP Config?)
-           ─(ARP)────> VIP (Who has VIP?)
-   ```
+
+    ```
+    Monitor ─(TCP:80)──> Pi-hole 1 (Online?)
+            ─(API)────> Pi-hole 1 (FTL Running?)
+            ─(dig)────> Pi-hole 1 (DNS Working?)
+            ─(API)────> Pi-hole 1 (DHCP Config?)
+            ─(ARP)────> VIP (Who has VIP?)
+    ```
 
 4. **VIP Detection Method**
-   - Creates TCP connections to VIP and both servers
-   - Waits 200ms for ARP table to populate
-   - Extracts MAC addresses from `ip neigh show`
-   - Compares VIP MAC with both server MACs
-   - Retries up to 3 times on failure
+    - Creates TCP connections to VIP and both servers
+    - Waits 200ms for ARP table to populate
+    - Extracts MAC addresses from `ip neigh show`
+    - Compares VIP MAC with both server MACs
+    - Retries up to 3 times on failure
 
 5. **Failover Process**
-   ```
-   Primary FTL Stops → Keepalived detects failure →
-   Primary priority drops → Secondary becomes MASTER →
-   VIP moves to Secondary → DHCP enabled on Secondary →
-   DHCP disabled on Primary → Monitor detects change →
-   Notification sent
-   ```
+    ```
+    Primary FTL Stops → Keepalived detects failure →
+    Primary priority drops → Secondary becomes MASTER →
+    VIP moves to Secondary → DHCP enabled on Secondary →
+    DHCP disabled on Primary → Monitor detects change →
+    Notification sent
+    ```
 
 ### Container Architecture (Docker Sidecar Model)
 
@@ -385,6 +391,7 @@ The new container architecture runs sentinel as a sidecar alongside each Pi-hole
 ```
 
 **Key components:**
+
 - **sentinel-node** (`docker/sentinel-node/`) — Alpine container with keepalived + FastAPI sync agent
 - **sync agent** (port 5000) — Endpoints: `/health`, `/state`, `/sync/gravity`, `/sync/status`
 - **sentinel-installer** (`docker/sentinel-installer/`) — Web-based setup wizard (planned)
@@ -393,13 +400,13 @@ The new container architecture runs sentinel as a sidecar alongside each Pi-hole
 
 **Sync Agent Endpoints:**
 
-| Endpoint | Method | Auth | Purpose |
-|----------|--------|------|---------|
-| `/health` | GET | None | Health check |
-| `/state` | GET | None | VRRP state (MASTER/BACKUP) |
-| `/internal/state-change` | POST | Internal | Keepalived notify trigger |
-| `/sync/gravity` | POST | Token | Push/pull gravity.db |
-| `/sync/status` | GET | Token | Sync status overview |
+| Endpoint                 | Method | Auth     | Purpose                    |
+| ------------------------ | ------ | -------- | -------------------------- |
+| `/health`                | GET    | None     | Health check               |
+| `/state`                 | GET    | None     | VRRP state (MASTER/BACKUP) |
+| `/internal/state-change` | POST   | Internal | Keepalived notify trigger  |
+| `/sync/gravity`          | POST   | Token    | Push/pull gravity.db       |
+| `/sync/status`           | GET    | Token    | Sync status overview       |
 
 ---
 
@@ -490,13 +497,13 @@ pihole-sentinel/
 ### Languages & Frameworks
 
 - **Python 3.8+** (tested with 3.13)
-  - FastAPI (≥0.104.0) - Web framework for monitoring API
-  - Uvicorn (≥0.24.0) - ASGI server
-  - aiohttp (≥3.9.0) - Async HTTP client for Pi-hole API
-  - aiosqlite (≥0.19.0) - Async SQLite database
-  - aiofiles (≥23.2.0) - Async file operations
-  - python-dotenv (≥1.0.0) - Environment variable management
-  - python-dateutil (≥2.8.2) - Date/time utilities
+    - FastAPI (≥0.104.0) - Web framework for monitoring API
+    - Uvicorn (≥0.24.0) - ASGI server
+    - aiohttp (≥3.9.0) - Async HTTP client for Pi-hole API
+    - aiosqlite (≥0.19.0) - Async SQLite database
+    - aiofiles (≥23.2.0) - Async file operations
+    - python-dotenv (≥1.0.0) - Environment variable management
+    - python-dateutil (≥2.8.2) - Date/time utilities
 
 - **Bash** - Health checks, notifications, and sync scripts
 - **HTML/CSS/JavaScript** - Dashboard and settings UI (vanilla JS, no frameworks)
@@ -516,9 +523,9 @@ pihole-sentinel/
 ### External APIs
 
 - **Pi-hole v6 API**
-  - `/api/auth` - Authentication (session.sid)
-  - `/api/stats/summary` - Service statistics
-  - `/api/config/dhcp` - DHCP configuration
+    - `/api/auth` - Authentication (session.sid)
+    - `/api/stats/summary` - Service statistics
+    - `/api/config/dhcp` - DHCP configuration
 
 - **Notification Services** (optional): Telegram Bot API, Discord Webhooks, Pushover API, Ntfy.sh, custom webhooks
 
@@ -529,63 +536,65 @@ pihole-sentinel/
 ### Python Code Style
 
 1. **Logging over Print**
-   - ALWAYS use `logger.info()`, `logger.debug()`, `logger.error()` instead of `print()`
-   - Include `exc_info=True` for exception logging
-   - Example:
-     ```python
-     try:
-         result = await api_call()
-     except Exception as e:
-         logger.error(f"API call failed: {e}", exc_info=True)
-     ```
+    - ALWAYS use `logger.info()`, `logger.debug()`, `logger.error()` instead of `print()`
+    - Include `exc_info=True` for exception logging
+    - Example:
+        ```python
+        try:
+            result = await api_call()
+        except Exception as e:
+            logger.error(f"API call failed: {e}", exc_info=True)
+        ```
 
 2. **Async/Await Pattern**
-   - Monitor service uses async extensively
-   - Use `async def` for I/O operations
-   - Use `aiohttp.ClientSession()` for HTTP calls
-   - Use `aiosqlite` for database operations
+    - Monitor service uses async extensively
+    - Use `async def` for I/O operations
+    - Use `aiohttp.ClientSession()` for HTTP calls
+    - Use `aiosqlite` for database operations
 
 3. **Type Hints** (preferred but not required)
-   ```python
-   async def check_pihole(ip: str, password: str) -> Dict[str, bool]:
-       ...
-   ```
+
+    ```python
+    async def check_pihole(ip: str, password: str) -> Dict[str, bool]:
+        ...
+    ```
 
 4. **Error Handling**
-   - Catch specific exceptions
-   - Always log errors with context
-   - Graceful degradation (continue monitoring even if one check fails)
+    - Catch specific exceptions
+    - Always log errors with context
+    - Graceful degradation (continue monitoring even if one check fails)
 
 5. **Configuration**
-   - Environment variables via `python-dotenv`
-   - Validate required vars at startup
-   - Provide sensible defaults where possible
+    - Environment variables via `python-dotenv`
+    - Validate required vars at startup
+    - Provide sensible defaults where possible
 
 ### Bash Script Style
 
 1. **Shebang & Error Handling**
-   ```bash
-   #!/bin/bash
-   set -e  # Exit on error (use with caution)
-   ```
+
+    ```bash
+    #!/bin/bash
+    set -e  # Exit on error (use with caution)
+    ```
 
 2. **Logging**
-   - Timestamp all log entries
-   - Use consistent log file paths (`/var/log/keepalived-notify.log`)
-   - Example:
-     ```bash
-     timestamp() { date "+%Y-%m-%d %H:%M:%S"; }
-     echo "$(timestamp) - Action performed" >> "$LOGFILE"
-     ```
+    - Timestamp all log entries
+    - Use consistent log file paths (`/var/log/keepalived-notify.log`)
+    - Example:
+        ```bash
+        timestamp() { date "+%Y-%m-%d %H:%M:%S"; }
+        echo "$(timestamp) - Action performed" >> "$LOGFILE"
+        ```
 
 3. **Environment Variables**
-   - Load from `.env` files where needed
-   - Provide fallback defaults: `${INTERFACE:-eth0}`
-   - Validate critical variables
+    - Load from `.env` files where needed
+    - Provide fallback defaults: `${INTERFACE:-eth0}`
+    - Validate critical variables
 
 4. **Line Endings**
-   - ALWAYS use LF (Unix), never CRLF (Windows)
-   - Setup script auto-converts with `sed -i 's/\r$//'`
+    - ALWAYS use LF (Unix), never CRLF (Windows)
+    - Setup script auto-converts with `sed -i 's/\r$//'`
 
 ### File Permissions
 
@@ -610,6 +619,7 @@ pihole-sentinel/
 **Purpose:** Automated setup and deployment script
 
 **Key Functions:**
+
 - `SetupConfig` class - Main configuration manager
 - `collect_network_config()` - Interactive network configuration
 - `collect_dhcp_config()` - DHCP failover settings
@@ -623,6 +633,7 @@ pihole-sentinel/
 - `cleanup_sensitive_files()` - Securely delete generated configs
 
 **Important Notes:**
+
 - Requires root/sudo privileges
 - Handles SSH key generation automatically
 - Securely overwrites sensitive files before deletion
@@ -633,6 +644,7 @@ pihole-sentinel/
 **Purpose:** Real-time monitoring and web dashboard
 
 **Key Functions:**
+
 - `init_db()` - Initialize SQLite schema
 - `authenticate_pihole()` - Get Pi-hole API session
 - `check_pihole_api()` - Check FTL service status
@@ -645,6 +657,7 @@ pihole-sentinel/
 - `get_history()` - Historical data endpoint
 
 **API Endpoints:**
+
 - `GET /` - Dashboard UI
 - `GET /settings.html` - Settings UI
 - `GET /api/status` - Current status JSON
@@ -656,6 +669,7 @@ pihole-sentinel/
 - `GET /api/settings/system` - System settings (DHCP state)
 
 **Database Schema:**
+
 ```sql
 status_history (
     id, timestamp, primary_state, secondary_state,
@@ -676,11 +690,13 @@ events (
 **Purpose:** Handle VRRP state transitions
 
 **States:**
+
 - `MASTER` - Node has VIP, enable DHCP, send gratuitous ARP
 - `BACKUP` - Node lost VIP, disable DHCP
 - `FAULT` - Node in fault state, disable DHCP
 
 **Important:**
+
 - Reads `$INTERFACE` from environment (no hardcoded `eth0`)
 - Calls `dhcp_control.sh` to enable/disable DHCP
 - Sends notifications via `notify.sh` (async)
@@ -691,12 +707,14 @@ events (
 **Purpose:** Synchronize Pi-hole configurations between nodes
 
 **Features:**
+
 - Syncs: gravity.db, custom.list, adlists.list, DHCP leases, etc.
 - Checks if remote file exists before rsync
 - Distinguishes "file doesn't exist" vs "sync failed" errors
 - Exits with error on critical failures
 
 **Usage:**
+
 ```bash
 # Manual sync
 /usr/local/bin/sync-pihole-config.sh
@@ -738,18 +756,18 @@ sqlite3 /opt/pihole-monitor/monitor.db \
 
 ## Documentation Map
 
-| Resource | Purpose |
-|----------|----------|
-| [README.md](README.md) | User-facing project overview + quick start |
-| [PLAN.md](PLAN.md) | 📌 Active development plan, bugs, TODOs |
-| [TODO_USER.md](TODO_USER.md) | Open bugs + improvement tracker |
-| [CHANGELOG.md](CHANGELOG.md) | Full version history |
-| [docs/installation/quick-start.md](docs/installation/quick-start.md) | Installation guide |
-| [docs/installation/existing-setup.md](docs/installation/existing-setup.md) | Add HA to existing Pi-holes |
-| [docs/development/testing.md](docs/development/testing.md) | Testing procedures + coverage plan |
-| [docs/api/README.md](docs/api/README.md) | API documentation |
-| [docs/maintenance/sync.md](docs/maintenance/sync.md) | Config sync |
-| [.github/MERGE_FLOW.md](.github/MERGE_FLOW.md) | Git merge workflow diagram |
+| Resource                                                                   | Purpose                                    |
+| -------------------------------------------------------------------------- | ------------------------------------------ |
+| [README.md](README.md)                                                     | User-facing project overview + quick start |
+| [PLAN.md](PLAN.md)                                                         | 📌 Active development plan, bugs, TODOs    |
+| [TODO_USER.md](TODO_USER.md)                                               | Open bugs + improvement tracker            |
+| [CHANGELOG.md](CHANGELOG.md)                                               | Full version history                       |
+| [docs/installation/quick-start.md](docs/installation/quick-start.md)       | Installation guide                         |
+| [docs/installation/existing-setup.md](docs/installation/existing-setup.md) | Add HA to existing Pi-holes                |
+| [docs/development/testing.md](docs/development/testing.md)                 | Testing procedures + coverage plan         |
+| [docs/api/README.md](docs/api/README.md)                                   | API documentation                          |
+| [docs/maintenance/sync.md](docs/maintenance/sync.md)                       | Config sync                                |
+| [.github/MERGE_FLOW.md](.github/MERGE_FLOW.md)                             | Git merge workflow diagram                 |
 
 ---
 

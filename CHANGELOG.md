@@ -1,3 +1,24 @@
+## [0.22.0] - 2026-06-05
+
+### New
+
+- **M1-P3 — Dynamic node cards** — `index.html` dashboard now renders
+  Pi-hole node cards dynamically from the `nodes[]` array returned by
+  `/api/status`. Node cards are created, updated and removed at runtime
+  without page reload; supports N nodes (not just Primary/Secondary).
+- **`ensureNodeCards(nodes)`** — new JS function that diffs the current DOM
+  against the live node list and creates/removes cards as needed.
+- **Dynamic chart legend & tooltips** — the Master State History chart legend
+  and per-point tooltips now use actual node names from the API response
+  instead of hardcoded "Primary" / "Secondary" labels.
+- **Per-node color palette in chart** — up to 4+ nodes each get a distinct
+  background band color (green, amber, blue, purple, teal for N>4).
+
+### Improved
+
+- **Backward compatibility** — when `nodes[]` is absent (old API), the
+  dashboard falls back to `data.primary` / `data.secondary` automatically.
+
 ## [0.21.0] - 2026-06-05
 
 ### New

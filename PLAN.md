@@ -27,28 +27,37 @@
 ### Summary: Next Steps (2026-05-13)
 
 **Recent Copilot Review Fixes Completed (v0.18.1–0.18.2):**
+
 - ✅ DNS latency response serialization in `/api/status` (v0.18.1)
 - ✅ Debug override endpoint response codes + gating (v0.18.2)
 - ✅ Async event loop refactor (`get_running_loop()` instead of `get_event_loop()`)
 
 **Active Work (from commits 14fc333, d62b573):**
+
 - ✅ Test coverage expanded to **54%** on monitor.py (339→399 tests, 17 files)
 - ✅ Windows compatibility fixes for pytest
 
 **Priority Queue (Next in Order):**
 
-| Rank | ID  | Task | Status | Est. Effort | Blocker |
-|------|-----|------|--------|-------------|---------|
-| 1️⃣  | M1-P3 | Multi-node Phase 3 (Dashboard UI) | 🔲 Open | 2–3 days | M1-P2 ✅ |
-| 2️⃣  | M1-P4 | Multi-node Phase 4 (Setup wizard) | 🔲 Open | 2–3 days | M1-P2 ✅ |
-| 3️⃣  | M1-P5 | Multi-node Phase 5 (Tests + Docker) | 🔲 Open | 1–2 days | M1-P3 |
-| 4️⃣  | R1  | Rename `setup.py` to `install.py` | 🔲 Open | 1 day | None |
+| Rank | ID    | Task                                | Status  | Est. Effort | Blocker  |
+| ---- | ----- | ----------------------------------- | ------- | ----------- | -------- |
+| 1️⃣   | M1-P3 | Multi-node Phase 3 (Dashboard UI)   | ✅ Done | —           | M1-P2 ✅ |
+| 2️⃣   | M1-P4 | Multi-node Phase 4 (Setup wizard)   | 🔲 Open | 2–3 days    | M1-P3 ✅ |
+| 3️⃣   | M1-P5 | Multi-node Phase 5 (Tests + Docker) | 🔲 Open | 1–2 days    | M1-P3 ✅ |
+| 4️⃣   | R1    | Rename `setup.py` to `install.py`   | 🔲 Open | 1 day       | None     |
 
 ---
 
 ### Session Handover (2026-06-05)
 
-- ✅ **M1-P2 completed on `feature/multi-node-support`**
+- ✅ **M1-P3 completed on `feature/multi-node-support`** (v0.22.0)
+    - `index.html` dashboard renders node cards dynamically from `nodes[]` API response
+    - `ensureNodeCards(nodes)` creates/removes cards at runtime without page reload
+    - `updateNode(nodeIndex, ...)` now uses per-node ID prefix (`node-{index}-*`)
+    - Chart legend, tooltips and background bands use actual node names from API
+    - Per-node color palette: green (1), amber (2), blue (3), purple (4), teal (5+)
+    - Full backward-compat: falls back to `data.primary`/`data.secondary` if `nodes[]` absent
+- ✅ **M1-P2 completed on `feature/multi-node-support`** (v0.21.0)
     - `/api/status` returns `nodes[]` array (N-node architecture) + backward-compat `primary`/`secondary`
     - `/api/history` returns `nodes[]` per poll cycle + backward-compat fields
     - `_pihole_stats` refactored to `node_index`-keyed dict
@@ -57,14 +66,14 @@
 - ✅ **Repo health items R2, R3, R5, R6, R14 completed**
     - `.github/SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SUPPORT.md` created
     - `README.md` stale version note removed
-- ✅ **PLAN.md, TODO_USER.md translated to English** (per docs rule: .md files must be in English)
-- ➡️ **Next coding target**: Start M1-P3 (Dashboard UI dynamic node rendering)
+- ➡️ **Next coding target**: M1-P4 (Setup wizard interactive N-node config) OR M1-P5 (Tests + Docker)
 
 ---
 
 ### D2 — Test Coverage ✅ Done (v0.21.0)
 
 **Result:** `monitor.py` coverage reached **71%** (target was 60%+).
+
 - Removed `--cov=setup` from `pytest.ini` and `Makefile` — `setup.py` (interactive installer) is not meaningfully unit-testable.
 - Coverage threshold `fail_under = 60` in `pytest.ini` now correctly applies to `dashboard/monitor.py` only.
 
@@ -79,6 +88,7 @@
 **Scope:** Convert 2-node hardcoding → N-node dynamic architecture
 
 **Phases (sequential):**
+
 1. **Phase 1:** Config + DB layer (environment vars, schema, internal data flow)
 2. **Phase 2:** API layer (`/api/status`, `/api/history`, response models)
 3. **Phase 3:** UI layer (dynamic node cards, charts)
@@ -92,6 +102,7 @@
 #### v0.18.1 (2026-04-21) — 6 Copilot Review Comments
 
 **Issues Fixed:**
+
 - ✅ DNS latency not exposed in `/api/status` — added `dns_latency_warn_ms` field to `StatusResponse` Pydantic model
 - ✅ Dashboard hardcoded 500ms threshold → now uses `dns_latency_warn_ms` from server response
 - ✅ Test-mode banner not hidden on non-2xx responses → added error handling in `index.html`
@@ -104,6 +115,7 @@
 #### v0.18.2 (2026-04-21) — 3 Copilot Review Comments
 
 **Issues Fixed:**
+
 - ✅ `dns_latency_warn_ms` field stripped from `/api/status` — added to model (not just internal)
 - ✅ `/api/debug/override/status` returned 403 when DEBUG_MODE disabled → now returns 200 (prevents log noise)
 - ✅ `asyncio.get_event_loop().time()` used in async functions → replaced with `get_running_loop().time()` (5 sites)
@@ -134,8 +146,8 @@
 | `pisen api` CLI command                        | ✅ Working (v0.18.0)                                           |
 | DNS latency health check                       | ✅ Working (v0.18.0, default 500ms)                            |
 | Debug override mode (`DEBUG_MODE=true`)        | ✅ Working (v0.18.0)                                           |
-| Unit tests                                     | ✅ 564 tests passing (28 skipped: env-dependent)                |
-| M1-P1 (Multi-node Phase 1)                     | ✅ Completed on feature branch                                  |
+| Unit tests                                     | ✅ 564 tests passing (28 skipped: env-dependent)               |
+| M1-P1 (Multi-node Phase 1)                     | ✅ Completed on feature branch                                 |
 | Container architecture (v2.0)                  | 🔲 Separate branch: `feature/container-architecture`           |
 
 ---
@@ -552,11 +564,11 @@ No open bugs.
 - **ID:** R4
 - **Issue:** Root directory is cluttered — `Dockerfile.dev`, `docker-compose.poc.yml`, `docker-compose.test.yml`, SVG files, `PLAN.md`, `TODO_USER.md`, `CLAUDE.md`, `sync-pihole-config.sh`, `system-requirements.txt` all in root.
 - **Recommendations:**
-  - Move `logo.svg`, `logo-horizontal.svg`, `social-preview.svg` → `assets/`
-  - Move `sync-pihole-config.sh` → `bin/` (directory already exists)
-  - Move `PLAN.md` → `docs/development/` (internal planning document)
-  - Move `Dockerfile.dev` and `docker-compose.*.yml` → `docker/`
-  - Consider moving `TODO_USER.md` content to GitHub Issues or `CHANGELOG.md` and deleting the file
+    - Move `logo.svg`, `logo-horizontal.svg`, `social-preview.svg` → `assets/`
+    - Move `sync-pihole-config.sh` → `bin/` (directory already exists)
+    - Move `PLAN.md` → `docs/development/` (internal planning document)
+    - Move `Dockerfile.dev` and `docker-compose.*.yml` → `docker/`
+    - Consider moving `TODO_USER.md` content to GitHub Issues or `CHANGELOG.md` and deleting the file
 
 ---
 
@@ -659,7 +671,7 @@ No open bugs.
 | M1-P3 | Dashboard dynamic node rendering (remove hardcoded primary/secondary cards) | High     |
 | M1-P4 | setup.py multi-node wizard/config generation                                | Medium   |
 | M1-P5 | Multi-node test + docker fixtures                                           | Medium   |
-| R1    | Rename `setup.py` to `install.py` or `sentinel-setup.py`                   | Medium   |
+| R1    | Rename `setup.py` to `install.py` or `sentinel-setup.py`                    | Medium   |
 | R4    | Root directory cleanup (move SVGs, scripts, docker files)                   | Low      |
 | R7    | Enable branch protection on `testing` branch (GitHub settings)              | Low      |
 | R8    | Rename `docker-compose.poc.yml` to `docker-compose.dev.yml`                 | Low      |
@@ -673,17 +685,17 @@ No open bugs.
 
 ## ✅ Completed Improvements (v0.18.0+)
 
-| ID    | Improvement                                                              | Completed |
-| ----- | ------------------------------------------------------------------------ | --------- |
-| M1-P2 | Multi-node API migration (`/api/status`, `/api/history` to `nodes[]`)   | v0.21.0   |
-| D2    | Test coverage 54% → 71% on `monitor.py`                                | v0.21.0   |
-| R2    | `.github/SECURITY.md` created                                           | v0.21.0   |
-| R3    | README stale version note removed                                       | v0.21.0   |
-| R5    | `.github/CONTRIBUTING.md` created                                       | v0.21.0   |
-| R6    | `.github/CODE_OF_CONDUCT.md` created                                    | v0.21.0   |
-| R14   | `.github/SUPPORT.md` created                                            | v0.21.0   |
-| P2    | `pisen` CLI: dynamic copyright year                                     | v0.18.0   |
-| P3    | `pisen` CLI: `--api` mode (HTTP API client)                             | v0.18.0   |
+| ID    | Improvement                                                           | Completed |
+| ----- | --------------------------------------------------------------------- | --------- |
+| M1-P2 | Multi-node API migration (`/api/status`, `/api/history` to `nodes[]`) | v0.21.0   |
+| D2    | Test coverage 54% → 71% on `monitor.py`                               | v0.21.0   |
+| R2    | `.github/SECURITY.md` created                                         | v0.21.0   |
+| R3    | README stale version note removed                                     | v0.21.0   |
+| R5    | `.github/CONTRIBUTING.md` created                                     | v0.21.0   |
+| R6    | `.github/CODE_OF_CONDUCT.md` created                                  | v0.21.0   |
+| R14   | `.github/SUPPORT.md` created                                          | v0.21.0   |
+| P2    | `pisen` CLI: dynamic copyright year                                   | v0.18.0   |
+| P3    | `pisen` CLI: `--api` mode (HTTP API client)                           | v0.18.0   |
 
 ### M1 — Multi-Node Support (N Pi-holes)
 
