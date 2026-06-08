@@ -136,7 +136,7 @@ class SetupConfig:
     @staticmethod
     def _node_name(index, total):
         """Display name stored in config / env for a node."""
-        return f"Pi-hole {index}"
+        return f"Pi-Hole Node {index}"
 
     def _config_nodes(self):
         """Return the configured node list (N-node aware, legacy fallback).

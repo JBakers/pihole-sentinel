@@ -96,7 +96,7 @@ def load_node_config_from_env() -> list[dict]:
         node = {
             "index": node_index,
             "ip": ip,
-            "name": os.getenv(name_var, f"Pi-hole {node_index}"),
+            "name": os.getenv(name_var, f"Pi-Hole Node {node_index}"),
             "password": password,
             "ssh_user": os.getenv(ssh_user_var, "root"),
             "ssh_port": int(os.getenv(ssh_port_var, "22")),
@@ -121,7 +121,7 @@ def load_node_config_from_env() -> list[dict]:
                 {
                     "index": 1,
                     "ip": primary_ip,
-                    "name": os.getenv("PRIMARY_NAME", "Pi-hole 1"),
+                    "name": os.getenv("PRIMARY_NAME", "Pi-Hole Node 1"),
                     "password": os.getenv("PRIMARY_PASSWORD", ""),
                     "ssh_user": os.getenv("PRIMARY_SSH_USER", "root"),
                     "ssh_port": int(os.getenv("PRIMARY_SSH_PORT", "22")),
@@ -129,7 +129,7 @@ def load_node_config_from_env() -> list[dict]:
                 {
                     "index": 2,
                     "ip": secondary_ip,
-                    "name": os.getenv("SECONDARY_NAME", "Pi-hole 2"),
+                    "name": os.getenv("SECONDARY_NAME", "Pi-Hole Node 2"),
                     "password": os.getenv("SECONDARY_PASSWORD", ""),
                     "ssh_user": os.getenv("SECONDARY_SSH_USER", "root"),
                     "ssh_port": int(os.getenv("SECONDARY_SSH_PORT", "22")),
@@ -155,12 +155,12 @@ def load_node_config_from_env() -> list[dict]:
 CONFIG = {
     "primary": {
         "ip": os.getenv("PRIMARY_IP"),
-        "name": os.getenv("PRIMARY_NAME", "Pi-hole 1"),
+        "name": os.getenv("PRIMARY_NAME", "Pi-Hole Node 1"),
         "password": os.getenv("PRIMARY_PASSWORD"),
     },
     "secondary": {
         "ip": os.getenv("SECONDARY_IP"),
-        "name": os.getenv("SECONDARY_NAME", "Pi-hole 2"),
+        "name": os.getenv("SECONDARY_NAME", "Pi-Hole Node 2"),
         "password": os.getenv("SECONDARY_PASSWORD"),
     },
     "vip": os.getenv("VIP_ADDRESS"),
@@ -360,10 +360,10 @@ class StatusResponse(BaseModel):
     )
     # Backward-compat fields populated from nodes[0] / nodes[1]
     primary: PiHoleStatus = Field(
-        ..., description="Primary Pi-hole status (nodes[0], backward compat)"
+        ..., description="Node 1 status (backward compat)"
     )
     secondary: PiHoleStatus = Field(
-        ..., description="Secondary Pi-hole status (nodes[1], backward compat)"
+        ..., description="Node 2 status (backward compat)"
     )
     vip: str = Field(..., description="Virtual IP address")
     dhcp_leases: int = Field(0, description="Number of active DHCP leases")
@@ -1092,9 +1092,9 @@ async def check_and_send_reminders():
                     "date": datetime.now().strftime("%Y-%m-%d"),
                 }
             else:
-                primary_name = CONFIG.get("primary", {}).get("name", "Primary Pi-hole")
+                primary_name = CONFIG.get("primary", {}).get("name", "Pi-Hole Node 1")
                 secondary_name = CONFIG.get("secondary", {}).get(
-                    "name", "Secondary Pi-hole"
+                    "name", "Pi-Hole Node 2"
                 )
                 template_vars = {
                     "node_name": secondary_name,
@@ -2267,7 +2267,7 @@ async def monitor_loop():
                             current_master_name,
                         ),
                         "primary": (
-                            node_states[0]["name"] if node_states else "Primary Pi-hole"
+                            node_states[0]["name"] if node_states else "Pi-Hole Node 1"
                         ),
                         "secondary": (
                             node_states[1]["name"]
@@ -2275,7 +2275,7 @@ async def monitor_loop():
                             else (
                                 node_states[0]["name"]
                                 if node_states
-                                else "Secondary Pi-hole"
+                                else "Pi-Hole Node 2"
                             )
                         ),
                         "nodes": node_states,
@@ -2314,7 +2314,7 @@ async def monitor_loop():
                                     "primary": (
                                         node_states[0]["name"]
                                         if node_states
-                                        else "Primary Pi-hole"
+                                        else "Pi-Hole Node 1"
                                     ),
                                     "secondary": (
                                         node_states[1]["name"]
@@ -2322,7 +2322,7 @@ async def monitor_loop():
                                         else (
                                             node_states[0]["name"]
                                             if node_states
-                                            else "Secondary Pi-hole"
+                                            else "Pi-Hole Node 2"
                                         )
                                     ),
                                     "reason": f"{node_label} is back online",
@@ -2367,7 +2367,7 @@ async def monitor_loop():
                                     "primary": (
                                         node_states[0]["name"]
                                         if node_states
-                                        else "Primary Pi-hole"
+                                        else "Pi-Hole Node 1"
                                     ),
                                     "secondary": (
                                         node_states[1]["name"]
@@ -2375,7 +2375,7 @@ async def monitor_loop():
                                         else (
                                             node_states[0]["name"]
                                             if node_states
-                                            else "Secondary Pi-hole"
+                                            else "Pi-Hole Node 2"
                                         )
                                     ),
                                     "reason": f"{node_label} is unreachable",
@@ -2416,7 +2416,7 @@ async def monitor_loop():
                                     "primary": (
                                         node_states[0]["name"]
                                         if node_states
-                                        else "Primary Pi-hole"
+                                        else "Pi-Hole Node 1"
                                     ),
                                     "secondary": (
                                         node_states[1]["name"]
@@ -2424,7 +2424,7 @@ async def monitor_loop():
                                         else (
                                             node_states[0]["name"]
                                             if node_states
-                                            else "Secondary Pi-hole"
+                                            else "Pi-Hole Node 2"
                                         )
                                     ),
                                     "reason": f"Pi-hole service on {node_state['name']} is back up",
@@ -2481,7 +2481,7 @@ async def monitor_loop():
                                     "primary": (
                                         node_states[0]["name"]
                                         if node_states
-                                        else "Primary Pi-hole"
+                                        else "Pi-Hole Node 1"
                                     ),
                                     "secondary": (
                                         node_states[1]["name"]
@@ -2489,7 +2489,7 @@ async def monitor_loop():
                                         else (
                                             node_states[0]["name"]
                                             if node_states
-                                            else "Secondary Pi-hole"
+                                            else "Pi-Hole Node 2"
                                         )
                                     ),
                                     "reason": f"Pi-hole service on {node_state['name']} is down",
@@ -2552,7 +2552,7 @@ async def monitor_loop():
                     "master": master_name,
                     "backup": backup_name,
                     "primary": (
-                        node_states[0]["name"] if node_states else "Primary Pi-hole"
+                        node_states[0]["name"] if node_states else "Pi-Hole Node 1"
                     ),
                     "secondary": (
                         node_states[1]["name"]
@@ -2560,7 +2560,7 @@ async def monitor_loop():
                         else (
                             node_states[0]["name"]
                             if node_states
-                            else "Secondary Pi-hole"
+                            else "Pi-Hole Node 2"
                         )
                     ),
                     "nodes": node_states,

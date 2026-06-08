@@ -1,3 +1,22 @@
+## [0.25.3] - 2026-06-08
+
+### Fixed
+
+- **Failover history UI for multi-node** — corrected JavaScript fallback node name mappings
+  in failover event table; previously showed "Secondary" label for node 3+.
+- **Inconsistent node display naming** — renamed all instances from mixed naming
+  ("Primary Pi-hole", "Secondary Pi-hole", "Pi-hole 3") to standardized "Pi-Hole Node 1",
+  "Pi-Hole Node 2", etc. throughout dashboard, settings panel, and all notifications.
+- **Notification template examples** — updated generic failover/recovery examples to use
+  dynamic template variables instead of hardcoded primary/secondary labels.
+
+### Improved
+
+- **Dashboard UI consistency** — all UI text on index.html and settings.html now uses
+  generic "Pi-hole nodes" terminology instead of primary/backup references.
+- **Chart legend & tooltips** — Master State History chart now dynamically renders all node
+  names from API response; fallback defaults corrected to "Pi-Hole Node X" pattern.
+
 ## [0.25.2] - 2026-06-08
 
 ### Fixed

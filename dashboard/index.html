@@ -1316,7 +1316,7 @@
             <div class="summary-info" id="failover-summary"></div>
             <div class="collapsible-content" id="failover-content">
                 <div style="color: #666; margin-bottom: 15px;">
-                    Overview of all instances where MASTER state switched between Primary and Secondary nodes.
+                    Overview of all instances where MASTER state switched between Pi-hole nodes.
                 </div>
                 <table id="failover-table" style="width: 100%; border-collapse: collapse;">
                     <thead>
@@ -1651,7 +1651,7 @@
                 : [
                     Object.assign({ index: 1 }, data.primary),
                     Object.assign({ index: 2 }, data.secondary)
-                  ];
+                ];
             ensureNodeCards(nodes);
             // Cache node names for chart legend and tooltips
             window._nodeNames = {};
@@ -1927,11 +1927,11 @@
             const nodeChartColors = [
                 null,
                 { bg: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.15)', legend: 'rgba(16, 185, 129, 0.35)' },
-                { bg: isDark ? 'rgba(245, 158, 11, 0.12)'  : 'rgba(245, 158, 11, 0.15)',  legend: 'rgba(245, 158, 11, 0.35)'  },
-                { bg: isDark ? 'rgba(59, 130, 246, 0.12)'  : 'rgba(59, 130, 246, 0.15)',  legend: 'rgba(59, 130, 246, 0.35)'  },
-                { bg: isDark ? 'rgba(168, 85, 247, 0.12)'  : 'rgba(168, 85, 247, 0.15)',  legend: 'rgba(168, 85, 247, 0.35)'  },
+                { bg: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.15)', legend: 'rgba(245, 158, 11, 0.35)' },
+                { bg: isDark ? 'rgba(59, 130, 246, 0.12)' : 'rgba(59, 130, 246, 0.15)', legend: 'rgba(59, 130, 246, 0.35)' },
+                { bg: isDark ? 'rgba(168, 85, 247, 0.12)' : 'rgba(168, 85, 247, 0.15)', legend: 'rgba(168, 85, 247, 0.35)' },
             ];
-            const noMasterBg    = isDark ? 'rgba(239, 68, 68, 0.06)'  : 'rgba(239, 68, 68, 0.08)';
+            const noMasterBg = isDark ? 'rgba(239, 68, 68, 0.06)' : 'rgba(239, 68, 68, 0.08)';
             const fallbackColor = { bg: isDark ? 'rgba(6, 182, 212, 0.12)' : 'rgba(6, 182, 212, 0.15)', legend: 'rgba(6, 182, 212, 0.35)' };
 
             // Determine which node index is MASTER per data point (0 = no master)
@@ -1972,7 +1972,7 @@
             };
 
             // Tooltip: master state per point (uses cached node names)
-            const nodeNames  = window._nodeNames || { 1: 'Primary', 2: 'Secondary' };
+            const nodeNames = window._nodeNames || { 1: 'Pi-Hole Node 1', 2: 'Pi-Hole Node 2' };
             const nodeEmojis = ['', '🟢', '🟠', '🔵', '🟣'];
             const masterLabels = limitedData.map(d => {
                 let masterIdx = 0;
@@ -1985,7 +1985,7 @@
                 }
                 if (masterIdx === 0) return '🔴 No MASTER detected';
                 const emoji = nodeEmojis[masterIdx] || '⚪';
-                const name  = nodeNames[masterIdx] || 'Pi-hole ' + masterIdx;
+                const name = nodeNames[masterIdx] || 'Pi-Hole Node ' + masterIdx;
                 return `${emoji} ${name} is MASTER`;
             });
 
@@ -2052,9 +2052,9 @@
                                 usePointStyle: true,
                                 padding: 16,
                                 generateLabels: function () {
-                                    const names  = window._nodeNames || { 1: 'Primary', 2: 'Secondary' };
+                                    const names = window._nodeNames || { 1: 'Pi-Hole Node 1', 2: 'Pi-Hole Node 2' };
                                     const emojis = ['', '🟢', '🟠', '🔵', '🟣'];
-                                    const items  = Object.entries(names)
+                                    const items = Object.entries(names)
                                         .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
                                         .map(([idx, name]) => {
                                             idx = parseInt(idx);
