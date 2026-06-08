@@ -1,3 +1,36 @@
+## [0.24.0] - 2026-06-08
+
+### New
+
+- **M1-P5 — N-node config sync** — `sync-pihole-config.sh` now consumes the
+  star-topology `SYNC_PEER_IPS` list from `sync.conf`. The hub (node 1) pushes
+  configuration to every peer (nodes 2..N) instead of a single hardcoded
+  secondary. Each peer is synced in an isolated subshell so one failing node is
+  reported without aborting the remaining peers. Falls back to `SECONDARY_IP`
+  for legacy 2-node setups.
+- **N-node Docker test environment** — new `docker-compose.test-nnode.yml`
+  brings up a 3-node mock setup (mocks on ports 8011-8013, monitor on 8090, a
+  dedicated `10.99.1.0/24` subnet) so it can run alongside the 2-node
+  environment. Drives the monitor through the `PIHOLE_{i}_*` env format.
+- **N-node integration tests** — `tests/test_integration_nnode.py` (8 tests)
+  validate the `nodes[]` status array, per-node names/fields, backward-compat
+  `primary`/`secondary`, third-node failover/recovery detection and the
+  `nodes[]` history array.
+
+### Improved
+
+- **`SYNC_PEER_IPS` parsing** — the `sync.conf` parser now preserves internal
+  spaces for the space-separated peer-IP list while still trimming surrounding
+  whitespace/quotes, and validates every peer IP (octet range checks) to guard
+  against injection via malformed config values.
+- **Make targets** — added `docker-up-nnode`, `docker-down-nnode`,
+  `docker-build-nnode`, `docker-status-nnode`, `docker-test-nnode` and
+  `docker-integration-nnode` for the 3-node environment.
+
+### Tests
+
+- Full unit suite: 569 passed, 10 skipped (env-dependent), coverage 71%.
+
 ## [0.23.0] - 2026-06-05
 
 ### New

@@ -43,13 +43,23 @@
 | ---- | ----- | ----------------------------------- | ------- | ----------- | -------- |
 | 1️⃣   | M1-P3 | Multi-node Phase 3 (Dashboard UI)   | ✅ Done | —           | M1-P2 ✅ |
 | 2️⃣   | M1-P4 | Multi-node Phase 4 (Setup wizard)   | ✅ Done    | —           | M1-P3 ✅ |
-| 3️⃣   | M1-P5 | Multi-node Phase 5 (Tests + Docker) | 🔲 Open    | 1–2 days    | M1-P4 ✅ |
+| 3️⃣   | M1-P5 | Multi-node Phase 5 (Tests + Docker) | ✅ Done    | —    | M1-P4 ✅ |
 | 4️⃣   | R1    | Rename `setup.py` to `install.py`   | 🔲 Open | 1 day       | None     |
 
 ---
 
 ### Session Handover (2026-06-05)
 
+- ✅ **M1-P5 completed on `feature/multi-node-support`** (v0.24.0)
+    - `sync-pihole-config.sh` consumes star-topology `SYNC_PEER_IPS`; hub pushes
+      to all peers (nodes 2..N) via per-peer subshells, legacy `SECONDARY_IP`
+      fallback, peer-IP validation
+    - `docker-compose.test-nnode.yml`: 3-node mock env (ports 8011-8013 + 8090,
+      subnet 10.99.1.0/24) driving the monitor via `PIHOLE_{i}_*` env format
+    - `tests/test_integration_nnode.py` (8 tests): nodes[] shape, names/fields,
+      backward-compat primary/secondary, 3rd-node failover/recovery, history nodes[]
+    - Make targets: `docker-{up,down,build,status,test,integration}-nnode`
+    - Full unit suite: 569 passed, 10 skipped, 71% coverage
 - ✅ **M1-P4 completed on `feature/multi-node-support`** (v0.23.0)
     - `setup.py` installs N nodes (min 2); wizard asks node count, then per-node IP/password/SSH
     - Per-node keepalived configs with descending VRRP priority (150/140/130…), router_id PIHOLE{i}
@@ -65,8 +75,8 @@
 - ✅ **M1-P2 completed on `feature/multi-node-support`** (v0.21.0)
     - `/api/status` returns `nodes[]` array (N-node architecture) + backward-compat `primary`/`secondary`
     - `/api/history` returns `nodes[]` per poll cycle + backward-compat fields
-- ➡️ **Next coding target**: M1-P5 (N-node Docker test fixtures + integration tests),
-    then update the sync bash script (`sync-pihole-config.sh`) to consume `SYNC_PEER_IPS`
+- ➡️ **Next coding target**: R1 (rename `setup.py` → `install.py`), then the
+    v1.0.0 release prep (multi-node branch merge to `develop`)
 
 ---
 

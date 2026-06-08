@@ -3,7 +3,7 @@
 #
 # Quick commands for common development tasks
 
-.PHONY: help install install-dev test test-unit test-integration test-cov test-fast clean lint format check-security docker-build docker-up docker-down docker-test docker-logs docker-status docker-failover docker-recover
+.PHONY: help install install-dev test test-unit test-integration test-cov test-fast clean lint format check-security docker-build docker-up docker-down docker-test docker-logs docker-status docker-failover docker-recover docker-up-nnode docker-down-nnode docker-test-nnode docker-status-nnode docker-integration-nnode
 
 help:
 	@echo "Pi-hole Sentinel Development Commands"
@@ -183,6 +183,49 @@ docker-integration: docker-up
 	python3 -m pytest tests/test_integration.py -v --tb=short --no-header -p no:cacheprovider --override-ini="addopts=" -m integration
 	@echo ""
 	@echo "✅ Integration tests done"
+
+# ── N-node (>2) test environment (docker-compose.test-nnode.yml) ──
+docker-build-nnode:
+	docker compose -f docker-compose.test-nnode.yml build
+
+docker-up-nnode: docker-build-nnode
+	docker compose -f docker-compose.test-nnode.yml up -d
+	@echo "Waiting for services to start..."
+	@sleep 12
+	@echo ""
+	@echo "=== Pi-hole Sentinel N-Node Test Environment (3 nodes) ==="
+	@echo "Dashboard:    http://localhost:8090"
+	@echo "API Key:      test-api-key-nnode"
+	@echo "Node 1:       http://localhost:8011/mock/state"
+	@echo "Node 2:       http://localhost:8012/mock/state"
+	@echo "Node 3:       http://localhost:8013/mock/state"
+	@echo ""
+
+docker-down-nnode:
+	docker compose -f docker-compose.test-nnode.yml down -v
+
+docker-status-nnode:
+	@echo "=== Container Status ==="
+	@docker compose -f docker-compose.test-nnode.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+	@echo ""
+	@echo "=== Monitor Status (nodes[]) ==="
+	@curl -sf -H "X-API-Key: test-api-key-nnode" http://localhost:8090/api/status 2>/dev/null | python3 -m json.tool || echo "  (unreachable)"
+
+docker-test-nnode: docker-down-nnode docker-up-nnode
+	@echo "🧪 Running smoke tests against N-node Docker environment..."
+	@echo ""
+	@echo "=== Monitor status (nodes[]) ==="
+	@curl -sf -H "X-API-Key: test-api-key-nnode" http://localhost:8090/api/status | python3 -m json.tool
+	@echo ""
+	@echo "✅ N-node smoke tests passed"
+
+docker-integration-nnode: docker-up-nnode
+	@echo ""
+	@echo "🧪 Running N-node integration tests against Docker mock environment..."
+	@echo ""
+	python3 -m pytest tests/test_integration_nnode.py -v --tb=short --no-header -p no:cacheprovider --override-ini="addopts=" -m integration
+	@echo ""
+	@echo "✅ N-node integration tests done"
 
 # Setup.py tests against live Docker mock environment
 docker-setup-test: docker-up

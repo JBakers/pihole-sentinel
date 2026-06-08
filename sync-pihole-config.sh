@@ -34,10 +34,14 @@ if [ -f "$SYNC_CONF" ]; then
     # Parse key=value safely (no source to avoid arbitrary code execution)
     while IFS='=' read -r key value; do
         key=$(echo "$key" | tr -d '[:space:]')
+        # raw_value trims only surrounding whitespace/quotes, preserving internal
+        # spaces (needed for SYNC_PEER_IPS, a space-separated IP list).
+        raw_value=$(echo "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//')
         value=$(echo "$value" | tr -d '[:space:]' | tr -d '"')
         case "$key" in
             PRIMARY_IP)        PRIMARY_IP="$value" ;;
             SECONDARY_IP)      SECONDARY_IP="$value" ;;
+            SYNC_PEER_IPS)     SYNC_PEER_IPS="$raw_value" ;;
             SYNC_INTERVAL_MINUTES) SYNC_INTERVAL_MINUTES="$value" ;;
             SYNC_GRAVITY)          SYNC_GRAVITY="$value" ;;
             SYNC_CUSTOM_DNS)       SYNC_CUSTOM_DNS="$value" ;;
@@ -116,6 +120,18 @@ validate_ip() {
 }
 validate_ip "$PRIMARY_IP" "PRIMARY_IP"
 validate_ip "$SECONDARY_IP" "SECONDARY_IP"
+
+# Star-topology peers (nodes 2..N). The hub (node 1 / primary) pushes config to
+# every peer in this list. Falls back to SECONDARY_IP for legacy 2-node setups
+# where sync.conf predates SYNC_PEER_IPS.
+SYNC_PEER_IPS="${SYNC_PEER_IPS:-}"
+if [ -z "$SYNC_PEER_IPS" ] && [ -n "$SECONDARY_IP" ]; then
+    SYNC_PEER_IPS="$SECONDARY_IP"
+fi
+# Validate every peer IP (prevents injection via malformed sync.conf values)
+for peer in $SYNC_PEER_IPS; do
+    validate_ip "$peer" "SYNC_PEER_IPS entry"
+done
 
 # Convert to lowercase
 NODE_TYPE=$(echo "$NODE_TYPE" | tr '[:upper:]' '[:lower:]')
@@ -342,8 +358,11 @@ sync_from_primary() {
     fi
 }
 
-sync_to_secondary() {
-    log_info "Syncing configuration TO secondary ($SECONDARY_IP)..."
+sync_to_peer() {
+    # Shadow the global SECONDARY_IP with this peer's IP so the entire function
+    # body (star topology) targets the given node without further edits.
+    local SECONDARY_IP="$1"
+    log_info "Syncing configuration TO peer ($SECONDARY_IP)..."
     
     if ! check_pihole_running; then
         log_error "Primary Pi-hole is not running. Cannot sync."
@@ -613,6 +632,37 @@ REMOTE_PRESERVE
     fi
 }
 
+sync_to_all_peers() {
+    # Star topology: the hub (node 1) pushes config to every peer (nodes 2..N).
+    # Each peer is synced in a subshell so a failure on one node is reported but
+    # does not abort syncing to the remaining peers.
+    if ! check_pihole_running; then
+        log_error "Primary Pi-hole is not running. Cannot sync."
+        exit 1
+    fi
+    local failed=0 total=0 idx=0
+    for peer in $SYNC_PEER_IPS; do
+        idx=$((idx + 1))
+        total=$((total + 1))
+        log_info "─── Peer ${idx}: ${peer} ───"
+        if ( sync_to_peer "$peer" ); then
+            log_info "✓ Peer ${peer} synced"
+        else
+            log_error "✗ Sync to peer ${peer} failed"
+            failed=$((failed + 1))
+        fi
+    done
+    if [ "$total" -eq 0 ]; then
+        log_error "No peers configured (SYNC_PEER_IPS empty and no SECONDARY_IP)"
+        exit 1
+    fi
+    if [ "$failed" -gt 0 ]; then
+        log_error "${failed}/${total} peer sync(s) failed"
+        exit 1
+    fi
+    log_info "✓ All ${total} peer(s) synced successfully"
+}
+
 restore_from_backup() {
     log_warn "Restoring from latest backup..."
     
@@ -633,8 +683,10 @@ restore_from_backup() {
     log_info "Backup restored"
 }
 
-show_diff() {
-    log_info "Showing configuration differences..."
+show_diff_peer() {
+    # Shadow the global SECONDARY_IP with this peer's IP (star topology).
+    local SECONDARY_IP="$1"
+    log_info "Showing configuration differences vs peer ($SECONDARY_IP)..."
     
     local temp_dir=$(mktemp -d)
     
@@ -653,9 +705,9 @@ show_diff() {
     remote_blacklist=$(cat "$temp_dir/remote_blacklist_count")
     
     echo ""
-    echo "Configuration Comparison:"
+    echo "Configuration Comparison (peer ${SECONDARY_IP}):"
     echo "========================="
-    printf "%-20s %10s %10s\n" "Item" "Primary" "Secondary"
+    printf "%-20s %10s %10s\n" "Item" "Primary" "Peer"
     printf "%-20s %10s %10s\n" "----" "-------" "---------"
     printf "%-20s %10d %10d\n" "Adlists" "$local_adlist" "$remote_adlist"
     printf "%-20s %10d %10d\n" "Whitelist" "$local_whitelist" "$remote_whitelist"
@@ -671,6 +723,13 @@ show_diff() {
     rm -rf "$temp_dir"
 }
 
+show_diff() {
+    # Compare the hub against every peer (nodes 2..N).
+    for peer in $SYNC_PEER_IPS; do
+        show_diff_peer "$peer"
+    done
+}
+
 # Main script logic
 case "$NODE_TYPE" in
     master|primary)
@@ -680,21 +739,21 @@ case "$NODE_TYPE" in
             show_diff
         elif [ "$1" == "--auto" ]; then
             log_info "Auto-sync mode enabled"
-            sync_to_secondary
+            sync_to_all_peers
         else
             echo ""
             echo "Pi-hole Configuration Sync - PRIMARY Mode"
             echo "=========================================="
             echo ""
             echo "Options:"
-            echo "  1) Sync TO secondary"
+            echo "  1) Sync TO all peers"
             echo "  2) Show configuration differences"
             echo "  3) Exit"
             echo ""
             read -p "Choose option [1-3]: " choice
             
             case $choice in
-                1) sync_to_secondary ;;
+                1) sync_to_all_peers ;;
                 2) show_diff ;;
                 3) exit 0 ;;
                 *) log_error "Invalid choice"; exit 1 ;;

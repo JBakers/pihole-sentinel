@@ -1,0 +1,139 @@
+# Pi-hole Sentinel - N-Node Test Environment (3 nodes)
+#
+# SECURITY: All passwords/tokens in this file are TEST-ONLY placeholders.
+# They are used exclusively for local mock containers and carry no security risk.
+# NEVER use these values in production.
+#
+# Purpose:
+#   Validates the N-node (>2) architecture end-to-end: monitor polling,
+#   nodes[] API output, per-node failover detection and history.
+#   Runs on a separate subnet/ports so it can coexist with the 2-node
+#   environment from docker-compose.test.yml.
+#
+# Architecture:
+#   pihole-node1 (10.99.1.10) - Mock Pi-hole v6 API (node 1, DHCP on)
+#   pihole-node2 (10.99.1.11) - Mock Pi-hole v6 API (node 2, DHCP off)
+#   pihole-node3 (10.99.1.12) - Mock Pi-hole v6 API (node 3, DHCP off)
+#   sentinel-monitor (10.99.1.20) - Pi-hole Sentinel monitor + dashboard
+#
+# Usage:
+#   make docker-up-nnode      # Build + start 3-node environment
+#   make docker-test-nnode    # Rebuild, start, run smoke tests
+#   make docker-down-nnode    # Tear down + remove volumes
+#
+# Access:
+#   Dashboard:  http://localhost:8090
+#   API:        http://localhost:8090/api/status  (header: X-API-Key: test-api-key-nnode)
+#   Node 1:     http://localhost:8011/mock/state
+#   Node 2:     http://localhost:8012/mock/state
+#   Node 3:     http://localhost:8013/mock/state
+
+x-mock-pihole: &mock-pihole
+  build:
+    context: docker/mock-pihole
+    dockerfile: Dockerfile
+  healthcheck:
+    test: ["CMD", "curl", "-sf", "http://localhost/api/version"]
+    interval: 5s
+    timeout: 2s
+    retries: 3
+    start_period: 3s
+  restart: unless-stopped
+
+services:
+  # ── Mock Pi-hole Node 1 ──────────────────────────────────────
+  pihole-node1:
+    <<: *mock-pihole
+    container_name: sentinel-nnode-node1
+    environment:
+      PIHOLE_NAME: "Node 1"
+      PIHOLE_PASSWORD: testpass123
+      DHCP_ENABLED: "true"
+      IS_PRIMARY: "true"
+    ports:
+      - "8011:80"
+    networks:
+      nnode-net:
+        ipv4_address: 10.99.1.10
+
+  # ── Mock Pi-hole Node 2 ──────────────────────────────────────
+  pihole-node2:
+    <<: *mock-pihole
+    container_name: sentinel-nnode-node2
+    environment:
+      PIHOLE_NAME: "Node 2"
+      PIHOLE_PASSWORD: testpass123
+      DHCP_ENABLED: "false"
+      IS_PRIMARY: "false"
+    ports:
+      - "8012:80"
+    networks:
+      nnode-net:
+        ipv4_address: 10.99.1.11
+
+  # ── Mock Pi-hole Node 3 ──────────────────────────────────────
+  pihole-node3:
+    <<: *mock-pihole
+    container_name: sentinel-nnode-node3
+    environment:
+      PIHOLE_NAME: "Node 3"
+      PIHOLE_PASSWORD: testpass123
+      DHCP_ENABLED: "false"
+      IS_PRIMARY: "false"
+    ports:
+      - "8013:80"
+    networks:
+      nnode-net:
+        ipv4_address: 10.99.1.12
+
+  # ── Pi-hole Sentinel Monitor (N-node PIHOLE_N format) ────────
+  sentinel-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: sentinel-nnode-monitor
+    environment:
+      PIHOLE_1_IP: "10.99.1.10"
+      PIHOLE_1_NAME: "Node 1"
+      PIHOLE_1_PASSWORD: testpass123
+      PIHOLE_2_IP: "10.99.1.11"
+      PIHOLE_2_NAME: "Node 2"
+      PIHOLE_2_PASSWORD: testpass123
+      PIHOLE_3_IP: "10.99.1.12"
+      PIHOLE_3_NAME: "Node 3"
+      PIHOLE_3_PASSWORD: testpass123
+      VIP_ADDRESS: "10.99.1.100"
+      CHECK_INTERVAL: "5"
+      DB_PATH: /data/monitor.db
+      NOTIFY_CONFIG_PATH: /data/notify_settings.json
+      API_KEY: test-api-key-nnode
+      LOG_LEVEL: DEBUG
+      EVENT_DEBOUNCE_SECONDS: "5"
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "8090:8080"
+    volumes:
+      - monitor-data-nnode:/data
+    depends_on:
+      pihole-node1:
+        condition: service_healthy
+      pihole-node2:
+        condition: service_healthy
+      pihole-node3:
+        condition: service_healthy
+    networks:
+      nnode-net:
+        ipv4_address: 10.99.1.20
+    restart: unless-stopped
+
+volumes:
+  monitor-data-nnode:
+    driver: local
+
+networks:
+  nnode-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.99.1.0/24
+          gateway: 10.99.1.1
