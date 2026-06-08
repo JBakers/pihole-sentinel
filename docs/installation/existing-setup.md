@@ -35,12 +35,12 @@ python3 install.py
 
 ```
 Network interface (e.g., eth0, ens18)
-Primary Pi-hole IP
-Secondary Pi-hole IP
+Pi-Hole Node 1 IP
+Pi-Hole Node 2 IP
 Virtual IP (VIP) - Choose a FREE IP in your network
 Gateway IP (your router)
 DHCP failover (y/n)
-Monitor location (separate server or primary Pi-hole)
+Monitor location (separate server or first Pi-hole node)
 Pi-hole passwords (for API access)
 ```
 

@@ -2508,11 +2508,24 @@ async def monitor_loop():
                 ),
                 None,
             )
+            # True on every cycle except the very first poll (previous_states is
+            # empty only before the first iteration completes). Used to avoid a
+            # spurious failover notification on startup.
+            had_prior_poll = bool(previous_states)
+
+            # Fire a failover/recovery notification whenever a (new) node becomes
+            # MASTER and it differs from the previous VIP owner. Crucially this
+            # also covers the case where the previous cycle had NO detectable
+            # MASTER (previous_vip_owner is None) — e.g. during a multi-node
+            # outage the VIP/ARP is briefly unresolved. Without handling the
+            # None -> node transition, the notification would be suppressed until
+            # the ARP table refreshed (often only when a node restarted).
             if (
-                previous_vip_owner is not None
+                had_prior_poll
+                and current_master_index is not None
                 and previous_vip_owner != current_master_index
             ):
-                if len(node_states) == 2:
+                if len(node_states) == 2 and previous_vip_owner is not None:
                     transition_event, reason = describe_master_transition(
                         "primary" if previous_vip_owner == 1 else "secondary",
                         "primary" if current_master_index == 1 else "secondary",
@@ -2525,8 +2538,13 @@ async def monitor_loop():
                         previous_dns.get(1),
                     )
                 else:
-                    transition_event = "failover"
-                    reason = f"MASTER changed from {previous_master_name or 'unknown'} to {current_master_name}"
+                    transition_event = (
+                        "recovery" if current_master_index == 1 else "failover"
+                    )
+                    if previous_vip_owner is None:
+                        reason = f"{current_master_name} took over the VIP (no MASTER was detected previously)"
+                    else:
+                        reason = f"MASTER changed from {previous_master_name or 'unknown'} to {current_master_name}"
 
                 master_name = current_master_name
                 if transition_event == "recovery":
@@ -2575,10 +2593,8 @@ async def monitor_loop():
                     transition_event == "failover"
                 )
 
-            if (
-                previous_vip_owner is not None
-                and previous_vip_owner != current_master_index
-            ):
+                # When node 1 (primary) reclaims MASTER, the failover/fault
+                # situation is considered resolved — clear active reminders.
                 if current_master_index == 1:
                     notification_state["active_issues"]["failover"] = False
                     notification_state["active_issues"]["fault"] = False

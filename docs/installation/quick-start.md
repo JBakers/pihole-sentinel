@@ -37,8 +37,8 @@ The script will interactively ask for:
 
 ```
 Network interface name [eth0]: eth0
-Primary Pi-hole IP: 10.10.100.10
-Secondary Pi-hole IP: 10.10.100.20
+Pi-Hole Node 1 IP: 10.10.100.10
+Pi-Hole Node 2 IP: 10.10.100.20
 Virtual IP (VIP): 10.10.100.2
 Network gateway IP: 10.10.100.1
 ```
@@ -64,8 +64,8 @@ SSH port [22]: 22
 SSH password for root@10.10.100.10: ********
 SSH password for root@10.10.100.20: ********
 SSH password for root@10.10.100.30: ********
-Primary Pi-hole web password: ********
-Secondary Pi-hole web password: ********
+Pi-Hole Node 1 web password: ********
+Pi-Hole Node 2 web password: ********
 ```
 
 ### Step 3: Deploy

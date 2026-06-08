@@ -126,12 +126,8 @@ class SetupConfig:
 
     @staticmethod
     def _node_label(index, total):
-        """Short interactive label for a node prompt (e.g. 'Primary Pi-hole')."""
-        if index == 1:
-            return "Primary Pi-hole"
-        if index == 2:
-            return "Secondary Pi-hole"
-        return f"Pi-hole node {index}"
+        """Short interactive label for a node prompt (e.g. 'Pi-Hole Node 1')."""
+        return f"Pi-Hole Node {index}"
 
     @staticmethod
     def _node_name(index, total):

@@ -1,3 +1,25 @@
+## [0.25.4] - 2026-06-08
+
+### Fixed
+
+- **Missing/delayed failover notifications in multi-node outages** — the failover
+  notification trigger required a previously-known MASTER (`previous_vip_owner is
+  not None`). During a multi-node outage the VIP owner is briefly undetectable via
+  ARP, which set the previous owner to "none" and then suppressed the notification
+  when the next node (e.g. node 3) became MASTER. The alert only fired later when
+  ARP refreshed (typically when a downed node restarted).
+- The trigger now fires whenever a new node becomes MASTER and differs from the
+  previous owner — including the "no MASTER" → node transition — while still
+  avoiding a spurious failover alert on the first poll (startup).
+- Failover reason text now explains when a node took over after no MASTER was
+  detected, instead of an "unknown" placeholder.
+
+### Documentation
+
+- Updated installer prompt labels and all docs (API reference, quick-start,
+  existing-setup, CLI tool, LOCAL_SETUP) to the unified "Pi-Hole Node N" naming
+  scheme for consistency with the dashboard and notifications.
+
 ## [0.25.3] - 2026-06-08
 
 ### Fixed

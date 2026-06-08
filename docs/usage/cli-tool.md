@@ -30,7 +30,7 @@ Keepalived (secondary): active (running)
 
 # Check which node has the VIP
 $ pisen vip
-VIP 192.168.1.2 is on: Primary Pi-hole (192.168.1.10)
+VIP 192.168.1.2 is on: Pi-Hole Node 1 (192.168.1.10)
 
 # Follow monitor logs in real-time
 $ pisen logs
@@ -38,9 +38,9 @@ $ pisen logs
 # Run health check
 $ pisen health
 ✅ Monitor service: OK
-✅ Primary Pi-hole: Online
-✅ Secondary Pi-hole: Online
-✅ VIP: Active on Primary
+✅ Pi-Hole Node 1: Online
+✅ Pi-Hole Node 2: Online
+✅ VIP: Active on Pi-Hole Node 1
 ✅ DNS: Resolving
 
 # View sync status

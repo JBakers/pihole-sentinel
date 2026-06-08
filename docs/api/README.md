@@ -209,7 +209,7 @@ X-API-Key: your-api-key
     "timestamp": "2025-12-07T14:32:15",
     "primary": {
         "ip": "10.10.100.10",
-        "name": "Primary Pi-hole",
+        "name": "Pi-Hole Node 1",
         "state": "MASTER",
         "has_vip": true,
         "online": true,
@@ -222,7 +222,7 @@ X-API-Key: your-api-key
     },
     "secondary": {
         "ip": "10.10.100.20",
-        "name": "Secondary Pi-hole",
+        "name": "Pi-Hole Node 2",
         "state": "BACKUP",
         "has_vip": false,
         "online": true,
@@ -445,7 +445,7 @@ Content-Type: application/json
 {
   "template": "Failover: {node} is MASTER",
   "variables": {
-    "node": "Primary Pi-hole"
+    "node": "Pi-Hole Node 1"
   }
 }
 ```
@@ -460,7 +460,7 @@ Content-Type: application/json
 
 ```json
 {
-    "rendered": "Failover: Primary Pi-hole is MASTER",
+    "rendered": "Failover: Pi-Hole Node 1 is MASTER",
     "status": "success"
 }
 ```
@@ -829,7 +829,7 @@ async function testNotification(service) {
 // Usage
 getStatus().then((status) => {
     if (!status.primary.online) {
-        console.warn("Primary Pi-hole is offline!");
+        console.warn("Pi-Hole Node 1 is offline!");
     }
 });
 ```
