@@ -33,7 +33,7 @@ x-mock-pihole: &mock-pihole
     context: docker/mock-pihole
     dockerfile: Dockerfile
   healthcheck:
-    test: ["CMD", "curl", "-sf", "http://localhost/api/version"]
+    test: [ "CMD", "curl", "-sf", "http://localhost/api/version" ]
     interval: 5s
     timeout: 2s
     retries: 3

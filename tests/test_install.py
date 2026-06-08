@@ -1,10 +1,10 @@
 """
-Tests for setup.py — preflight checks, rollback, and uninstall logic.
+Tests for install.py — preflight checks, rollback, and uninstall logic.
 
 Unit tests run without any external dependencies (SSH/Docker mocked).
 Integration tests (marked 'docker') require the Docker test environment:
     make docker-up
-    pytest -m docker tests/test_setup.py
+    pytest -m docker tests/test_install.py
 
 Docker endpoints used in integration tests:
     Primary mock Pi-hole:   http://localhost:8001  (password: testpass123)
@@ -21,7 +21,7 @@ import pytest
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from setup import SetupConfig
+from install import SetupConfig
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -427,37 +427,41 @@ def _make_nnode_config(num_nodes=3):
     c = SetupConfig()
     nodes = []
     for i in range(1, num_nodes + 1):
-        nodes.append({
-            "index": i,
-            "ip": f"10.99.0.{10 + i}",
-            "name": c._node_name(i, num_nodes),
-            "password": f"pass{i}",
-            "ssh_user": "root",
-            "ssh_port": "22",
-            "priority": 150 - (i - 1) * 10,
-            "state": "MASTER" if i == 1 else "BACKUP",
-        })
-    c.config.update({
-        "interface": "eth0",
-        "nodes": nodes,
-        "primary_ip": nodes[0]["ip"],
-        "secondary_ip": nodes[1]["ip"],
-        "primary_password": nodes[0]["password"],
-        "secondary_password": nodes[1]["password"],
-        "primary_ssh_user": "root",
-        "primary_ssh_port": "22",
-        "secondary_ssh_user": "root",
-        "secondary_ssh_port": "22",
-        "vip": "10.99.0.100",
-        "gateway": "10.99.0.1",
-        "netmask": "24",
-        "keepalived_password": "abc12345",
-        "separate_monitor": True,
-        "monitor_ip": "10.99.0.20",
-        "monitor_ssh_user": "root",
-        "monitor_ssh_port": "22",
-        "dhcp_enabled": False,
-    })
+        nodes.append(
+            {
+                "index": i,
+                "ip": f"10.99.0.{10 + i}",
+                "name": c._node_name(i, num_nodes),
+                "password": f"pass{i}",
+                "ssh_user": "root",
+                "ssh_port": "22",
+                "priority": 150 - (i - 1) * 10,
+                "state": "MASTER" if i == 1 else "BACKUP",
+            }
+        )
+    c.config.update(
+        {
+            "interface": "eth0",
+            "nodes": nodes,
+            "primary_ip": nodes[0]["ip"],
+            "secondary_ip": nodes[1]["ip"],
+            "primary_password": nodes[0]["password"],
+            "secondary_password": nodes[1]["password"],
+            "primary_ssh_user": "root",
+            "primary_ssh_port": "22",
+            "secondary_ssh_user": "root",
+            "secondary_ssh_port": "22",
+            "vip": "10.99.0.100",
+            "gateway": "10.99.0.1",
+            "netmask": "24",
+            "keepalived_password": "abc12345",
+            "separate_monitor": True,
+            "monitor_ip": "10.99.0.20",
+            "monitor_ssh_user": "root",
+            "monitor_ssh_port": "22",
+            "dhcp_enabled": False,
+        }
+    )
     return c
 
 

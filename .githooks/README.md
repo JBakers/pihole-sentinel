@@ -10,7 +10,7 @@ Enforces version management rules before every commit:
 
 - ✅ Ensures `VERSION` file is updated for code changes
 - ✅ Ensures `CHANGELOG.md` is updated for code changes
-- ✅ Checks for `print()` statements in Python files (except setup.py)
+- ✅ Checks for `print()` statements in Python files (except install.py)
 - ✅ Checks for CRLF line endings in bash scripts
 - ✅ Allows documentation-only changes without version updates
 
@@ -92,6 +92,7 @@ git merge develop
 ```
 
 **Expected behavior:**
+
 - ✅ Merge to `testing` or `main` is **blocked** with clear error message
 - ✅ Hook explains why (CLAUDE.md rules)
 - ✅ Hook provides override instructions for repository owner

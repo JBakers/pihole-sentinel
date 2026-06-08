@@ -34,19 +34,19 @@ source venv/bin/activate
 cd dashboard
 python monitor.py
 
-# Run setup.py (for testing setup flow only):
-python ../setup.py --help
+# Run install.py (for testing setup flow only):
+python ../install.py --help
 ```
 
 ### Production Deployment
 
-**For production, use the setup.py script:**
+**For production, use the install.py script:**
 
-The setup.py script automatically creates an isolated virtual environment in `/opt/pihole-monitor/venv/` and installs all dependencies there. You don't need to install anything manually.
+The install.py script automatically creates an isolated virtual environment in `/opt/pihole-monitor/venv/` and installs all dependencies there. You don't need to install anything manually.
 
 ```bash
 # Production setup (creates venv automatically)
-sudo python3 setup.py
+sudo python3 install.py
 ```
 
 The setup script:
@@ -130,7 +130,7 @@ python monitor.py
 source venv/bin/activate
 
 # Test config validation
-python setup.py --help
+python install.py --help
 
 # Note: Full setup requires sudo and modifies system
 ```
@@ -140,7 +140,7 @@ python setup.py --help
 ```bash
 # Python files
 python3 -m py_compile dashboard/monitor.py
-python3 -m py_compile setup.py
+python3 -m py_compile install.py
 
 # Shell scripts
 bash -n sync-pihole-config.sh
@@ -159,7 +159,7 @@ pihole-sentinel/
 │   ├── scripts/            # Health check scripts
 │   └── pihole*/            # Keepalived configs per node
 ├── systemd/                # Service files
-├── setup.py                # Production deployment script
+├── install.py               # Production deployment script
 ├── sync-pihole-config.sh   # Config synchronization
 └── requirements.txt        # Main Python dependencies
 ```

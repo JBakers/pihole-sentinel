@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-06-08
 
-**Version:** 0.24.0
+**Version:** 0.25.0
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
@@ -15,7 +15,7 @@ This document provides comprehensive guidance for AI assistants working with the
 
 **Recent Updates (v0.12.4, March 2026):**
 
-- setup.py end-to-end deployment with preflight checks + automatic rollback
+- install.py end-to-end deployment with preflight checks + automatic rollback
 - Fault debounce + paired recovery notifications
 - System Commands panel + ANSI colour rendering in dashboard
 - Container architecture PoC on `feature/container-architecture` branch
@@ -450,7 +450,7 @@ pihole-sentinel/
 ├── docker-compose.poc.yml          # PoC: 2 Pi-holes + 2 sentinel-nodes + VIP
 ├── docker-compose.test.yml         # Test: monitor + mock Pi-holes + clients
 ├── Dockerfile.dev                  # Dev image for monitor container
-├── setup.py                        # Automated setup/deployment script (1480 lines)
+├── install.py                      # Automated setup/deployment script (1480 lines)
 ├── sync-pihole-config.sh          # Configuration synchronization script
 ├── requirements.txt                # Main Python dependencies
 ├── system-requirements.txt         # System packages (apt/yum)
@@ -614,7 +614,7 @@ pihole-sentinel/
 
 ## Important Files Reference
 
-### setup.py (1480 lines)
+### install.py (1480 lines)
 
 **Purpose:** Automated setup and deployment script
 

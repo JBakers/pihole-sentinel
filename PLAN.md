@@ -42,14 +42,21 @@
 | Rank | ID    | Task                                | Status  | Est. Effort | Blocker  |
 | ---- | ----- | ----------------------------------- | ------- | ----------- | -------- |
 | 1️⃣   | M1-P3 | Multi-node Phase 3 (Dashboard UI)   | ✅ Done | —           | M1-P2 ✅ |
-| 2️⃣   | M1-P4 | Multi-node Phase 4 (Setup wizard)   | ✅ Done    | —           | M1-P3 ✅ |
-| 3️⃣   | M1-P5 | Multi-node Phase 5 (Tests + Docker) | ✅ Done    | —    | M1-P4 ✅ |
-| 4️⃣   | R1    | Rename `setup.py` to `install.py`   | 🔲 Open | 1 day       | None     |
+| 2️⃣   | M1-P4 | Multi-node Phase 4 (Setup wizard)   | ✅ Done | —           | M1-P3 ✅ |
+| 3️⃣   | M1-P5 | Multi-node Phase 5 (Tests + Docker) | ✅ Done | —           | M1-P4 ✅ |
+| 4️⃣   | R1    | Rename `setup.py` to `install.py`   | ✅ Done | —           | None     |
 
 ---
 
 ### Session Handover (2026-06-05)
 
+- ✅ **R1 completed on `feature/multi-node-support`** (v0.25.0)
+    - Renamed `setup.py` → `install.py` and `tests/test_setup.py` →
+      `tests/test_install.py` via `git mv` (history preserved)
+    - Updated all active references: Makefile, Dockerfile.dev, CI syntax script,
+      pre-commit hook, bin/pisen, README, CLAUDE.md, CODEOWNERS,
+      BRANCH_PROTECTION.md, docs/. CHANGELOG history left untouched.
+    - `SetupConfig` class name unchanged (internal, out of scope)
 - ✅ **M1-P5 completed on `feature/multi-node-support`** (v0.24.0)
     - `sync-pihole-config.sh` consumes star-topology `SYNC_PEER_IPS`; hub pushes
       to all peers (nodes 2..N) via per-peer subshells, legacy `SECONDARY_IP`
@@ -63,7 +70,7 @@
 - ✅ **M1-P4 completed on `feature/multi-node-support`** (v0.23.0)
     - `setup.py` installs N nodes (min 2); wizard asks node count, then per-node IP/password/SSH
     - Per-node keepalived configs with descending VRRP priority (150/140/130…), router_id PIHOLE{i}
-    - `monitor.env` writes new PIHOLE_{i}_* format + legacy PRIMARY/SECONDARY aliases
+    - `monitor.env` writes new PIHOLE*{i}*\* format + legacy PRIMARY/SECONDARY aliases
     - Star-topology cross-node SSH (node 1 = hub) + `SYNC_PEER_IPS` in sync.conf
     - Deploy loop, preflight, verify, uninstall iterate over full node list
     - `_config_nodes()` helper with legacy 2-node fallback
@@ -75,8 +82,8 @@
 - ✅ **M1-P2 completed on `feature/multi-node-support`** (v0.21.0)
     - `/api/status` returns `nodes[]` array (N-node architecture) + backward-compat `primary`/`secondary`
     - `/api/history` returns `nodes[]` per poll cycle + backward-compat fields
-- ➡️ **Next coding target**: R1 (rename `setup.py` → `install.py`), then the
-    v1.0.0 release prep (multi-node branch merge to `develop`)
+- ➡️ **Next coding target**: v1.0.0 release prep (multi-node branch merge to
+  `develop`, final coverage + docs review)
 
 ---
 

@@ -1,35 +1,49 @@
 # Code Owners for Pi-hole Sentinel
+
 #
+
 # These owners will be the default owners for everything in the repo.
+
 # Unless a later match takes precedence, they will be requested for
+
 # review when someone opens a pull request.
+
 #
+
 # See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
 # Default owner for everything
-*       @JBakers
+
+-       @JBakers
 
 # Dashboard and monitoring
-/dashboard/*        @JBakers
+
+/dashboard/\* @JBakers
 
 # Keepalived configuration and scripts
-/keepalived/*       @JBakers
+
+/keepalived/\* @JBakers
 
 # Setup and deployment
-/setup.py           @JBakers
-/sync-pihole-config.sh  @JBakers
+
+/install.py @JBakers
+/sync-pihole-config.sh @JBakers
 
 # Documentation
-*.md                @JBakers
-/docs/*             @JBakers
+
+_.md @JBakers
+/docs/_ @JBakers
 
 # Configuration files
-*.conf              @JBakers
-*.example           @JBakers
-.env*               @JBakers
+
+_.conf @JBakers
+_.example @JBakers
+.env\* @JBakers
 
 # System and service files
-/systemd/*          @JBakers
+
+/systemd/\* @JBakers
 
 # CI/CD and GitHub configuration
-/.github/*          @JBakers
+
+/.github/\* @JBakers

@@ -1,6 +1,6 @@
 # Dockerfile for Pi-hole Sentinel Development/Testing
 # This is for local testing - NOT for production
-# For production, use setup.py
+# For production, use install.py
 
 FROM python:3.13-slim
 
@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy project files
 COPY dashboard/ dashboard/
-COPY setup.py .
+COPY install.py .
 COPY VERSION .
 
 # Create data directory

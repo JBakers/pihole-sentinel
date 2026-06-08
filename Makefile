@@ -70,15 +70,15 @@ test-fast:
 
 # Code Quality
 lint:
-	pylint dashboard/monitor.py setup.py
-	flake8 dashboard/ setup.py tests/
+	pylint dashboard/monitor.py install.py
+	flake8 dashboard/ install.py tests/
 
 format:
-	black dashboard/ setup.py tests/
-	isort dashboard/ setup.py tests/
+	black dashboard/ install.py tests/
+	isort dashboard/ install.py tests/
 
 check-security:
-	bandit -r dashboard/ setup.py
+	bandit -r dashboard/ install.py
 	safety check
 
 # Cleanup
@@ -227,22 +227,22 @@ docker-integration-nnode: docker-up-nnode
 	@echo ""
 	@echo "✅ N-node integration tests done"
 
-# Setup.py tests against live Docker mock environment
+# install.py tests against live Docker mock environment
 docker-setup-test: docker-up
 	@echo ""
-	@echo "🧪 Running setup.py unit + Docker integration tests..."
+	@echo "🧪 Running install.py unit + Docker integration tests..."
 	@echo ""
-	python3 -m pytest tests/test_setup.py -v --tb=short
+	python3 -m pytest tests/test_install.py -v --tb=short
 	@echo ""
 	@echo "✅ Setup tests done"
 
 docker-setup-test-only:
-	@echo "🧪 Running setup.py tests (Docker must already be running)..."
-	python3 -m pytest tests/test_setup.py -v --tb=short -m "not docker or docker"
+	@echo "🧪 Running install.py tests (Docker must already be running)..."
+	python3 -m pytest tests/test_install.py -v --tb=short -m "not docker or docker"
 
 docker-setup-unit:
-	@echo "🧪 Running setup.py unit tests (no Docker needed)..."
-	python3 -m pytest tests/test_setup.py -v --tb=short -m "not docker"
+	@echo "🧪 Running install.py unit tests (no Docker needed)..."
+	python3 -m pytest tests/test_install.py -v --tb=short -m "not docker"
 
 # Automated Test Scripts
 run-all-tests:

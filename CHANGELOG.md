@@ -1,3 +1,24 @@
+## [0.25.0] - 2026-06-08
+
+### Changed
+
+- **R1 — Renamed `setup.py` → `install.py`** (breaking) — the production
+  deployment script is now invoked as `sudo python3 install.py`. The name
+  better reflects that it installs and deploys Pi-hole Sentinel rather than
+  being a Python packaging `setup.py`. File history is preserved via `git mv`.
+  The internal `SetupConfig` class name is unchanged.
+- **Renamed test file** `tests/test_setup.py` → `tests/test_install.py`
+  (`from setup import SetupConfig` → `from install import SetupConfig`).
+- **Updated all active references** — `Makefile` (lint/format/security/test
+  targets), `Dockerfile.dev`, `.github/scripts/run-syntax-checks.sh`,
+  `.githooks/pre-commit` (print() exclusion), `bin/pisen`, README, CLAUDE.md,
+  CODEOWNERS, BRANCH_PROTECTION.md and the docs under `docs/`.
+
+### Migration
+
+- Anyone running `python3 setup.py` must now run `python3 install.py`.
+  No configuration or data format changed.
+
 ## [0.24.0] - 2026-06-08
 
 ### New
