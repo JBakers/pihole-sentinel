@@ -136,10 +136,6 @@ class SetupConfig:
     @staticmethod
     def _node_name(index, total):
         """Display name stored in config / env for a node."""
-        if index == 1:
-            return "Primary Pi-hole"
-        if index == 2:
-            return "Secondary Pi-hole"
         return f"Pi-hole {index}"
 
     def _config_nodes(self):
@@ -158,7 +154,7 @@ class SetupConfig:
                 {
                     "index": 1,
                     "ip": self.config["primary_ip"],
-                    "name": "Primary Pi-hole",
+                    "name": "Pi-hole 1",
                     "password": self.config.get("primary_password", ""),
                     "ssh_user": self.config.get("primary_ssh_user", "root"),
                     "ssh_port": self.config.get("primary_ssh_port", "22"),
@@ -171,7 +167,7 @@ class SetupConfig:
                 {
                     "index": 2,
                     "ip": self.config["secondary_ip"],
-                    "name": "Secondary Pi-hole",
+                    "name": "Pi-hole 2",
                     "password": self.config.get("secondary_password", ""),
                     "ssh_user": self.config.get("secondary_ssh_user", "root"),
                     "ssh_port": self.config.get("secondary_ssh_port", "22"),
@@ -1681,10 +1677,10 @@ DHCP_ENABLED={'true' if self.config.get('dhcp_enabled', False) else 'false'}
         # Legacy primary/secondary block (backward compatibility for node 1 & 2)
         legacy_block = f"""# Legacy aliases (node 1 = primary, node 2 = secondary)
 PRIMARY_IP={self.config['primary_ip']}
-PRIMARY_NAME="Primary Pi-hole"
+PRIMARY_NAME="{nodes[0]['name']}"
 PRIMARY_PASSWORD={self.config.get('primary_password', '')}
 SECONDARY_IP={self.config['secondary_ip']}
-SECONDARY_NAME="Secondary Pi-hole"
+SECONDARY_NAME="{nodes[1]['name']}"
 SECONDARY_PASSWORD={self.config.get('secondary_password', '')}
 PRIMARY_SSH_USER={self.config.get('primary_ssh_user', 'root')}
 PRIMARY_SSH_PORT={self.config.get('primary_ssh_port', '22')}

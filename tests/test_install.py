@@ -470,8 +470,8 @@ class TestNodeHelpers:
 
     def test_node_name_primary_secondary_then_numbered(self):
         c = SetupConfig()
-        assert c._node_name(1, 3) == "Primary Pi-hole"
-        assert c._node_name(2, 3) == "Secondary Pi-hole"
+        assert c._node_name(1, 3) == "Pi-hole 1"
+        assert c._node_name(2, 3) == "Pi-hole 2"
         assert c._node_name(3, 3) == "Pi-hole 3"
 
     def test_config_nodes_returns_explicit_list(self):

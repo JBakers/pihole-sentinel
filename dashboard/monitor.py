@@ -96,7 +96,7 @@ def load_node_config_from_env() -> list[dict]:
         node = {
             "index": node_index,
             "ip": ip,
-            "name": os.getenv(name_var, f"Node-{node_index}"),
+            "name": os.getenv(name_var, f"Pi-hole {node_index}"),
             "password": password,
             "ssh_user": os.getenv(ssh_user_var, "root"),
             "ssh_port": int(os.getenv(ssh_port_var, "22")),
@@ -121,7 +121,7 @@ def load_node_config_from_env() -> list[dict]:
                 {
                     "index": 1,
                     "ip": primary_ip,
-                    "name": os.getenv("PRIMARY_NAME", "Primary Pi-hole"),
+                    "name": os.getenv("PRIMARY_NAME", "Pi-hole 1"),
                     "password": os.getenv("PRIMARY_PASSWORD", ""),
                     "ssh_user": os.getenv("PRIMARY_SSH_USER", "root"),
                     "ssh_port": int(os.getenv("PRIMARY_SSH_PORT", "22")),
@@ -129,7 +129,7 @@ def load_node_config_from_env() -> list[dict]:
                 {
                     "index": 2,
                     "ip": secondary_ip,
-                    "name": os.getenv("SECONDARY_NAME", "Secondary Pi-hole"),
+                    "name": os.getenv("SECONDARY_NAME", "Pi-hole 2"),
                     "password": os.getenv("SECONDARY_PASSWORD", ""),
                     "ssh_user": os.getenv("SECONDARY_SSH_USER", "root"),
                     "ssh_port": int(os.getenv("SECONDARY_SSH_PORT", "22")),
@@ -155,12 +155,12 @@ def load_node_config_from_env() -> list[dict]:
 CONFIG = {
     "primary": {
         "ip": os.getenv("PRIMARY_IP"),
-        "name": os.getenv("PRIMARY_NAME", "Primary Pi-hole"),
+        "name": os.getenv("PRIMARY_NAME", "Pi-hole 1"),
         "password": os.getenv("PRIMARY_PASSWORD"),
     },
     "secondary": {
         "ip": os.getenv("SECONDARY_IP"),
-        "name": os.getenv("SECONDARY_NAME", "Secondary Pi-hole"),
+        "name": os.getenv("SECONDARY_NAME", "Pi-hole 2"),
         "password": os.getenv("SECONDARY_PASSWORD"),
     },
     "vip": os.getenv("VIP_ADDRESS"),

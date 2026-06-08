@@ -1,3 +1,23 @@
+## [0.25.2] - 2026-06-08
+
+### Fixed
+
+- **VRRP failback regression (multi-node)** — corrected
+  `keepalived/scripts/check_dhcp_service.sh` so BACKUP nodes are no longer
+  penalized when DHCP is intentionally disabled. The check now fails only when
+  the node currently owns the VIP and DHCP is off, restoring expected preempt
+  behavior where node 1 can reclaim MASTER after recovery.
+
+### Improved
+
+- **Consistent node naming (N-node)** — unified default node names to numbered
+  labels (`Pi-hole 1`, `Pi-hole 2`, `Pi-hole 3`, ...).
+- Updated installer naming defaults and generated monitor aliases
+  (`PRIMARY_NAME` / `SECONDARY_NAME`) to reflect configured node names.
+- Updated monitor environment fallback defaults for both new (`PIHOLE_N_NAME`)
+  and legacy (`PRIMARY_NAME`/`SECONDARY_NAME`) paths to keep dashboard labels
+  synchronized.
+
 ## [0.25.1] - 2026-06-08
 
 ### Documentation

@@ -60,7 +60,7 @@ class TestNodeConfigNewFormat:
         assert nodes[0]["index"] == 1
         assert nodes[0]["ip"] == "10.0.0.1"
         assert nodes[0]["password"] == "pass1"
-        assert nodes[0]["name"] == "Node-1"  # default name
+        assert nodes[0]["name"] == "Pi-hole 1"  # default name
         assert nodes[0]["ssh_user"] == "root"  # default
         assert nodes[0]["ssh_port"] == 22  # default
         

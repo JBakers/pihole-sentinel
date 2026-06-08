@@ -26,7 +26,12 @@ fi
 # Check if DHCP is actually enabled in Pi-hole v6 config (TOML format)
 # Uses pihole-FTL --config for reliable config reading
 if ! pihole-FTL --config dhcp.active 2>/dev/null | grep -q "true"; then
-    exit 1
+    # DHCP disabled is expected on BACKUP nodes. Only fail if this node
+    # currently owns the VIP (i.e. behaves as MASTER but DHCP is off).
+    if [ -n "${VIP_ADDRESS}" ] && ip -o -4 addr show | awk '{print $4}' | cut -d/ -f1 | grep -qx "${VIP_ADDRESS}"; then
+        exit 1
+    fi
+    exit 0
 fi
 
 # All checks passed
