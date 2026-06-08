@@ -1,3 +1,19 @@
+## [0.25.1] - 2026-06-08
+
+### Documentation
+
+- Completed a full post-R1 audit to remove remaining active `setup.py`
+  references in user-facing and contributor-facing files.
+- Updated issue template, security policy, test automation guide, and test
+  documentation template to consistently reference `install.py`.
+
+### Improved
+
+- Updated GitHub Actions code-quality workflow checks to target `install.py`
+  (Black, Flake8, py_compile, Bandit, required-files check).
+- Updated `.gitattributes` production note and refreshed `PLAN.md` header
+  metadata to current date/version.
+
 ## [0.25.0] - 2026-06-08
 
 ### Changed

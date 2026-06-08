@@ -1,8 +1,8 @@
 # PLAN.md — Pi-hole Sentinel Development Plan
 
-**Last Updated:** 2026-06-05
+**Last Updated:** 2026-06-08
 **Branch:** `feature/multi-node-support`
-**Current Version:** 0.21.0
+**Current Version:** 0.25.1
 
 > **📌 This is the central planning and TODO document.**
 > CLAUDE.md references this file. All open tasks, bugs, and the
@@ -68,7 +68,7 @@
     - Make targets: `docker-{up,down,build,status,test,integration}-nnode`
     - Full unit suite: 569 passed, 10 skipped, 71% coverage
 - ✅ **M1-P4 completed on `feature/multi-node-support`** (v0.23.0)
-    - `setup.py` installs N nodes (min 2); wizard asks node count, then per-node IP/password/SSH
+    - `install.py` installs N nodes (min 2); wizard asks node count, then per-node IP/password/SSH
     - Per-node keepalived configs with descending VRRP priority (150/140/130…), router_id PIHOLE{i}
     - `monitor.env` writes new PIHOLE*{i}*\* format + legacy PRIMARY/SECONDARY aliases
     - Star-topology cross-node SSH (node 1 = hub) + `SYNC_PEER_IPS` in sync.conf
@@ -91,7 +91,7 @@
 
 **Result:** `monitor.py` coverage reached **71%** (target was 60%+).
 
-- Removed `--cov=setup` from `pytest.ini` and `Makefile` — `setup.py` (interactive installer) is not meaningfully unit-testable.
+- Removed `--cov=setup` from `pytest.ini` and `Makefile` — the interactive installer script (`install.py`) is not meaningfully unit-testable.
 - Coverage threshold `fail_under = 60` in `pytest.ini` now correctly applies to `dashboard/monitor.py` only.
 
 ---
@@ -153,7 +153,7 @@
 | ---------------------------------------------- | -------------------------------------------------------------- |
 | Core monitoring service (monitor.py)           | ✅ Stable                                                      |
 | Dashboard + Settings UI                        | ✅ Up to date                                                  |
-| setup.py deployment (bare-metal)               | ✅ Fully working (tested 2026-03-28)                           |
+| install.py deployment (bare-metal)             | ✅ Fully working (tested 2026-03-28)                           |
 | Config sync (pihole.toml + gravity)            | ✅ Stable                                                      |
 | Notifications (Telegram/Discord/Pushover/Ntfy) | ✅ Working                                                     |
 | System Commands panel                          | ✅ Working                                                     |
@@ -769,7 +769,7 @@ component already N-aware (via `SYNC_PEERS`).
 
 #### Phase 4 — Setup Wizard _(parallel with Phase 2/3)_
 
-- **Interactive wizard** (`setup.py`) — ask "How many Pi-holes?" → loop N times for IP/name/password/SSH
+- **Interactive wizard** (`install.py`) — ask "How many Pi-holes?" → loop N times for IP/name/password/SSH
 - **Keepalived config generation** — generate N configs with descending priorities:
   node-0=150, node-1=140, node-2=130, ...
   Add `keepalived/node-N/keepalived.conf` alongside existing `pihole1/`/`pihole2/` templates
@@ -796,7 +796,7 @@ component already N-aware (via `SYNC_PEERS`).
 - [ ] Keepalived node-3 wins VIP when nodes 1+2 fail
 - [ ] DHCP misconfiguration warning appears correctly for node-3 as MASTER
 - [ ] `make docker-integration` passes with 3-node scenario
-- [ ] `setup.py` wizard completes correctly for 3 nodes
+- [ ] `install.py` wizard completes correctly for 3 nodes
 
 ---
 
@@ -846,7 +846,7 @@ component already N-aware (via `SYNC_PEERS`).
 
 - [x] `StatusResponse` missing `dhcp_failover` field — added to Pydantic model
 - [x] Rate limiter trusted `X-Forwarded-For` unconditionally — requires `TRUST_PROXY_HEADERS=true`
-- [x] `setup.py` overwrote `notify_settings.json` on re-deploy — now merges, preserves notification config
+- [x] `install.py` overwrote `notify_settings.json` on re-deploy — now merges, preserves notification config
 - [x] SSH `known_hosts` blocked by `ReadOnlyPaths` in systemd unit — fixed (protect only private key)
 - [x] `validate_ip` accepted invalid octets (e.g. 999.x.x.x) — added 0–255 range check
 - [x] `DHCP_ENABLED` had no default in `keepalived_notify.sh` — default `true` for backward compat
@@ -886,7 +886,7 @@ component already N-aware (via `SYNC_PEERS`).
 
 ### v0.12.2 (2026-03-28)
 
-- [x] setup.py fully working end-to-end (SSH + Pi-hole preflight checks)
+- [x] install.py fully working end-to-end (SSH + Pi-hole preflight checks)
 - [x] Automatic rollback on deployment failure
 - [x] Fault debounce 60s + paired recovery notifications
 - [x] System Commands panel in dashboard

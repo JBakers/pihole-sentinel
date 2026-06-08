@@ -31,7 +31,7 @@ In scope:
 - SSRF vulnerabilities in webhook/notification endpoints
 - SQL injection or data leakage via the SQLite database
 - Command injection via system command endpoints
-- Privilege escalation via the installer (`setup.py`)
+- Privilege escalation via the installer (`install.py`)
 
 Out of scope:
 - Vulnerabilities in upstream Pi-hole, keepalived, or the OS

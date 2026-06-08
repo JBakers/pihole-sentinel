@@ -23,7 +23,7 @@ requirements-dev.txt    export-ignore
 Makefile                export-ignore
 .markdownlint.json      export-ignore
 
-# Docker (dev/test only — production uses bare-metal setup.py)
+# Docker (dev/test only — production uses bare-metal install.py)
 docker/                 export-ignore
 docker-compose.poc.yml  export-ignore
 docker-compose.test.yml export-ignore

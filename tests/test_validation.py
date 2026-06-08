@@ -1,5 +1,5 @@
 """
-Unit tests for input validation functions in setup.py.
+Unit tests for input validation functions in install.py.
 
 These tests ensure that all user input validation functions correctly
 identify valid and invalid inputs, preventing injection attacks and
