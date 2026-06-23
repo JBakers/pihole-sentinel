@@ -4,7 +4,7 @@
 
 - **Missing/delayed failover notifications in multi-node outages** — the failover
   notification trigger required a previously-known MASTER (`previous_vip_owner is
-  not None`). During a multi-node outage the VIP owner is briefly undetectable via
+not None`). During a multi-node outage the VIP owner is briefly undetectable via
   ARP, which set the previous owner to "none" and then suppressed the notification
   when the next node (e.g. node 3) became MASTER. The alert only fired later when
   ARP refreshed (typically when a downed node restarted).

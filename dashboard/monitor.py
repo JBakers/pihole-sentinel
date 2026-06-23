@@ -359,12 +359,8 @@ class StatusResponse(BaseModel):
         description="Status of all monitored nodes (N-node architecture)",
     )
     # Backward-compat fields populated from nodes[0] / nodes[1]
-    primary: PiHoleStatus = Field(
-        ..., description="Node 1 status (backward compat)"
-    )
-    secondary: PiHoleStatus = Field(
-        ..., description="Node 2 status (backward compat)"
-    )
+    primary: PiHoleStatus = Field(..., description="Node 1 status (backward compat)")
+    secondary: PiHoleStatus = Field(..., description="Node 2 status (backward compat)")
     vip: str = Field(..., description="Virtual IP address")
     dhcp_leases: int = Field(0, description="Number of active DHCP leases")
     dhcp_failover: bool = Field(
@@ -2576,9 +2572,7 @@ async def monitor_loop():
                         node_states[1]["name"]
                         if len(node_states) > 1
                         else (
-                            node_states[0]["name"]
-                            if node_states
-                            else "Pi-Hole Node 2"
+                            node_states[0]["name"] if node_states else "Pi-Hole Node 2"
                         )
                     ),
                     "nodes": node_states,
