@@ -1,8 +1,8 @@
 # PLAN.md — Pi-hole Sentinel Development Plan
 
-**Last Updated:** 2026-05-10
-**Branch:** `develop`
-**Current Version:** 0.19.0
+**Last Updated:** 2026-06-08
+**Branch:** `feature/multi-node-support`
+**Current Version:** 0.25.1
 
 > **📌 This is the central planning and TODO document.**
 > CLAUDE.md references this file. All open tasks, bugs, and the
@@ -12,6 +12,7 @@
 
 ## Table of Contents
 
+- [Integrated Action Plan (Copilot Reviews + TODOs)](#integrated-action-plan)
 - [Current Status](#current-status)
 - [Open Bugs](#open-bugs)
 - [Open Improvements](#open-improvements)
@@ -21,15 +22,138 @@
 
 ---
 
+## Integrated Action Plan (Copilot Reviews + TODOs)
+
+### Summary: Next Steps (2026-05-13)
+
+**Recent Copilot Review Fixes Completed (v0.18.1–0.18.2):**
+
+- ✅ DNS latency response serialization in `/api/status` (v0.18.1)
+- ✅ Debug override endpoint response codes + gating (v0.18.2)
+- ✅ Async event loop refactor (`get_running_loop()` instead of `get_event_loop()`)
+
+**Active Work (from commits 14fc333, d62b573):**
+
+- ✅ Test coverage expanded to **54%** on monitor.py (339→399 tests, 17 files)
+- ✅ Windows compatibility fixes for pytest
+
+**Priority Queue (Next in Order):**
+
+| Rank | ID    | Task                                | Status  | Est. Effort | Blocker  |
+| ---- | ----- | ----------------------------------- | ------- | ----------- | -------- |
+| 1️⃣   | M1-P3 | Multi-node Phase 3 (Dashboard UI)   | ✅ Done | —           | M1-P2 ✅ |
+| 2️⃣   | M1-P4 | Multi-node Phase 4 (Setup wizard)   | ✅ Done | —           | M1-P3 ✅ |
+| 3️⃣   | M1-P5 | Multi-node Phase 5 (Tests + Docker) | ✅ Done | —           | M1-P4 ✅ |
+| 4️⃣   | R1    | Rename `setup.py` to `install.py`   | ✅ Done | —           | None     |
+
+---
+
+### Session Handover (2026-06-05)
+
+- ✅ **R1 completed on `feature/multi-node-support`** (v0.25.0)
+    - Renamed `setup.py` → `install.py` and `tests/test_setup.py` →
+      `tests/test_install.py` via `git mv` (history preserved)
+    - Updated all active references: Makefile, Dockerfile.dev, CI syntax script,
+      pre-commit hook, bin/pisen, README, CLAUDE.md, CODEOWNERS,
+      BRANCH_PROTECTION.md, docs/. CHANGELOG history left untouched.
+    - `SetupConfig` class name unchanged (internal, out of scope)
+- ✅ **M1-P5 completed on `feature/multi-node-support`** (v0.24.0)
+    - `sync-pihole-config.sh` consumes star-topology `SYNC_PEER_IPS`; hub pushes
+      to all peers (nodes 2..N) via per-peer subshells, legacy `SECONDARY_IP`
+      fallback, peer-IP validation
+    - `docker-compose.test-nnode.yml`: 3-node mock env (ports 8011-8013 + 8090,
+      subnet 10.99.1.0/24) driving the monitor via `PIHOLE_{i}_*` env format
+    - `tests/test_integration_nnode.py` (8 tests): nodes[] shape, names/fields,
+      backward-compat primary/secondary, 3rd-node failover/recovery, history nodes[]
+    - Make targets: `docker-{up,down,build,status,test,integration}-nnode`
+    - Full unit suite: 569 passed, 10 skipped, 71% coverage
+- ✅ **M1-P4 completed on `feature/multi-node-support`** (v0.23.0)
+    - `install.py` installs N nodes (min 2); wizard asks node count, then per-node IP/password/SSH
+    - Per-node keepalived configs with descending VRRP priority (150/140/130…), router_id PIHOLE{i}
+    - `monitor.env` writes new PIHOLE*{i}*\* format + legacy PRIMARY/SECONDARY aliases
+    - Star-topology cross-node SSH (node 1 = hub) + `SYNC_PEER_IPS` in sync.conf
+    - Deploy loop, preflight, verify, uninstall iterate over full node list
+    - `_config_nodes()` helper with legacy 2-node fallback
+    - 10 new tests (TestNodeHelpers, TestGenerateConfigsNNode, TestPreflightNNode); 574 passed
+- ✅ **M1-P3 completed on `feature/multi-node-support`** (v0.22.0)
+    - `index.html` dashboard renders node cards dynamically from `nodes[]` API response
+    - `ensureNodeCards(nodes)` creates/removes cards at runtime without page reload
+    - Chart legend, tooltips and background bands use actual node names from API
+- ✅ **M1-P2 completed on `feature/multi-node-support`** (v0.21.0)
+    - `/api/status` returns `nodes[]` array (N-node architecture) + backward-compat `primary`/`secondary`
+    - `/api/history` returns `nodes[]` per poll cycle + backward-compat fields
+- ➡️ **Next coding target**: v1.0.0 release prep (multi-node branch merge to
+  `develop`, final coverage + docs review)
+
+---
+
+### D2 — Test Coverage ✅ Done (v0.21.0)
+
+**Result:** `monitor.py` coverage reached **71%** (target was 60%+).
+
+- Removed `--cov=setup` from `pytest.ini` and `Makefile` — the interactive installer script (`install.py`) is not meaningfully unit-testable.
+- Coverage threshold `fail_under = 60` in `pytest.ini` now correctly applies to `dashboard/monitor.py` only.
+
+---
+
+### M1 — Multi-Node Support (Breaking Change)
+
+**Planned for:** v1.0.0 (when 60% coverage achieved)
+**Branch:** `feature/multi-node-support`
+**Breaking change:** Yes (API format + config changes)
+
+**Scope:** Convert 2-node hardcoding → N-node dynamic architecture
+
+**Phases (sequential):**
+
+1. **Phase 1:** Config + DB layer (environment vars, schema, internal data flow)
+2. **Phase 2:** API layer (`/api/status`, `/api/history`, response models)
+3. **Phase 3:** UI layer (dynamic node cards, charts)
+4. **Phase 4:** Setup wizard (interactive N-node config)
+5. **Phase 5:** Tests + Docker (fixtures, integration tests)
+
+---
+
+### Recent Copilot Review Fixes (v0.18.1–0.18.2, Already Completed ✅)
+
+#### v0.18.1 (2026-04-21) — 6 Copilot Review Comments
+
+**Issues Fixed:**
+
+- ✅ DNS latency not exposed in `/api/status` — added `dns_latency_warn_ms` field to `StatusResponse` Pydantic model
+- ✅ Dashboard hardcoded 500ms threshold → now uses `dns_latency_warn_ms` from server response
+- ✅ Test-mode banner not hidden on non-2xx responses → added error handling in `index.html`
+- ✅ Check DNS "restored" event fired incorrectly on failure/offline → fixed state logic in `check_dns()`
+- ✅ Type annotation for `check_dns()` incomplete (`Tuple[bool, Optional[float]]`) → fixed
+- ✅ Debug override applied unconditionally → gated behind `if DEBUG_MODE` check
+
+**Commits:** `7f57ed0`, V0.18.1
+
+#### v0.18.2 (2026-04-21) — 3 Copilot Review Comments
+
+**Issues Fixed:**
+
+- ✅ `dns_latency_warn_ms` field stripped from `/api/status` — added to model (not just internal)
+- ✅ `/api/debug/override/status` returned 403 when DEBUG_MODE disabled → now returns 200 (prevents log noise)
+- ✅ `asyncio.get_event_loop().time()` used in async functions → replaced with `get_running_loop().time()` (5 sites)
+
+**Commits:** `4c4b39a`, v0.18.2
+
+**Status:** All Copilot review comments have been resolved. No pending Copilot feedback.
+
+---
+
+---
+
 ## Current Status
 
-### Branch: `develop` — v0.19.0
+### Branch: `feature/multi-node-support` — v0.20.1
 
 | Item                                           | Status                                                         |
 | ---------------------------------------------- | -------------------------------------------------------------- |
 | Core monitoring service (monitor.py)           | ✅ Stable                                                      |
 | Dashboard + Settings UI                        | ✅ Up to date                                                  |
-| setup.py deployment (bare-metal)               | ✅ Fully working (tested 2026-03-28)                           |
+| install.py deployment (bare-metal)             | ✅ Fully working (tested 2026-03-28)                           |
 | Config sync (pihole.toml + gravity)            | ✅ Stable                                                      |
 | Notifications (Telegram/Discord/Pushover/Ntfy) | ✅ Working                                                     |
 | System Commands panel                          | ✅ Working                                                     |
@@ -39,7 +163,8 @@
 | `pisen api` CLI command                        | ✅ Working (v0.18.0)                                           |
 | DNS latency health check                       | ✅ Working (v0.18.0, default 500ms)                            |
 | Debug override mode (`DEBUG_MODE=true`)        | ✅ Working (v0.18.0)                                           |
-| Unit tests                                     | ✅ 539 tests passing — target 60%+ still open (see D2)         |
+| Unit tests                                     | ✅ 564 tests passing (28 skipped: env-dependent)               |
+| M1-P1 (Multi-node Phase 1)                     | ✅ Completed on feature branch                                 |
 | Container architecture (v2.0)                  | 🔲 Separate branch: `feature/container-architecture`           |
 
 ---
@@ -52,11 +177,11 @@ No open bugs.
 
 ## Security & Best Practices Review — 2026-05-10
 
-> Status: alle bevindingen hieronder zijn geïmplementeerd in code en vastgelegd in commit `5216894`.
-> Deze sectie blijft behouden als auditgeschiedenis; het is geen open todo-lijst meer.
+> Status: all findings below have been implemented in code and recorded in commit `5216894`.
+> This section is kept as audit history; it is no longer an open to-do list.
 
-> Gegenereerd via volledige codebase-scan. Gesorteerd op kriticiteitsniveau.
-> Elke fix is exact en actionable. Geen tutorials of algemene uitleg.
+> Generated via full codebase scan. Sorted by criticality.
+> Every fix is exact and actionable. No tutorials or general explanations.
 
 ---
 
@@ -67,16 +192,16 @@ No open bugs.
 **C1**
 
 - **Level:** Critical
-- **Location:** [setup.py](setup.py#L260) — ook L303, L307, L312, L681, L695, L736, L1482, L1955, L1963, L1969, L2376, L2378, L2380
-- **Issue:** `StrictHostKeyChecking=no` in alle SSH/SCP-aanroepen gedurende installatie en remote commando's — staat MITM-aanvallen toe.
+- **Location:** [setup.py](setup.py#L260) — also L303, L307, L312, L681, L695, L736, L1482, L1955, L1963, L1969, L2376, L2378, L2380
+- **Issue:** `StrictHostKeyChecking=no` in all SSH/SCP calls during installation and remote commands — allows MITM attacks.
 - **Fix:**
 
     ```python
-    # Vervang in remote_exec, remote_copy, en alle andere ssh/scp calls:
-    # VOOR (oud):
+    # Replace in remote_exec, remote_copy, and all other ssh/scp calls:
+    # BEFORE (old):
     "-o", "StrictHostKeyChecking=no",
 
-    # NA (nieuw) — gebruik accept-new: accepteer bij eerste verbinding, weiger bij gewijzigde host key:
+    # AFTER (new) — use accept-new: accept on first connection, reject if host key changes:
     "-o", "StrictHostKeyChecking=accept-new",
     "-o", "UserKnownHostsFile=/opt/pihole-monitor/.ssh/known_hosts",
     ```
@@ -87,13 +212,13 @@ No open bugs.
 
 - **Level:** Critical
 - **Location:** [docker/sentinel-node/sync_agent/agent.py](docker/sentinel-node/sync_agent/agent.py#L72)
-- **Issue:** Wanneer `SYNC_TOKEN=""` (standaard), worden alle sync-endpoints volledig opengesteld zonder authenticatie; alleen een warning wordt gelogd.
+- **Issue:** When `SYNC_TOKEN=""` (default), all sync endpoints are fully exposed without authentication; only a warning is logged.
 - **Fix:**
     ```python
     def verify_sync_token(x_sync_token: str = Header(default="")):
         if not SYNC_TOKEN:
-            # VOOR: logger.warning(...) + return  ← open!
-            # NA: harde fout:
+            # BEFORE: logger.warning(...) + return  ← open!
+            # AFTER: hard error:
             raise HTTPException(status_code=503, detail="Sync token not configured — service unavailable")
         if not hmac.compare_digest(x_sync_token, SYNC_TOKEN):
             raise HTTPException(status_code=403, detail="Invalid sync token")
@@ -108,18 +233,18 @@ No open bugs.
 **H1**
 
 - **Level:** High
-- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L1260) — ook L1277, L1290, L1305, L1323
-- **Issue:** Pi-hole API-communicatie (inclusief wachtwoordoverdracht) gebruikt onversleuteld HTTP (`http://{ip}/api/auth`).
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L1260) — also L1277, L1290, L1305, L1323
+- **Issue:** Pi-hole API communication (including password transfer) uses unencrypted HTTP (`http://{ip}/api/auth`).
 - **Fix:**
 
     ```python
-    # Voeg toe aan CONFIG (env-driven):
-    "pihole_scheme": os.getenv("PIHOLE_SCHEME", "http"),  # zet op "https" voor TLS
+    # Add to CONFIG (env-driven):
+    "pihole_scheme": os.getenv("PIHOLE_SCHEME", "http"),  # set to "https" for TLS
 
-    # Vervang in check_pihole_simple():
+    # Replace in check_pihole_simple():
     scheme = CONFIG.get("pihole_scheme", "http")
     async with session.post(f"{scheme}://{ip}/api/auth", json={"password": password}, ...) as auth_resp:
-    # Idem voor alle andere f"http://{ip}/..." aanroepen in die functie.
+    # Same for all other f"http://{ip}/..." calls in that function.
     ```
 
 ---
@@ -127,16 +252,16 @@ No open bugs.
 **H2**
 
 - **Level:** High
-- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L2885) — ook L2988
-- **Issue:** `test_notification`-endpoint roept `validate_webhook_url()` niet aan voor Discord- en Webhook-testpaden — SSRF-bescherming wordt omzeild.
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L2885) — also L2988
+- **Issue:** `test_notification` endpoint does not call `validate_webhook_url()` for Discord and Webhook test paths — SSRF protection is bypassed.
 - **Fix:**
 
     ```python
-    # Voeg toe vóór de session.post() aanroep in service == 'discord' blok (L2885):
+    # Add before the session.post() call in the service == 'discord' block (L2885):
     if not validate_webhook_url(settings['webhook_url']):
         raise HTTPException(status_code=400, detail="Webhook URL is not allowed (SSRF protection)")
 
-    # Voeg toe vóór de session.post() aanroep in service == 'webhook' blok (L2988):
+    # Add before the session.post() call in the service == 'webhook' block (L2988):
     if not validate_webhook_url(settings['url']):
         raise HTTPException(status_code=400, detail="Webhook URL is not allowed (SSRF protection)")
     ```
@@ -146,15 +271,15 @@ No open bugs.
 **H3**
 
 - **Level:** High
-- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L2871) — ook L2885, L2948, L2975, L2988
-- **Issue:** `test_notification` maakt per aanroep een nieuw `aiohttp.ClientSession()` zonder timeout — resource-lek en kwetsbaar voor Slowloris.
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L2871) — also L2885, L2948, L2975, L2988
+- **Issue:** `test_notification` creates a new `aiohttp.ClientSession()` per call without a timeout — resource leak and vulnerable to Slowloris.
 - **Fix:**
     ```python
-    # Vervang alle `async with aiohttp.ClientSession() as session:` in test_notification
-    # door gebruik van de globale sessie met timeout:
+    # Replace all `async with aiohttp.ClientSession() as session:` in test_notification
+    # with the global session with timeout:
     session = await get_http_session()
-    # (verwijder de `async with aiohttp.ClientSession() as session:` wrapper per blok)
-    # Voeg per post-aanroep een expliciete timeout toe:
+    # (remove the `async with aiohttp.ClientSession() as session:` wrapper per block)
+    # Add an explicit timeout per post call:
     async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as response:
     ```
 
@@ -168,12 +293,12 @@ No open bugs.
 
 - **Level:** Medium
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L330) — L330–L390
-- **Issue:** `rate_limit_store` en `write_rate_limit_store` zijn onbegrensde `defaultdict`s; bij DoS met unieke IPs groeien ze onbeperkt in geheugen.
+- **Issue:** `rate_limit_store` and `write_rate_limit_store` are unbounded `defaultdict`s; under DoS with unique IPs they grow without limit in memory.
 - **Fix:**
 
     ```python
-    # Voeg toe aan de cleanup-stap in rate_limit_check en write_rate_limit_check,
-    # vóór de append-stap, een max-cap op het aantal bijgehouden sleutels:
+    # Add to the cleanup step in rate_limit_check and write_rate_limit_check,
+    # before the append step, a max-cap on the number of tracked keys:
     MAX_TRACKED_IPS = 10_000
 
     async def rate_limit_check(request: Request):
@@ -184,11 +309,11 @@ No open bugs.
             if now - ts < timedelta(seconds=RATE_LIMIT_WINDOW)
         ]
         if len(rate_limit_store) > MAX_TRACKED_IPS:
-            # Verwijder de oudste inactieve sleutels
+            # Remove oldest inactive keys
             stale = [ip for ip, ts_list in rate_limit_store.items() if not ts_list]
             for ip in stale[:1000]:
                 del rate_limit_store[ip]
-        # ... rest ongewijzigd
+        # ... rest unchanged
     ```
 
 ---
@@ -197,15 +322,15 @@ No open bugs.
 
 - **Level:** Medium
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L897)
-- **Issue:** `Content-Security-Policy` header staat `'unsafe-inline'` toe voor `script-src`, wat XSS-bescherming significant verlaagt.
+- **Issue:** `Content-Security-Policy` header allows `'unsafe-inline'` for `script-src`, which significantly reduces XSS protection.
 - **Fix:**
 
     ```python
-    # Vervang in security_headers middleware:
-    # VOOR:
+    # Replace in security_headers middleware:
+    # BEFORE:
     "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
 
-    # NA — gebruik een nonce (genereer per request):
+    # AFTER — use a nonce (generate per request):
     import secrets as _sec
     nonce = _sec.token_urlsafe(16)
     response.headers["Content-Security-Policy"] = (
@@ -216,7 +341,7 @@ No open bugs.
         "connect-src 'self'; "
         "frame-ancestors 'none'"
     )
-    # Injecteer de nonce ook in de HTML via de serve_index/serve_settings handlers.
+    # Also inject the nonce into the HTML via serve_index/serve_settings handlers.
     ```
 
 ---
@@ -225,10 +350,10 @@ No open bugs.
 
 - **Level:** Medium
 - **Location:** [requirements.txt](requirements.txt)
-- **Issue:** `packaging`-library wordt gebruikt in `_is_newer_version()` (monitor.py L1101) maar staat niet in `requirements.txt`; de fallback-vergelijking (`latest_clean > current_clean`) is lexicografisch en incorrect voor semantische versies.
+- **Issue:** `packaging` library is used in `_is_newer_version()` (monitor.py L1101) but is not listed in `requirements.txt`; the fallback comparison (`latest_clean > current_clean`) is lexicographic and incorrect for semantic versions.
 - **Fix:**
     ```
-    # Voeg toe aan requirements.txt:
+    # Add to requirements.txt:
     packaging>=23.0
     ```
 
@@ -238,15 +363,15 @@ No open bugs.
 
 - **Level:** Medium
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L3249)
-- **Issue:** `uvicorn.run(app, host="0.0.0.0")` is hardcoded — bind-adres is niet configureerbaar via omgevingsvariabele.
+- **Issue:** `uvicorn.run(app, host="0.0.0.0")` is hardcoded — bind address is not configurable via environment variable.
 - **Fix:**
 
     ```python
-    # Vervang de laatste regel:
-    # VOOR:
+    # Replace the last line:
+    # BEFORE:
     uvicorn.run(app, host="0.0.0.0", port=8080)
 
-    # NA:
+    # AFTER:
     uvicorn.run(
         app,
         host=os.getenv("BIND_HOST", "0.0.0.0"),
@@ -260,11 +385,11 @@ No open bugs.
 
 - **Level:** Medium
 - **Location:** [docker/sentinel-node/sync_agent/agent.py](docker/sentinel-node/sync_agent/agent.py)
-- **Issue:** Geen rate limiting op enig endpoint in de sync agent; gezamenlijke endpoints zijn blootgesteld zonder throttling.
+- **Issue:** No rate limiting on any endpoint in the sync agent; shared endpoints are exposed without throttling.
 - **Fix:**
 
     ```python
-    # Voeg toe als dependency (zelfde patroon als monitor.py write_rate_limit_check):
+    # Add as a dependency (same pattern as monitor.py write_rate_limit_check):
     from collections import defaultdict
     from datetime import datetime, timedelta
     _agent_rate_store = defaultdict(list)
@@ -279,7 +404,7 @@ No open bugs.
             raise HTTPException(status_code=429, detail="Rate limit exceeded")
         _agent_rate_store[ip].append(now)
 
-    # Voeg toe aan elke route: dependencies=[Depends(agent_rate_limit)]
+    # Add to every route: dependencies=[Depends(agent_rate_limit)]
     ```
 
 ---
@@ -292,14 +417,14 @@ No open bugs.
 
 - **Level:** Low
 - **Location:** [docker/mock-pihole/mock_pihole.py](docker/mock-pihole/mock_pihole.py#L45)
-- **Issue:** Hardcoded standaard-testwachtwoord `"testpass123"` — indien mock server per ongeluk in productie draait, is het wachtwoord bekend.
+- **Issue:** Hardcoded default test password `"testpass123"` — if the mock server accidentally runs in production, the password is known.
 - **Fix:**
 
     ```python
-    # VOOR:
+    # BEFORE:
     PIHOLE_PASSWORD = os.getenv("PIHOLE_PASSWORD", "testpass123")
 
-    # NA — geen default; verplicht via env:
+    # AFTER — no default; required via env:
     PIHOLE_PASSWORD = os.getenv("PIHOLE_PASSWORD", "")
     if not PIHOLE_PASSWORD:
         raise RuntimeError("PIHOLE_PASSWORD env var is required")
@@ -310,13 +435,13 @@ No open bugs.
 **L2**
 
 - **Level:** Low
-- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L580) — ook L778, L808 en diverse API handlers
-- **Issue:** `import json` wordt herhaaldelijk binnenin functies geïmporteerd terwijl het al module-breed beschikbaar is — overtollige microkosten en inconsistentie.
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L580) — also L778, L808 and various API handlers
+- **Issue:** `import json` is repeatedly imported inside functions while it is already available module-wide — redundant micro-overhead and inconsistency.
 - **Fix:**
     ```python
-    # Verwijder alle `import json` regels bínnen functies.
-    # `json` staat al als top-level import (controleer: het staat NIET in de top imports!
-    # Voeg eenmalig toe aan de module-level imports bovenaan monitor.py):
+    # Remove all `import json` lines inside functions.
+    # `json` is already a top-level import (verify: it is NOT in the top imports!
+    # Add once to the module-level imports at the top of monitor.py):
     import json
     ```
 
@@ -326,11 +451,11 @@ No open bugs.
 
 - **Level:** Low
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L3042)
-- **Issue:** `test_template_notification` heeft een dood-code-string `"""Test a template notification with sample data"""` als losse statement na de echte docstring — dead code.
+- **Issue:** `test_template_notification` has a dead-code string `"""Test a template notification with sample data"""` as a loose statement after the real docstring — dead code.
 - **Fix:**
     ```python
-    # Verwijder regel 3042 volledig:
-    """Test a template notification with sample data"""   # ← DELETE deze regel
+    # Remove this line entirely:
+    """Test a template notification with sample data"""   # ← DELETE this line
     ```
 
 ---
@@ -339,14 +464,14 @@ No open bugs.
 
 - **Level:** Low
 - **Location:** [setup.py](setup.py#L1234)
-- **Issue:** `subprocess.run(["sudo", "useradd", ...], check=False)` smoort fouten stil; mislukte systeemgebruiker-aanmaak blijft onopgemerkt.
+- **Issue:** `subprocess.run(["sudo", "useradd", ...], check=False)` silently swallows errors; a failed system user creation goes unnoticed.
 - **Fix:**
 
     ```python
-    # VOOR:
+    # BEFORE:
     subprocess.run(["sudo", "useradd", "-r", "-s", "/bin/false", "pihole-monitor"], check=False)
 
-    # NA:
+    # AFTER:
     result = subprocess.run(["sudo", "useradd", "-r", "-s", "/bin/false", "pihole-monitor"], capture_output=True)
     if result.returncode not in (0, 9):  # 9 = user already exists
         logger.warning(f"useradd failed (rc={result.returncode}): {result.stderr.decode().strip()}")
@@ -358,10 +483,10 @@ No open bugs.
 
 - **Level:** Low
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L1451)
-- **Issue:** `extract_mac` is een geneste functie die bij élke aanroep van `check_who_has_vip()` opnieuw wordt aangemaakt (per poll-cyclus).
+- **Issue:** `extract_mac` is a nested function that is re-created on every call to `check_who_has_vip()` (once per poll cycle).
 - **Fix:**
     ```python
-    # Verplaats extract_mac naar module-niveau (vóór check_who_has_vip):
+    # Move extract_mac to module level (before check_who_has_vip):
     def _extract_mac(output: str) -> Optional[str]:
         """Extract MAC address from 'ip neigh show' output."""
         parts = output.split()
@@ -382,46 +507,212 @@ No open bugs.
 
 - **Level:** Info
 - **Location:** [dashboard/monitor.py](dashboard/monitor.py#L18)
-- **Issue:** `import copy` wordt alleen gebruikt in `mask_sensitive_data()` (één `deepcopy`-aanroep) — geen probleem maar opvallend geïsoleerd.
-- **Fix:** Geen actie vereist; optioneel `copy.deepcopy` vervangen door `json.loads(json.dumps(settings))` voor serialiseerbare dicts om de `copy`-import te elimineren.
+- **Issue:** `import copy` is only used in `mask_sensitive_data()` (one `deepcopy` call) — no problem but notably isolated.
+- **Fix:** No action required; optionally replace `copy.deepcopy` with `json.loads(json.dumps(settings))` for serializable dicts to eliminate the `copy` import.
 
 ---
 
 **I2**
 
 - **Level:** Info
-- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L2427) — ook L2330
-- **Issue:** `open(config_path, 'w')` gevolgd door `os.chmod(config_path, 0o600)` heeft een TOCTOU-venster; bestand is tijdelijk world-readable bij aanmaak.
+- **Location:** [dashboard/monitor.py](dashboard/monitor.py#L2427) — also L2330
+- **Issue:** `open(config_path, 'w')` followed by `os.chmod(config_path, 0o600)` has a TOCTOU window; the file is temporarily world-readable on creation.
 - **Fix:**
 
     ```python
     import stat
 
     def _open_secure(path: str):
-        """Open bestand voor schrijven met mode 0o600 vanaf aanmaak."""
+        """Open file for writing with mode 0o600 from creation."""
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         return open(fd, 'w')
 
-    # Vervang:
+    # Replace:
     with open(config_path, 'w') as f:
         json.dump(..., f, indent=2)
     os.chmod(config_path, 0o600)
 
-    # Door:
+    # With:
     with _open_secure(config_path) as f:
         json.dump(..., f, indent=2)
     ```
 
 ---
 
+## Repository Health Issues & Recommendations (2026-06-05)
+
+> Generated via external review. Sorted by priority.
+> Every recommendation is actionable and trackable.
+
+### 🔴 High Priority
+
+---
+
+**R1**
+
+- **ID:** R1
+- **Issue:** `setup.py` is a reserved name in the Python ecosystem (setuptools/pip). Running `pip install .` or `python setup.py install` will cause confusion. The file is also 145KB — a monolithic block.
+- **Recommendation:** Rename to `install.py` or `sentinel-setup.py`. Split large embedded logic into modules under `installer/` or `lib/`.
+
+---
+
+**R2** ✅ Done (v0.21.0)
+
+- **ID:** R2
+- **Issue:** No `SECURITY.md` present. This project manages DNS/DHCP infrastructure. Anyone finding a vulnerability has no guidance for responsible disclosure.
+- **Recommendation:** Create `.github/SECURITY.md` with a contact method (private email or GitHub private disclosure) and a supported-versions table.
+
+---
+
+**R3** ✅ Done (v0.21.0)
+
+- **ID:** R3
+- **Issue:** `README.md` contained hardcoded stale version info (`v0.16.8`). The version badge at the top is already dynamic.
+- **Recommendation:** Replaced static NOTE block with a link to `CHANGELOG.md`.
+
+---
+
+### 🟡 Medium Priority
+
+---
+
+**R4**
+
+- **ID:** R4
+- **Issue:** Root directory is cluttered — `Dockerfile.dev`, `docker-compose.poc.yml`, `docker-compose.test.yml`, SVG files, `PLAN.md`, `TODO_USER.md`, `CLAUDE.md`, `sync-pihole-config.sh`, `system-requirements.txt` all in root.
+- **Recommendations:**
+    - Move `logo.svg`, `logo-horizontal.svg`, `social-preview.svg` → `assets/`
+    - Move `sync-pihole-config.sh` → `bin/` (directory already exists)
+    - Move `PLAN.md` → `docs/development/` (internal planning document)
+    - Move `Dockerfile.dev` and `docker-compose.*.yml` → `docker/`
+    - Consider moving `TODO_USER.md` content to GitHub Issues or `CHANGELOG.md` and deleting the file
+
+---
+
+**R5** ✅ Done (v0.21.0)
+
+- **ID:** R5
+- **Issue:** No `CONTRIBUTING.md`. GitHub automatically shows a banner when `CONTRIBUTING.md` is present when opening issues/PRs.
+- **Recommendation:** Created `.github/CONTRIBUTING.md` with: dev environment setup, branch naming, commit conventions, test requirements, PR checklist.
+
+---
+
+**R6** ✅ Done (v0.21.0)
+
+- **ID:** R6
+- **Issue:** No `CODE_OF_CONDUCT.md`. Standard for public open-source projects.
+- **Recommendation:** Added `.github/CODE_OF_CONDUCT.md` (Contributor Covenant v2.1).
+
+---
+
+**R7**
+
+- **ID:** R7
+- **Issue:** `testing` branch has no branch protection. Per the project workflow rules, `testing` is a gate branch that should only receive PRs from `develop`.
+- **Recommendation:** Enable branch protection on `testing`: require PRs, disable direct pushes.
+
+---
+
+**R8**
+
+- **ID:** R8
+- **Issue:** `docker-compose.poc.yml` — "poc" (proof of concept) in a public repository signals an unfinished artifact to users.
+- **Recommendation:** Rename to `docker-compose.dev.yml` or move to `docker/` with a note clarifying its purpose.
+
+---
+
+**R9**
+
+- **ID:** R9
+- **Issue:** No `pyproject.toml`. Python packaging has standardized on `pyproject.toml` (PEP 517/518). `system-requirements.txt` is also a non-standard filename.
+- **Recommendation:** Add a minimal `pyproject.toml` for project metadata. Rename `system-requirements.txt` to `requirements-system.txt` or document it clearly in the README.
+
+---
+
+### 🟢 Low Priority / Nice to Have
+
+---
+
+**R10**
+
+- **ID:** R10
+- **Issue:** No GitHub Pages (`has_pages: false`). The `docs/` structure is suitable for GitHub Pages, Docusaurus, or MkDocs.
+- **Recommendation:** Consider a hosted docs site for better discoverability and usability.
+
+---
+
+**R11**
+
+- **ID:** R11
+- **Issue:** Inconsistent release naming: early releases `v0.12.4-beta.7` through `beta.10`, later `Pi-hole Sentinel 0.19.0`. Tags and titles diverged during development.
+- **Recommendation:** Standardize on `vX.Y.Z` tags with a consistent title format going forward.
+
+---
+
+**R12**
+
+- **ID:** R12
+- **Issue:** `BRANCH_PROTECTION.md` (17KB), `TEST_AUTOMATION_GUIDE.md` (18KB), `TEST_DOCUMENTATION_TEMPLATE.md` (24KB) live in `.github/` — a folder users generally don't browse.
+- **Recommendation:** Move to `docs/development/` where contributors will find them naturally.
+
+---
+
+**R13**
+
+- **ID:** R13
+- **Issue:** Dutch error messages in git hooks (`🚫 MERGE GEBLOKKEERD: Beschermde Branch`). Fine for a personal project, but not inclusive for international contributors.
+- **Recommendation:** Translate hook error messages to English if international contributions are desired.
+
+---
+
+**R14** ✅ Done (v0.21.0)
+
+- **ID:** R14
+- **Issue:** No `SUPPORT.md`. GitHub shows a "Get Support" button when `.github/SUPPORT.md` exists.
+- **Recommendation:** Created `.github/SUPPORT.md` directing users to Discussions vs. Issues vs. docs.
+
+---
+
+**R15**
+
+- **ID:** R15
+- **Issue:** Discussions enabled but no category guidelines or welcome post present.
+- **Recommendation:** Add a pinned welcome post in Discussions to set expectations.
+
+---
+
 ## Open Improvements
 
-| ID  | Improvement                                                                | Priority |
-| --- | -------------------------------------------------------------------------- | -------- |
-| D2  | Expand test coverage (currently 54% monitor.py, target 60%+)               | Medium   |
-| P2  | `pisen` CLI: make copyright year dynamic                                   | Low      |
-| P3  | `pisen` CLI: add `--api` mode (HTTP client to monitor API)                 | Low      |
-| M1  | Multi-node support: N Pi-holes (3+) instead of hardcoded primary/secondary | Medium   |
+| ID    | Improvement                                                                 | Priority |
+| ----- | --------------------------------------------------------------------------- | -------- |
+| M1-P3 | Dashboard dynamic node rendering (remove hardcoded primary/secondary cards) | High     |
+| M1-P4 | setup.py multi-node wizard/config generation                                | Medium   |
+| M1-P5 | Multi-node test + docker fixtures                                           | Medium   |
+| R1    | Rename `setup.py` to `install.py` or `sentinel-setup.py`                    | Medium   |
+| R4    | Root directory cleanup (move SVGs, scripts, docker files)                   | Low      |
+| R7    | Enable branch protection on `testing` branch (GitHub settings)              | Low      |
+| R8    | Rename `docker-compose.poc.yml` to `docker-compose.dev.yml`                 | Low      |
+| R9    | Add minimal `pyproject.toml`                                                | Low      |
+| R11   | Standardize release tag naming to `vX.Y.Z`                                  | Low      |
+| R12   | Move `.github/` dev docs to `docs/development/`                             | Low      |
+| R13   | Translate git hook error messages to English                                | Low      |
+| R15   | Add pinned welcome post in GitHub Discussions                               | Low      |
+
+---
+
+## ✅ Completed Improvements (v0.18.0+)
+
+| ID    | Improvement                                                           | Completed |
+| ----- | --------------------------------------------------------------------- | --------- |
+| M1-P2 | Multi-node API migration (`/api/status`, `/api/history` to `nodes[]`) | v0.21.0   |
+| D2    | Test coverage 54% → 71% on `monitor.py`                               | v0.21.0   |
+| R2    | `.github/SECURITY.md` created                                         | v0.21.0   |
+| R3    | README stale version note removed                                     | v0.21.0   |
+| R5    | `.github/CONTRIBUTING.md` created                                     | v0.21.0   |
+| R6    | `.github/CODE_OF_CONDUCT.md` created                                  | v0.21.0   |
+| R14   | `.github/SUPPORT.md` created                                          | v0.21.0   |
+| P2    | `pisen` CLI: dynamic copyright year                                   | v0.18.0   |
+| P3    | `pisen` CLI: `--api` mode (HTTP API client)                           | v0.18.0   |
 
 ### M1 — Multi-Node Support (N Pi-holes)
 
@@ -478,7 +769,7 @@ component already N-aware (via `SYNC_PEERS`).
 
 #### Phase 4 — Setup Wizard _(parallel with Phase 2/3)_
 
-- **Interactive wizard** (`setup.py`) — ask "How many Pi-holes?" → loop N times for IP/name/password/SSH
+- **Interactive wizard** (`install.py`) — ask "How many Pi-holes?" → loop N times for IP/name/password/SSH
 - **Keepalived config generation** — generate N configs with descending priorities:
   node-0=150, node-1=140, node-2=130, ...
   Add `keepalived/node-N/keepalived.conf` alongside existing `pihole1/`/`pihole2/` templates
@@ -505,7 +796,7 @@ component already N-aware (via `SYNC_PEERS`).
 - [ ] Keepalived node-3 wins VIP when nodes 1+2 fail
 - [ ] DHCP misconfiguration warning appears correctly for node-3 as MASTER
 - [ ] `make docker-integration` passes with 3-node scenario
-- [ ] `setup.py` wizard completes correctly for 3 nodes
+- [ ] `install.py` wizard completes correctly for 3 nodes
 
 ---
 
@@ -555,7 +846,7 @@ component already N-aware (via `SYNC_PEERS`).
 
 - [x] `StatusResponse` missing `dhcp_failover` field — added to Pydantic model
 - [x] Rate limiter trusted `X-Forwarded-For` unconditionally — requires `TRUST_PROXY_HEADERS=true`
-- [x] `setup.py` overwrote `notify_settings.json` on re-deploy — now merges, preserves notification config
+- [x] `install.py` overwrote `notify_settings.json` on re-deploy — now merges, preserves notification config
 - [x] SSH `known_hosts` blocked by `ReadOnlyPaths` in systemd unit — fixed (protect only private key)
 - [x] `validate_ip` accepted invalid octets (e.g. 999.x.x.x) — added 0–255 range check
 - [x] `DHCP_ENABLED` had no default in `keepalived_notify.sh` — default `true` for backward compat
@@ -595,7 +886,7 @@ component already N-aware (via `SYNC_PEERS`).
 
 ### v0.12.2 (2026-03-28)
 
-- [x] setup.py fully working end-to-end (SSH + Pi-hole preflight checks)
+- [x] install.py fully working end-to-end (SSH + Pi-hole preflight checks)
 - [x] Automatic rollback on deployment failure
 - [x] Fault debounce 60s + paired recovery notifications
 - [x] System Commands panel in dashboard

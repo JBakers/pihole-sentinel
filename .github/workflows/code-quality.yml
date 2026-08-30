@@ -29,11 +29,11 @@ jobs:
 
       - name: Check code formatting with Black
         run: |
-          black --check dashboard/monitor.py setup.py || true
+          black --check dashboard/monitor.py install.py || true
 
       - name: Run Flake8
         run: |
-          flake8 dashboard/monitor.py setup.py --max-line-length=120 --ignore=E501,W503 || true
+          flake8 dashboard/monitor.py install.py --max-line-length=120 --ignore=E501,W503 || true
 
       - name: Run Pylint
         run: |
@@ -42,7 +42,7 @@ jobs:
       - name: Syntax check Python files
         run: |
           python -m py_compile dashboard/monitor.py
-          python -m py_compile setup.py
+          python -m py_compile install.py
 
   shell-checks:
     name: Shell Script Quality
@@ -106,7 +106,7 @@ jobs:
 
       - name: Run Bandit security checks
         run: |
-          bandit -r dashboard/monitor.py setup.py || true
+          bandit -r dashboard/monitor.py install.py || true
 
       - name: Check for known vulnerabilities
         run: |
@@ -142,7 +142,7 @@ jobs:
           test -f VERSION
           test -f CLAUDE.md
           test -f dashboard/monitor.py
-          test -f setup.py
+          test -f install.py
 
       - name: Check version consistency
         run: |

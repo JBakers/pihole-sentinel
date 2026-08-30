@@ -1,10 +1,10 @@
 """
-Tests for setup.py — preflight checks, rollback, and uninstall logic.
+Tests for install.py — preflight checks, rollback, and uninstall logic.
 
 Unit tests run without any external dependencies (SSH/Docker mocked).
 Integration tests (marked 'docker') require the Docker test environment:
     make docker-up
-    pytest -m docker tests/test_setup.py
+    pytest -m docker tests/test_install.py
 
 Docker endpoints used in integration tests:
     Primary mock Pi-hole:   http://localhost:8001  (password: testpass123)
@@ -21,7 +21,7 @@ import pytest
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from setup import SetupConfig
+from install import SetupConfig
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -415,6 +415,159 @@ class TestBackupExistingConfigs:
         c = _make_config()
         ts = self._run_backup(c, "not_found")
         assert ts is None
+
+
+# ---------------------------------------------------------------------------
+# N-node support (M1-P4)  (unit)
+# ---------------------------------------------------------------------------
+
+
+def _make_nnode_config(num_nodes=3):
+    """Return a SetupConfig populated with an N-node config dict."""
+    c = SetupConfig()
+    nodes = []
+    for i in range(1, num_nodes + 1):
+        nodes.append(
+            {
+                "index": i,
+                "ip": f"10.99.0.{10 + i}",
+                "name": c._node_name(i, num_nodes),
+                "password": f"pass{i}",
+                "ssh_user": "root",
+                "ssh_port": "22",
+                "priority": 150 - (i - 1) * 10,
+                "state": "MASTER" if i == 1 else "BACKUP",
+            }
+        )
+    c.config.update(
+        {
+            "interface": "eth0",
+            "nodes": nodes,
+            "primary_ip": nodes[0]["ip"],
+            "secondary_ip": nodes[1]["ip"],
+            "primary_password": nodes[0]["password"],
+            "secondary_password": nodes[1]["password"],
+            "primary_ssh_user": "root",
+            "primary_ssh_port": "22",
+            "secondary_ssh_user": "root",
+            "secondary_ssh_port": "22",
+            "vip": "10.99.0.100",
+            "gateway": "10.99.0.1",
+            "netmask": "24",
+            "keepalived_password": "abc12345",
+            "separate_monitor": True,
+            "monitor_ip": "10.99.0.20",
+            "monitor_ssh_user": "root",
+            "monitor_ssh_port": "22",
+            "dhcp_enabled": False,
+        }
+    )
+    return c
+
+
+class TestNodeHelpers:
+    """Unit tests for the N-node helper methods."""
+
+    def test_node_name_primary_secondary_then_numbered(self):
+        c = SetupConfig()
+        assert c._node_name(1, 3) == "Pi-Hole Node 1"
+        assert c._node_name(2, 3) == "Pi-Hole Node 2"
+        assert c._node_name(3, 3) == "Pi-Hole Node 3"
+
+    def test_config_nodes_returns_explicit_list(self):
+        c = _make_nnode_config(4)
+        nodes = c._config_nodes()
+        assert len(nodes) == 4
+        assert [n["index"] for n in nodes] == [1, 2, 3, 4]
+
+    def test_config_nodes_legacy_fallback(self):
+        """Without 'nodes', a 2-node list is synthesised from legacy keys."""
+        c = _make_config()  # legacy-only config, no 'nodes'
+        nodes = c._config_nodes()
+        assert len(nodes) == 2
+        assert nodes[0]["ip"] == "10.99.0.10"
+        assert nodes[0]["state"] == "MASTER"
+        assert nodes[1]["state"] == "BACKUP"
+
+    def test_priorities_descend_by_ten(self):
+        c = _make_nnode_config(4)
+        priorities = [n["priority"] for n in c.config["nodes"]]
+        assert priorities == [150, 140, 130, 120]
+
+
+class TestGenerateConfigsNNode:
+    """Unit tests for N-node config generation."""
+
+    def test_keepalived_conf_per_node(self):
+        c = _make_nnode_config(3)
+        node3 = c.config["nodes"][2]
+        conf = c._build_keepalived_conf(node3)
+        assert "router_id PIHOLE3" in conf
+        assert "state BACKUP" in conf
+        assert "priority 130" in conf
+        assert "10.99.0.100/24" in conf
+
+    def test_keepalived_conf_master_first_node(self):
+        c = _make_nnode_config(3)
+        conf = c._build_keepalived_conf(c.config["nodes"][0])
+        assert "state MASTER" in conf
+        assert "priority 150" in conf
+        assert "router_id PIHOLE1" in conf
+
+    def test_generate_configs_writes_all_node_files(self, tmp_path, monkeypatch):
+        c = _make_nnode_config(3)
+        monkeypatch.chdir(tmp_path)
+        c.generate_configs()
+
+        gen = tmp_path / "generated_configs"
+        # Per-node files for all 3 nodes
+        for i in (1, 2, 3):
+            assert (gen / f"node{i}_keepalived.conf").exists()
+            assert (gen / f"node{i}.env").exists()
+        # Legacy aliases for node 1 & 2
+        assert (gen / "primary_keepalived.conf").exists()
+        assert (gen / "secondary_keepalived.conf").exists()
+        assert (gen / "monitor.env").exists()
+
+    def test_monitor_env_has_pihole_n_and_legacy(self, tmp_path, monkeypatch):
+        c = _make_nnode_config(3)
+        monkeypatch.chdir(tmp_path)
+        c.generate_configs()
+
+        env = (tmp_path / "generated_configs" / "monitor.env").read_text()
+        # New N-node format
+        assert "PIHOLE_1_IP=10.99.0.11" in env
+        assert "PIHOLE_2_IP=10.99.0.12" in env
+        assert "PIHOLE_3_IP=10.99.0.13" in env
+        assert "PIHOLE_3_PASSWORD=pass3" in env
+        # Legacy aliases
+        assert "PRIMARY_IP=10.99.0.11" in env
+        assert "SECONDARY_IP=10.99.0.12" in env
+
+    def test_node_env_has_correct_priority_state(self, tmp_path, monkeypatch):
+        c = _make_nnode_config(3)
+        monkeypatch.chdir(tmp_path)
+        c.generate_configs()
+
+        env3 = (tmp_path / "generated_configs" / "node3.env").read_text()
+        assert "NODE_PRIORITY=130" in env3
+        assert "NODE_STATE=BACKUP" in env3
+
+
+class TestPreflightNNode:
+    """preflight_checks() must check every configured node."""
+
+    def test_preflight_checks_all_nodes(self):
+        c = _make_nnode_config(3)
+
+        with patch.object(c, "remote_exec") as mock_ssh, patch.object(
+            c, "_check_pihole_api", return_value=(True, "OK")
+        ) as mock_api:
+            c.preflight_checks()
+
+        # monitor + 3 nodes = 4 SSH checks; 3 API checks
+        assert mock_ssh.call_count == 4
+        assert mock_api.call_count == 3
 
 
 # ---------------------------------------------------------------------------

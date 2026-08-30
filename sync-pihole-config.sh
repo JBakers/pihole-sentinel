@@ -34,10 +34,14 @@ if [ -f "$SYNC_CONF" ]; then
     # Parse key=value safely (no source to avoid arbitrary code execution)
     while IFS='=' read -r key value; do
         key=$(echo "$key" | tr -d '[:space:]')
+        # raw_value trims only surrounding whitespace/quotes, preserving internal
+        # spaces (needed for SYNC_PEER_IPS, a space-separated IP list).
+        raw_value=$(echo "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//')
         value=$(echo "$value" | tr -d '[:space:]' | tr -d '"')
         case "$key" in
             PRIMARY_IP)        PRIMARY_IP="$value" ;;
             SECONDARY_IP)      SECONDARY_IP="$value" ;;
+            SYNC_PEER_IPS)     SYNC_PEER_IPS="$raw_value" ;;
             SYNC_INTERVAL_MINUTES) SYNC_INTERVAL_MINUTES="$value" ;;
             SYNC_GRAVITY)          SYNC_GRAVITY="$value" ;;
             SYNC_CUSTOM_DNS)       SYNC_CUSTOM_DNS="$value" ;;
@@ -117,6 +121,18 @@ validate_ip() {
 validate_ip "$PRIMARY_IP" "PRIMARY_IP"
 validate_ip "$SECONDARY_IP" "SECONDARY_IP"
 
+# Star-topology peers (nodes 2..N). The hub (node 1 / primary) pushes config to
+# every peer in this list. Falls back to SECONDARY_IP for legacy 2-node setups
+# where sync.conf predates SYNC_PEER_IPS.
+SYNC_PEER_IPS="${SYNC_PEER_IPS:-}"
+if [ -z "$SYNC_PEER_IPS" ] && [ -n "$SECONDARY_IP" ]; then
+    SYNC_PEER_IPS="$SECONDARY_IP"
+fi
+# Validate every peer IP (prevents injection via malformed sync.conf values)
+for peer in $SYNC_PEER_IPS; do
+    validate_ip "$peer" "SYNC_PEER_IPS entry"
+done
+
 # Convert to lowercase
 NODE_TYPE=$(echo "$NODE_TYPE" | tr '[:upper:]' '[:lower:]')
 
@@ -143,36 +159,36 @@ check_pihole_running() {
 create_backup() {
     local backup_name="pihole-backup-$(date +%Y%m%d-%H%M%S)"
     log_info "Creating backup: $backup_name"
-    
+
     mkdir -p "$BACKUP_DIR"
-    
+
     # Backup important files
     tar czf "$BACKUP_DIR/$backup_name.tar.gz" \
         "$PIHOLE_DIR/gravity.db" \
         "$PIHOLE_DIR/custom.list" \
         "$PIHOLE_DIR/pihole.toml" \
         2>/dev/null || true
-    
+
     # Keep only last N backups (configurable via SYNC_MAX_BACKUPS, default 3)
     cd "$BACKUP_DIR"
     ls -t pihole-backup-*.tar.gz | tail -n +$((SYNC_MAX_BACKUPS + 1)) | xargs -r rm
-    
+
     log_info "Backup created successfully"
 }
 
 sync_from_primary() {
     log_info "Syncing configuration FROM primary ($PRIMARY_IP)..."
-    
+
     # Create backup before sync
     create_backup
-    
+
     # Stop Pi-hole temporarily (only if we'll restart it)
     if [ "$SYNC_RESTART_FTL" = "true" ]; then
         log_info "Stopping Pi-hole..."
         systemctl stop pihole-FTL
         local ftl_was_stopped=true
     fi
-    
+
     # Sync gravity database (contains all lists, groups, clients, etc.)
     if [ "$SYNC_GRAVITY" = "true" ]; then
         log_info "Syncing gravity database..."
@@ -186,7 +202,7 @@ sync_from_primary() {
     else
         log_info "Skipping gravity database (SYNC_GRAVITY=false)"
     fi
-    
+
     # Sync custom DNS records
     if [ "$SYNC_CUSTOM_DNS" = "true" ]; then
         log_info "Syncing custom DNS records..."
@@ -204,7 +220,7 @@ sync_from_primary() {
     else
         log_info "Skipping custom DNS records (SYNC_CUSTOM_DNS=false)"
     fi
-    
+
     # Sync CNAME records
     if [ "$SYNC_CNAME" = "true" ]; then
         if ssh "root@${PRIMARY_IP}" "[ -f ${PIHOLE_DIR}/05-pihole-custom-cname.conf ]"; then
@@ -221,7 +237,7 @@ sync_from_primary() {
     else
         log_info "Skipping CNAME records (SYNC_CNAME=false)"
     fi
-    
+
     # Sync DHCP static leases
     if [ "$SYNC_DHCP_LEASES" = "true" ]; then
         log_info "Syncing DHCP static leases..."
@@ -233,7 +249,7 @@ sync_from_primary() {
     else
         log_info "Skipping DHCP leases (SYNC_DHCP_LEASES=false)"
     fi
-    
+
     # Sync Pi-hole DHCP configuration from pihole.toml
     # (Only the [dhcp] section — never overwrites the whole file)
     if [ "$SYNC_CONFIG_DHCP" = "true" ] || [ "$SYNC_CONFIG_DNS" = "true" ]; then
@@ -312,7 +328,7 @@ sync_from_primary() {
 
     # Cleanup remote toml
     rm -f /tmp/pihole.toml.remote
-    
+
     # Set correct permissions
     chown pihole:pihole "${PIHOLE_DIR}/gravity.db" 2>/dev/null || true
     chown pihole:pihole "${PIHOLE_DIR}/custom.list" 2>/dev/null || true
@@ -320,18 +336,18 @@ sync_from_primary() {
     chmod 644 "${PIHOLE_DIR}/gravity.db" 2>/dev/null || true
     chmod 644 "${PIHOLE_DIR}/custom.list" 2>/dev/null || true
     chmod 644 "${PIHOLE_DIR}/pihole.toml" 2>/dev/null || true
-    
+
     # Restart Pi-hole
     log_info "Restarting Pi-hole..."
     systemctl start pihole-FTL
-    
+
     # Wait for FTL to start
     sleep 3
-    
+
     if check_pihole_running; then
         log_info "✓ Sync completed successfully!"
         log_info "✓ Pi-hole is running"
-        
+
         # Show stats
         pihole status
     else
@@ -342,33 +358,36 @@ sync_from_primary() {
     fi
 }
 
-sync_to_secondary() {
-    log_info "Syncing configuration TO secondary ($SECONDARY_IP)..."
-    
+sync_to_peer() {
+    # Shadow the global SECONDARY_IP with this peer's IP so the entire function
+    # body (star topology) targets the given node without further edits.
+    local SECONDARY_IP="$1"
+    log_info "Syncing configuration TO peer ($SECONDARY_IP)..."
+
     if ! check_pihole_running; then
         log_error "Primary Pi-hole is not running. Cannot sync."
         exit 1
     fi
-    
+
     # Test connection to secondary
     if ! ssh -o ConnectTimeout=5 "root@${SECONDARY_IP}" "echo Connected" &>/dev/null; then
         log_error "Cannot connect to secondary Pi-hole at $SECONDARY_IP"
         exit 1
     fi
-    
+
     # Ask secondary to create backup (with rotation to prevent disk full)
     log_info "Creating backup on secondary (keeping last ${SYNC_MAX_BACKUPS})..."
     ssh "root@${SECONDARY_IP}" "mkdir -p $BACKUP_DIR && \
         tar czf $BACKUP_DIR/pihole-backup-\$(date +%Y%m%d-%H%M%S).tar.gz \
         $PIHOLE_DIR/gravity.db $PIHOLE_DIR/custom.list $PIHOLE_DIR/pihole.toml 2>/dev/null || true && \
         cd $BACKUP_DIR && ls -t pihole-backup-*.tar.gz 2>/dev/null | tail -n +$((SYNC_MAX_BACKUPS + 1)) | xargs -r rm"
-    
+
     # Stop Pi-hole on secondary (only if restart enabled)
     if [ "$SYNC_RESTART_FTL" = "true" ]; then
         log_info "Stopping Pi-hole on secondary..."
         ssh "root@${SECONDARY_IP}" "systemctl stop pihole-FTL"
     fi
-    
+
     # Push gravity database
     if [ "$SYNC_GRAVITY" = "true" ]; then
         log_info "Pushing gravity database..."
@@ -380,7 +399,7 @@ sync_to_secondary() {
     else
         log_info "Skipping gravity database (SYNC_GRAVITY=false)"
     fi
-    
+
     # Push custom DNS records
     if [ "$SYNC_CUSTOM_DNS" = "true" ]; then
         log_info "Pushing custom DNS records..."
@@ -390,7 +409,7 @@ sync_to_secondary() {
     else
         log_info "Skipping custom DNS records (SYNC_CUSTOM_DNS=false)"
     fi
-    
+
     # Push CNAME records
     if [ "$SYNC_CNAME" = "true" ]; then
         rsync -avz --progress "${PIHOLE_DIR}/05-pihole-custom-cname.conf" "root@${SECONDARY_IP}:${PIHOLE_DIR}/" 2>/dev/null || {
@@ -399,7 +418,7 @@ sync_to_secondary() {
     else
         log_info "Skipping CNAME records (SYNC_CNAME=false)"
     fi
-    
+
     # Push DHCP static leases
     if [ "$SYNC_DHCP_LEASES" = "true" ]; then
         log_info "Pushing DHCP static leases..."
@@ -411,7 +430,7 @@ sync_to_secondary() {
     else
         log_info "Skipping DHCP leases (SYNC_DHCP_LEASES=false)"
     fi
-    
+
     # Push Pi-hole configuration (section-based to preserve node-specific settings)
     if [ "$SYNC_CONFIG_DHCP" = "true" ] || [ "$SYNC_CONFIG_DNS" = "true" ]; then
         log_info "Pushing Pi-hole configuration (section-based)..."
@@ -592,16 +611,16 @@ REMOTE_PRESERVE
     else
         log_info "Skipping Pi-hole config (SYNC_CONFIG_DHCP and SYNC_CONFIG_DNS both false)"
     fi
-    
+
     # Fix permissions on secondary
     ssh "root@${SECONDARY_IP}" "chown pihole:pihole ${PIHOLE_DIR}/gravity.db ${PIHOLE_DIR}/custom.list 2>/dev/null || true && \
         chown root:root ${PIHOLE_DIR}/pihole.toml 2>/dev/null || true && \
         chmod 644 ${PIHOLE_DIR}/gravity.db ${PIHOLE_DIR}/custom.list ${PIHOLE_DIR}/pihole.toml 2>/dev/null || true"
-    
+
     # Start Pi-hole on secondary
     log_info "Starting Pi-hole on secondary..."
     ssh "root@${SECONDARY_IP}" "systemctl start pihole-FTL"
-    
+
     # Wait and check
     sleep 3
     if ssh "root@${SECONDARY_IP}" "systemctl is-active --quiet pihole-FTL"; then
@@ -613,98 +632,138 @@ REMOTE_PRESERVE
     fi
 }
 
+sync_to_all_peers() {
+    # Star topology: the hub (node 1) pushes config to every peer (nodes 2..N).
+    # Each peer is synced in a subshell so a failure on one node is reported but
+    # does not abort syncing to the remaining peers.
+    if ! check_pihole_running; then
+        log_error "Primary Pi-hole is not running. Cannot sync."
+        exit 1
+    fi
+    local failed=0 total=0 idx=0
+    for peer in $SYNC_PEER_IPS; do
+        idx=$((idx + 1))
+        total=$((total + 1))
+        log_info "─── Peer ${idx}: ${peer} ───"
+        if ( sync_to_peer "$peer" ); then
+            log_info "✓ Peer ${peer} synced"
+        else
+            log_error "✗ Sync to peer ${peer} failed"
+            failed=$((failed + 1))
+        fi
+    done
+    if [ "$total" -eq 0 ]; then
+        log_error "No peers configured (SYNC_PEER_IPS empty and no SECONDARY_IP)"
+        exit 1
+    fi
+    if [ "$failed" -gt 0 ]; then
+        log_error "${failed}/${total} peer sync(s) failed"
+        exit 1
+    fi
+    log_info "✓ All ${total} peer(s) synced successfully"
+}
+
 restore_from_backup() {
     log_warn "Restoring from latest backup..."
-    
+
     local latest_backup=$(ls -t "$BACKUP_DIR"/pihole-backup-*.tar.gz 2>/dev/null | head -n1)
-    
+
     if [ -z "$latest_backup" ]; then
         log_error "No backup found to restore!"
         return 1
     fi
-    
+
     log_info "Restoring from: $(basename $latest_backup)"
     tar xzf "$latest_backup" -C / 2>/dev/null || {
         log_error "Failed to restore backup"
         return 1
     }
-    
+
     systemctl start pihole-FTL
     log_info "Backup restored"
 }
 
-show_diff() {
-    log_info "Showing configuration differences..."
-    
+show_diff_peer() {
+    # Shadow the global SECONDARY_IP with this peer's IP (star topology).
+    local SECONDARY_IP="$1"
+    log_info "Showing configuration differences vs peer ($SECONDARY_IP)..."
+
     local temp_dir=$(mktemp -d)
-    
+
     # Get remote gravity.db stats
     ssh "root@${SECONDARY_IP}" "sqlite3 ${PIHOLE_DIR}/gravity.db 'SELECT COUNT(*) FROM adlist;'" > "$temp_dir/remote_adlist_count" 2>/dev/null || echo "0" > "$temp_dir/remote_adlist_count"
     ssh "root@${SECONDARY_IP}" "sqlite3 ${PIHOLE_DIR}/gravity.db 'SELECT COUNT(*) FROM domainlist WHERE type=0;'" > "$temp_dir/remote_whitelist_count" 2>/dev/null || echo "0" > "$temp_dir/remote_whitelist_count"
     ssh "root@${SECONDARY_IP}" "sqlite3 ${PIHOLE_DIR}/gravity.db 'SELECT COUNT(*) FROM domainlist WHERE type=1;'" > "$temp_dir/remote_blacklist_count" 2>/dev/null || echo "0" > "$temp_dir/remote_blacklist_count"
-    
+
     # Get local gravity.db stats
     local_adlist=$(sqlite3 "${PIHOLE_DIR}/gravity.db" 'SELECT COUNT(*) FROM adlist;' 2>/dev/null || echo "0")
     local_whitelist=$(sqlite3 "${PIHOLE_DIR}/gravity.db" 'SELECT COUNT(*) FROM domainlist WHERE type=0;' 2>/dev/null || echo "0")
     local_blacklist=$(sqlite3 "${PIHOLE_DIR}/gravity.db" 'SELECT COUNT(*) FROM domainlist WHERE type=1;' 2>/dev/null || echo "0")
-    
+
     remote_adlist=$(cat "$temp_dir/remote_adlist_count")
     remote_whitelist=$(cat "$temp_dir/remote_whitelist_count")
     remote_blacklist=$(cat "$temp_dir/remote_blacklist_count")
-    
+
     echo ""
-    echo "Configuration Comparison:"
+    echo "Configuration Comparison (peer ${SECONDARY_IP}):"
     echo "========================="
-    printf "%-20s %10s %10s\n" "Item" "Primary" "Secondary"
+    printf "%-20s %10s %10s\n" "Item" "Primary" "Peer"
     printf "%-20s %10s %10s\n" "----" "-------" "---------"
     printf "%-20s %10d %10d\n" "Adlists" "$local_adlist" "$remote_adlist"
     printf "%-20s %10d %10d\n" "Whitelist" "$local_whitelist" "$remote_whitelist"
     printf "%-20s %10d %10d\n" "Blacklist" "$local_blacklist" "$remote_blacklist"
     echo ""
-    
+
     if [ "$local_adlist" != "$remote_adlist" ] || [ "$local_whitelist" != "$remote_whitelist" ] || [ "$local_blacklist" != "$remote_blacklist" ]; then
         log_warn "Configurations are OUT OF SYNC"
     else
         log_info "Configurations are IN SYNC"
     fi
-    
+
     rm -rf "$temp_dir"
+}
+
+show_diff() {
+    # Compare the hub against every peer (nodes 2..N).
+    for peer in $SYNC_PEER_IPS; do
+        show_diff_peer "$peer"
+    done
 }
 
 # Main script logic
 case "$NODE_TYPE" in
     master|primary)
         log_info "Running as PRIMARY node"
-        
+
         if [ "$1" == "--diff" ]; then
             show_diff
         elif [ "$1" == "--auto" ]; then
             log_info "Auto-sync mode enabled"
-            sync_to_secondary
+            sync_to_all_peers
         else
             echo ""
             echo "Pi-hole Configuration Sync - PRIMARY Mode"
             echo "=========================================="
             echo ""
             echo "Options:"
-            echo "  1) Sync TO secondary"
+            echo "  1) Sync TO all peers"
             echo "  2) Show configuration differences"
             echo "  3) Exit"
             echo ""
             read -p "Choose option [1-3]: " choice
-            
+
             case $choice in
-                1) sync_to_secondary ;;
+                1) sync_to_all_peers ;;
                 2) show_diff ;;
                 3) exit 0 ;;
                 *) log_error "Invalid choice"; exit 1 ;;
             esac
         fi
         ;;
-        
+
     backup|secondary)
         log_info "Running as SECONDARY node"
-        
+
         if [ "$1" == "--diff" ]; then
             show_diff
         elif [ "$1" == "--auto" ]; then
@@ -721,7 +780,7 @@ case "$NODE_TYPE" in
             echo "  3) Exit"
             echo ""
             read -p "Choose option [1-3]: " choice
-            
+
             case $choice in
                 1) sync_from_primary ;;
                 2) show_diff ;;
@@ -730,7 +789,7 @@ case "$NODE_TYPE" in
             esac
         fi
         ;;
-        
+
     *)
         log_error "Unknown node type: $NODE_TYPE"
         log_error "Please run with: $0 [primary|secondary]"

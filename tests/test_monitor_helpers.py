@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def monitor(monkeypatch, tmp_path):
     """Import dashboard.monitor with test environment variables."""
@@ -49,11 +50,15 @@ def monitor(monkeypatch, tmp_path):
 # validate_webhook_url tests
 # ============================================================================
 
+
 class TestValidateWebhookUrl:
     """Tests for the SSRF-prevention webhook URL validator."""
 
     def test_valid_https_public_domain(self, monitor):
-        assert monitor.validate_webhook_url("https://discord.com/api/webhooks/123/token") is True
+        assert (
+            monitor.validate_webhook_url("https://discord.com/api/webhooks/123/token")
+            is True
+        )
 
     def test_valid_http_public_domain(self, monitor):
         assert monitor.validate_webhook_url("https://ntfy.sh/my-topic") is True
@@ -86,6 +91,7 @@ class TestValidateWebhookUrl:
 # ============================================================================
 # is_snoozed tests
 # ============================================================================
+
 
 class TestIsSnoozed:
     """Tests for the snooze-checking helper."""
@@ -120,6 +126,7 @@ class TestIsSnoozed:
 # should_send_reminder tests
 # ============================================================================
 
+
 class TestShouldSendReminder:
     """Tests for the repeat-notification reminder logic."""
 
@@ -145,23 +152,28 @@ class TestShouldSendReminder:
     def test_no_reminder_before_interval(self, monitor):
         settings = {"repeat": {"enabled": True, "interval": 60}}  # 60 min
         monitor.notification_state["active_issues"]["failover"] = True
-        monitor.notification_state["last_notification_time"]["failover"] = (
-            datetime.now() - timedelta(minutes=30)  # only 30 min ago
-        )
+        monitor.notification_state["last_notification_time"][
+            "failover"
+        ] = datetime.now() - timedelta(
+            minutes=30
+        )  # only 30 min ago
         assert monitor.should_send_reminder("failover", settings) is False
 
     def test_reminder_after_interval(self, monitor):
         settings = {"repeat": {"enabled": True, "interval": 30}}  # 30 min
         monitor.notification_state["active_issues"]["failover"] = True
-        monitor.notification_state["last_notification_time"]["failover"] = (
-            datetime.now() - timedelta(minutes=35)  # 35 min ago > 30 min interval
-        )
+        monitor.notification_state["last_notification_time"][
+            "failover"
+        ] = datetime.now() - timedelta(
+            minutes=35
+        )  # 35 min ago > 30 min interval
         assert monitor.should_send_reminder("failover", settings) is True
 
 
 # ============================================================================
 # collect_node_issues tests
 # ============================================================================
+
 
 class TestCollectNodeIssues:
     """Tests for the node health issue collector."""
@@ -203,6 +215,7 @@ class TestCollectNodeIssues:
 # ============================================================================
 # describe_master_transition tests
 # ============================================================================
+
 
 class TestDescribeMasterTransition:
     """Tests for failover/recovery classification logic."""
@@ -323,6 +336,7 @@ class TestDescribeMasterTransition:
 # init_db and log_event tests
 # ============================================================================
 
+
 class TestInitDb:
     """Tests for database initialisation."""
 
@@ -406,6 +420,7 @@ class TestLogEvent:
 # Fault debounce helpers tests
 # ============================================================================
 
+
 class TestFaultDebounceHelpers:
     """Tests for _arm_fault, _cancel_fault_pending, and _cancel_fault."""
 
@@ -466,7 +481,9 @@ class TestFaultDebounceHelpers:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_cancel_fault_sends_recovery_when_notification_was_sent(self, monitor):
+    async def test_cancel_fault_sends_recovery_when_notification_was_sent(
+        self, monitor
+    ):
         """_cancel_fault sends recovery notification when fault was already notified."""
         monitor._fault_tasks.pop("primary", None)
         monitor._fault_notified.add("primary")  # notification was sent

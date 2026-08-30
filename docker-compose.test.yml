@@ -61,6 +61,12 @@ services:
     networks:
       test-net:
         ipv4_address: 10.99.0.10
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost/api/version"]
+      interval: 5s
+      timeout: 2s
+      retries: 3
+      start_period: 3s
     restart: unless-stopped
 
   # ── Mock Pi-hole Secondary ───────────────────────────────────
@@ -79,6 +85,12 @@ services:
     networks:
       test-net:
         ipv4_address: 10.99.0.11
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost/api/version"]
+      interval: 5s
+      timeout: 2s
+      retries: 3
+      start_period: 3s
     restart: unless-stopped
 
   # ── Pi-hole Sentinel Monitor ─────────────────────────────────

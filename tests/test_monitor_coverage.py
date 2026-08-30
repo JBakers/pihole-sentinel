@@ -831,20 +831,26 @@ class TestStatusEndpoint:
         assert resp.status_code in (200, 404)  # 404 expected when DB is empty
 
     def test_returns_200_with_data(self, client, auth, monitor):
-        """Insert a row, then check that /api/status returns it."""
+        """Insert a row into poll_cycles + node_status, then check /api/status returns it."""
 
         async def _insert():
             await monitor.init_db()
             async with aiosqlite.connect(monitor.CONFIG["db_path"]) as db:
+                cursor = await db.execute(
+                    "INSERT INTO poll_cycles (dhcp_leases) VALUES (?)", (3,)
+                )
+                poll_id = cursor.lastrowid
                 await db.execute(
-                    """INSERT INTO status_history
-                    (primary_state, secondary_state,
-                     primary_has_vip, secondary_has_vip,
-                     primary_online, secondary_online,
-                     primary_pihole, secondary_pihole,
-                     primary_dns, secondary_dns,
-                     dhcp_leases, primary_dhcp, secondary_dhcp)
-                    VALUES ('MASTER','BACKUP',1,0,1,1,1,1,1,1,3,1,0)""",
+                    """INSERT INTO node_status
+                    (poll_id, node_index, node_name, vrrp_state, has_vip, online, pihole_ok, dns_ok, dhcp_ok)
+                    VALUES (?, 1, 'Primary Pi-hole', 'MASTER', 1, 1, 1, 1, 1)""",
+                    (poll_id,),
+                )
+                await db.execute(
+                    """INSERT INTO node_status
+                    (poll_id, node_index, node_name, vrrp_state, has_vip, online, pihole_ok, dns_ok, dhcp_ok)
+                    VALUES (?, 2, 'Secondary Pi-hole', 'BACKUP', 0, 1, 1, 1, 0)""",
+                    (poll_id,),
                 )
                 await db.commit()
 
@@ -856,8 +862,11 @@ class TestStatusEndpoint:
         data = resp.json()
         assert "primary" in data
         assert "secondary" in data
+        assert "nodes" in data
         assert data["primary"]["state"] == "MASTER"
         assert data["secondary"]["state"] == "BACKUP"
+        assert len(data["nodes"]) == 2
+        assert data["nodes"][0]["state"] == "MASTER"
 
 
 class TestHistoryEndpoint:

@@ -79,9 +79,9 @@ fi
 # Additional quality checks
 echo -e "${YELLOW}Running code quality checks...${NC}"
 
-# Check for print() statements in Python files (excluding setup.py)
+# Check for print() statements in Python files (excluding install.py)
 for file in $STAGED_FILES; do
-    if [[ "$file" =~ \.py$ ]] && [[ "$file" != "setup.py" ]]; then
+    if [[ "$file" =~ \.py$ ]] && [[ "$file" != "install.py" ]]; then
         if grep -q "print(" "$file"; then
             echo -e "${RED}✗ ERROR: print() statement found in $file${NC}"
             echo -e "${YELLOW}  Use logger.*() instead of print() in production code${NC}"

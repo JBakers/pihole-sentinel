@@ -18,49 +18,51 @@ Usage:
     pisen --help      - Show this help
 """
 
-import sys
-import os
-import subprocess
 import argparse
-import shlex
-import urllib.request
-import urllib.error
 import json as _json
+import os
+import shlex
+import subprocess
+import sys
+import urllib.error
+import urllib.request
 from datetime import date
 from typing import Dict, Optional, Tuple
 
-
 # ==================== Colors Class ====================
+
 
 class Colors:
     """Terminal color codes for pretty output"""
-    PURPLE = '\033[95m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-    DIM = '\033[2m'
-    END = '\033[0m'
+
+    PURPLE = "\033[95m"
+    BLUE = "\033[94m"
+    CYAN = "\033[96m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+    DIM = "\033[2m"
+    END = "\033[0m"
 
     @staticmethod
     def disable():
         """Disable colors for non-TTY output"""
-        Colors.PURPLE = ''
-        Colors.BLUE = ''
-        Colors.CYAN = ''
-        Colors.GREEN = ''
-        Colors.YELLOW = ''
-        Colors.RED = ''
-        Colors.BOLD = ''
-        Colors.UNDERLINE = ''
-        Colors.DIM = ''
-        Colors.END = ''
+        Colors.PURPLE = ""
+        Colors.BLUE = ""
+        Colors.CYAN = ""
+        Colors.GREEN = ""
+        Colors.YELLOW = ""
+        Colors.RED = ""
+        Colors.BOLD = ""
+        Colors.UNDERLINE = ""
+        Colors.DIM = ""
+        Colors.END = ""
 
 
 # ==================== Configuration Class ====================
+
 
 class PisenConfig:
     """Configuration loader and server type detector"""
@@ -78,12 +80,12 @@ class PisenConfig:
             'pihole'  - Pi-hole server (has /etc/keepalived/keepalived.conf)
             'unknown' - Neither (could be installation server)
         """
-        if Path('/opt/pihole-monitor/monitor.py').exists():
-            return 'monitor'
-        elif Path('/etc/keepalived/keepalived.conf').exists():
-            return 'pihole'
+        if Path("/opt/pihole-monitor/monitor.py").exists():
+            return "monitor"
+        elif Path("/etc/keepalived/keepalived.conf").exists():
+            return "pihole"
         else:
-            return 'unknown'
+            return "unknown"
 
     def load_config(self) -> Dict[str, str]:
         """
@@ -99,26 +101,26 @@ class PisenConfig:
             Dict with configuration values
         """
         config = {
-            'monitor_ip': os.getenv('MONITOR_IP', '127.0.0.1'),
-            'primary_ip': os.getenv('PRIMARY_IP', ''),
-            'secondary_ip': os.getenv('SECONDARY_IP', ''),
-            'vip': os.getenv('VIP_ADDRESS', ''),
-            'dashboard_port': os.getenv('DASHBOARD_PORT', '8080'),
+            "monitor_ip": os.getenv("MONITOR_IP", "127.0.0.1"),
+            "primary_ip": os.getenv("PRIMARY_IP", ""),
+            "secondary_ip": os.getenv("SECONDARY_IP", ""),
+            "vip": os.getenv("VIP_ADDRESS", ""),
+            "dashboard_port": os.getenv("DASHBOARD_PORT", "8080"),
         }
 
         # Try monitor .env
-        monitor_env = Path('/opt/pihole-monitor/.env')
+        monitor_env = Path("/opt/pihole-monitor/.env")
         if monitor_env.exists():
             config.update(self._parse_env_file(monitor_env))
 
         # Try keepalived .env
-        keepalived_env = Path('/etc/keepalived/.env')
+        keepalived_env = Path("/etc/keepalived/.env")
         if keepalived_env.exists():
             config.update(self._parse_env_file(keepalived_env))
 
         # Normalise API key name for easy lookup
-        if 'API_KEY' in config and 'api_key' not in config:
-            config['api_key'] = config['API_KEY']
+        if "API_KEY" in config and "api_key" not in config:
+            config["api_key"] = config["API_KEY"]
 
         return config
 
@@ -126,11 +128,11 @@ class PisenConfig:
         """Parse .env file into dict"""
         config = {}
         try:
-            with open(filepath, 'r') as f:
+            with open(filepath, "r") as f:
                 for line in f:
                     line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        key, value = line.split('=', 1)
+                    if line and not line.startswith("#") and "=" in line:
+                        key, value = line.split("=", 1)
                         # Remove quotes if present
                         value = value.strip().strip('"').strip("'")
                         config[key] = value
@@ -140,6 +142,7 @@ class PisenConfig:
 
 
 # ==================== Commands Class ====================
+
 
 class PisenCommands:
     """Command implementations"""
@@ -153,15 +156,17 @@ class PisenCommands:
         """Show service status"""
         print(f"{Colors.CYAN}{Colors.BOLD}📊 Service Status{Colors.END}\n")
 
-        if self.server_type == 'monitor':
+        if self.server_type == "monitor":
             self._run_command("systemctl status pihole-monitor --no-pager --lines=15")
-        elif self.server_type == 'pihole':
+        elif self.server_type == "pihole":
             print(f"{Colors.BOLD}Keepalived:{Colors.END}")
             self._run_command("systemctl status keepalived --no-pager --lines=10")
             print(f"\n{Colors.BOLD}Pi-hole FTL:{Colors.END}")
             self._run_command("systemctl status pihole-FTL --no-pager --lines=10")
         else:
-            print(f"{Colors.YELLOW}⚠ Not running on monitor or Pi-hole server{Colors.END}")
+            print(
+                f"{Colors.YELLOW}⚠ Not running on monitor or Pi-hole server{Colors.END}"
+            )
             print(f"{Colors.DIM}Server type: {self.server_type}{Colors.END}")
 
     def logs(self):
@@ -170,13 +175,15 @@ class PisenCommands:
         print(f"{Colors.DIM}Press Ctrl+C to stop{Colors.END}\n")
 
         try:
-            if self.server_type == 'monitor':
+            if self.server_type == "monitor":
                 self._run_command("journalctl -u pihole-monitor -f")
-            elif self.server_type == 'pihole':
+            elif self.server_type == "pihole":
                 # Follow both keepalived and pi-hole logs
                 self._run_command("journalctl -u keepalived -u pihole-FTL -f")
             else:
-                print(f"{Colors.YELLOW}⚠ Not running on monitor or Pi-hole server{Colors.END}")
+                print(
+                    f"{Colors.YELLOW}⚠ Not running on monitor or Pi-hole server{Colors.END}"
+                )
         except KeyboardInterrupt:
             print(f"\n{Colors.GREEN}✓ Stopped tailing logs{Colors.END}")
 
@@ -184,10 +191,12 @@ class PisenCommands:
         """Check VIP location"""
         print(f"{Colors.CYAN}{Colors.BOLD}🌐 Virtual IP Status{Colors.END}\n")
 
-        vip = self.cfg.get('vip') or self.cfg.get('VIP_ADDRESS')
+        vip = self.cfg.get("vip") or self.cfg.get("VIP_ADDRESS")
 
         if not vip:
-            print(f"{Colors.YELLOW}⚠ VIP address not found in configuration{Colors.END}")
+            print(
+                f"{Colors.YELLOW}⚠ VIP address not found in configuration{Colors.END}"
+            )
             print(f"{Colors.DIM}Run this on monitor or Pi-hole server{Colors.END}")
             return
 
@@ -195,15 +204,11 @@ class PisenCommands:
 
         # Check if VIP is on this server
         print(f"{Colors.BOLD}Checking network interfaces...{Colors.END}")
-        result = subprocess.run(
-            ['ip', 'addr', 'show'],
-            capture_output=True,
-            text=True
-        )
+        result = subprocess.run(["ip", "addr", "show"], capture_output=True, text=True)
 
         if vip in result.stdout:
             print(f"{Colors.GREEN}✓ This server HAS the VIP{Colors.END}")
-            if self.server_type == 'pihole':
+            if self.server_type == "pihole":
                 for line in result.stdout.splitlines():
                     if vip in line:
                         print(line)
@@ -212,20 +217,20 @@ class PisenCommands:
 
         # Show ARP table
         print(f"\n{Colors.BOLD}ARP Table (VIP location):{Colors.END}")
-        subprocess.run(['ip', 'neigh', 'show', vip])
+        subprocess.run(["ip", "neigh", "show", vip])
 
     def dashboard(self):
         """Show dashboard access info"""
         print(f"{Colors.CYAN}{Colors.BOLD}📊 Dashboard Access{Colors.END}\n")
 
-        monitor_ip = self.cfg.get('monitor_ip') or self.cfg.get('MONITOR_IP')
-        port = self.cfg.get('dashboard_port', '8080')
+        monitor_ip = self.cfg.get("monitor_ip") or self.cfg.get("MONITOR_IP")
+        port = self.cfg.get("dashboard_port", "8080")
 
         if not monitor_ip:
-            if self.server_type == 'monitor':
+            if self.server_type == "monitor":
                 monitor_ip = self._get_local_ip()
             else:
-                monitor_ip = 'monitor-ip'
+                monitor_ip = "monitor-ip"
 
         dashboard_url = f"http://{monitor_ip}:{port}"
 
@@ -236,18 +241,20 @@ class PisenCommands:
         print(f"  • Browser: {Colors.CYAN}{dashboard_url}{Colors.END}")
         print(f"  • Mobile:  {Colors.CYAN}{dashboard_url}{Colors.END}")
 
-        if self.server_type == 'monitor':
+        if self.server_type == "monitor":
             print(f"\n{Colors.BOLD}Service Status:{Colors.END}")
             result = subprocess.run(
-                ['systemctl', 'is-active', 'pihole-monitor'],
+                ["systemctl", "is-active", "pihole-monitor"],
                 capture_output=True,
-                text=True
+                text=True,
             )
-            if result.stdout.strip() == 'active':
+            if result.stdout.strip() == "active":
                 print(f"  {Colors.GREEN}✓ Monitor service is running{Colors.END}")
             else:
                 print(f"  {Colors.RED}✗ Monitor service is not running{Colors.END}")
-                print(f"  {Colors.DIM}Start with: systemctl start pihole-monitor{Colors.END}")
+                print(
+                    f"  {Colors.DIM}Start with: systemctl start pihole-monitor{Colors.END}"
+                )
 
     def health(self):
         """Comprehensive health check"""
@@ -258,22 +265,22 @@ class PisenCommands:
 
         # Check 1: Service status
         print(f"{Colors.BOLD}1. Service Status{Colors.END}")
-        if self.server_type == 'monitor':
-            if self._check_service('pihole-monitor'):
+        if self.server_type == "monitor":
+            if self._check_service("pihole-monitor"):
                 print(f"   {Colors.GREEN}✓ pihole-monitor is running{Colors.END}")
                 checks_passed += 1
             else:
                 print(f"   {Colors.RED}✗ pihole-monitor is NOT running{Colors.END}")
                 checks_failed += 1
-        elif self.server_type == 'pihole':
-            if self._check_service('keepalived'):
+        elif self.server_type == "pihole":
+            if self._check_service("keepalived"):
                 print(f"   {Colors.GREEN}✓ keepalived is running{Colors.END}")
                 checks_passed += 1
             else:
                 print(f"   {Colors.RED}✗ keepalived is NOT running{Colors.END}")
                 checks_failed += 1
 
-            if self._check_service('pihole-FTL'):
+            if self._check_service("pihole-FTL"):
                 print(f"   {Colors.GREEN}✓ pihole-FTL is running{Colors.END}")
                 checks_passed += 1
             else:
@@ -282,15 +289,15 @@ class PisenCommands:
 
         # Check 2: Configuration files
         print(f"\n{Colors.BOLD}2. Configuration Files{Colors.END}")
-        if self.server_type == 'monitor':
-            if Path('/opt/pihole-monitor/.env').exists():
+        if self.server_type == "monitor":
+            if Path("/opt/pihole-monitor/.env").exists():
                 print(f"   {Colors.GREEN}✓ Monitor .env found{Colors.END}")
                 checks_passed += 1
             else:
                 print(f"   {Colors.RED}✗ Monitor .env missing{Colors.END}")
                 checks_failed += 1
-        elif self.server_type == 'pihole':
-            if Path('/etc/keepalived/keepalived.conf').exists():
+        elif self.server_type == "pihole":
+            if Path("/etc/keepalived/keepalived.conf").exists():
                 print(f"   {Colors.GREEN}✓ Keepalived config found{Colors.END}")
                 checks_passed += 1
             else:
@@ -299,7 +306,7 @@ class PisenCommands:
 
         # Check 3: Network connectivity
         print(f"\n{Colors.BOLD}3. Network Connectivity{Colors.END}")
-        vip = self.cfg.get('vip') or self.cfg.get('VIP_ADDRESS')
+        vip = self.cfg.get("vip") or self.cfg.get("VIP_ADDRESS")
         if vip:
             if self._check_ping(vip):
                 print(f"   {Colors.GREEN}✓ VIP {vip} is reachable{Colors.END}")
@@ -309,9 +316,9 @@ class PisenCommands:
                 checks_failed += 1
 
         # Check 4: Database (monitor only)
-        if self.server_type == 'monitor':
+        if self.server_type == "monitor":
             print(f"\n{Colors.BOLD}4. Database{Colors.END}")
-            db_path = Path('/opt/pihole-monitor/monitor.db')
+            db_path = Path("/opt/pihole-monitor/monitor.db")
             if db_path.exists():
                 print(f"   {Colors.GREEN}✓ Database file exists{Colors.END}")
                 checks_passed += 1
@@ -323,15 +330,19 @@ class PisenCommands:
         print(f"\n{Colors.BOLD}{'═' * 40}{Colors.END}")
         total = checks_passed + checks_failed
         if checks_failed == 0:
-            print(f"{Colors.GREEN}{Colors.BOLD}✓ All checks passed ({checks_passed}/{total}){Colors.END}")
+            print(
+                f"{Colors.GREEN}{Colors.BOLD}✓ All checks passed ({checks_passed}/{total}){Colors.END}"
+            )
         else:
-            print(f"{Colors.YELLOW}{Colors.BOLD}⚠ {checks_failed}/{total} checks failed{Colors.END}")
+            print(
+                f"{Colors.YELLOW}{Colors.BOLD}⚠ {checks_failed}/{total} checks failed{Colors.END}"
+            )
 
     def test(self):
         """Interactive failover testing guide"""
         print(f"{Colors.CYAN}{Colors.BOLD}🧪 Failover Testing Guide{Colors.END}\n")
 
-        vip = self.cfg.get('vip') or self.cfg.get('VIP_ADDRESS', 'VIP')
+        vip = self.cfg.get("vip") or self.cfg.get("VIP_ADDRESS", "VIP")
 
         print(f"{Colors.BOLD}Step 1: Check Current VIP Location{Colors.END}")
         print(f"   Run: {Colors.CYAN}pisen vip{Colors.END}")
@@ -361,7 +372,9 @@ class PisenCommands:
         print(f"   • Verify: {Colors.CYAN}pisen vip{Colors.END}\n")
 
         print(f"{Colors.GREEN}{Colors.BOLD}✓ Failover test complete!{Colors.END}")
-        print(f"{Colors.DIM}Tip: Check notification settings to receive alerts{Colors.END}")
+        print(
+            f"{Colors.DIM}Tip: Check notification settings to receive alerts{Colors.END}"
+        )
 
     # ==================== Sync ====================
 
@@ -372,41 +385,61 @@ class PisenCommands:
         print(f"{Colors.BOLD}{'═' * 60}{Colors.END}\n")
 
         # Check if sync is deployed
-        timer_active = self._check_service('pihole-sync.timer')
-        script_exists = Path('/usr/local/bin/sync-pihole-config.sh').exists()
-        conf_exists = Path('/etc/pihole-sentinel/sync.conf').exists()
+        timer_active = self._check_service("pihole-sync.timer")
+        script_exists = Path("/usr/local/bin/sync-pihole-config.sh").exists()
+        conf_exists = Path("/etc/pihole-sentinel/sync.conf").exists()
 
         if timer_active:
-            print(f"  {Colors.GREEN}●{Colors.END} pihole-sync.timer  → {Colors.GREEN}active{Colors.END}")
+            print(
+                f"  {Colors.GREEN}●{Colors.END} pihole-sync.timer  → {Colors.GREEN}active{Colors.END}"
+            )
             # Show next trigger
-            self._run_command("systemctl list-timers pihole-sync.timer --no-pager | tail -2 | head -1")
+            self._run_command(
+                "systemctl list-timers pihole-sync.timer --no-pager | tail -2 | head -1"
+            )
         elif script_exists:
-            print(f"  {Colors.YELLOW}●{Colors.END} pihole-sync.timer  → {Colors.YELLOW}not active{Colors.END}")
+            print(
+                f"  {Colors.YELLOW}●{Colors.END} pihole-sync.timer  → {Colors.YELLOW}not active{Colors.END}"
+            )
             print(f"  {Colors.GREEN}●{Colors.END} sync script         → installed")
         else:
-            print(f"  {Colors.RED}●{Colors.END} Sync is {Colors.RED}not deployed{Colors.END}")
-            print(f"\n  Deploy with: {Colors.CYAN}python3 setup.py{Colors.END} (includes sync deployment)")
-            print(f"  Or run:      {Colors.CYAN}pisen sync --run{Colors.END} after manual install")
+            print(
+                f"  {Colors.RED}●{Colors.END} Sync is {Colors.RED}not deployed{Colors.END}"
+            )
+            print(
+                f"\n  Deploy with: {Colors.CYAN}python3 install.py{Colors.END} (includes sync deployment)"
+            )
+            print(
+                f"  Or run:      {Colors.CYAN}pisen sync --run{Colors.END} after manual install"
+            )
             return
 
         # Show sync config
         if conf_exists:
             print(f"\n  {Colors.BOLD}Sync Configuration:{Colors.END}")
             try:
-                with open('/etc/pihole-sentinel/sync.conf', 'r') as f:
+                with open("/etc/pihole-sentinel/sync.conf", "r") as f:
                     for line in f:
                         line = line.strip()
-                        if line and not line.startswith('#') and '=' in line:
-                            key, val = line.split('=', 1)
-                            icon = '✓' if val.strip().lower() == 'true' else '✗'
-                            color = Colors.GREEN if val.strip().lower() == 'true' else Colors.DIM
-                            print(f"    {color}{icon}{Colors.END} {key.strip()} = {val.strip()}")
+                        if line and not line.startswith("#") and "=" in line:
+                            key, val = line.split("=", 1)
+                            icon = "✓" if val.strip().lower() == "true" else "✗"
+                            color = (
+                                Colors.GREEN
+                                if val.strip().lower() == "true"
+                                else Colors.DIM
+                            )
+                            print(
+                                f"    {color}{icon}{Colors.END} {key.strip()} = {val.strip()}"
+                            )
             except Exception:
                 pass
 
         # Show last sync result
         print(f"\n  {Colors.BOLD}Last sync run:{Colors.END}")
-        self._run_command("journalctl -u pihole-sync.service --no-pager -n 5 -o short-iso 2>/dev/null || echo '  No sync logs found'")
+        self._run_command(
+            "journalctl -u pihole-sync.service --no-pager -n 5 -o short-iso 2>/dev/null || echo '  No sync logs found'"
+        )
 
     def sync_run(self):
         """Trigger an immediate sync."""
@@ -418,9 +451,17 @@ class PisenCommands:
 
     def api(self):
         """Fetch and display current status from the monitor API over HTTP."""
-        api_key = self.cfg.get('api_key') or self.cfg.get('API_KEY') or os.getenv('API_KEY', '')
-        monitor_ip = self.cfg.get('monitor_ip') or self.cfg.get('MONITOR_IP') or '127.0.0.1'
-        port = self.cfg.get('dashboard_port') or self.cfg.get('DASHBOARD_PORT') or '8080'
+        api_key = (
+            self.cfg.get("api_key")
+            or self.cfg.get("API_KEY")
+            or os.getenv("API_KEY", "")
+        )
+        monitor_ip = (
+            self.cfg.get("monitor_ip") or self.cfg.get("MONITOR_IP") or "127.0.0.1"
+        )
+        port = (
+            self.cfg.get("dashboard_port") or self.cfg.get("DASHBOARD_PORT") or "8080"
+        )
         url = f"http://{monitor_ip}:{port}/api/status"
 
         print(f"{Colors.CYAN}{Colors.BOLD}\U0001f4e1 Monitor API Status{Colors.END}\n")
@@ -432,7 +473,7 @@ class PisenCommands:
             return
 
         try:
-            req = urllib.request.Request(url, headers={'X-API-Key': api_key})
+            req = urllib.request.Request(url, headers={"X-API-Key": api_key})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = _json.loads(resp.read().decode())
         except urllib.error.HTTPError as e:
@@ -444,35 +485,52 @@ class PisenCommands:
         except urllib.error.URLError as e:
             print(f"{Colors.RED}\u2717 Cannot reach monitor at {url}{Colors.END}")
             print(f"{Colors.DIM}  Reason: {e.reason}{Colors.END}")
-            print(f"{Colors.DIM}  Is pihole-monitor running? Try: systemctl status pihole-monitor{Colors.END}")
+            print(
+                f"{Colors.DIM}  Is pihole-monitor running? Try: systemctl status pihole-monitor{Colors.END}"
+            )
             return
         except Exception as e:
             print(f"{Colors.RED}\u2717 Error: {e}{Colors.END}")
             return
 
-        vip = data.get('vip', '-')
-        leases = data.get('dhcp_leases', 0)
-        dhcp_failover = data.get('dhcp_failover', False)
-        latency_warn = float(os.getenv('DNS_LATENCY_WARN_MS', '500'))
+        vip = data.get("vip", "-")
+        leases = data.get("dhcp_leases", 0)
+        dhcp_failover = data.get("dhcp_failover", False)
+        latency_warn = float(os.getenv("DNS_LATENCY_WARN_MS", "500"))
 
         print(f"{Colors.BOLD}Virtual IP:{Colors.END} {Colors.CYAN}{vip}{Colors.END}")
         if dhcp_failover:
             print(f"{Colors.BOLD}DHCP Leases (MASTER):{Colors.END} {leases}")
 
-        for label, node in (('Primary', data.get('primary', {})), ('Secondary', data.get('secondary', {}))):
-            ip = node.get('ip', '-')
-            state = node.get('state', '?')
-            online = node.get('online', False)
-            pihole = node.get('pihole', False)
-            dns_ok = node.get('dns', False)
-            latency = node.get('dns_latency_ms')
+        for label, node in (
+            ("Primary", data.get("primary", {})),
+            ("Secondary", data.get("secondary", {})),
+        ):
+            ip = node.get("ip", "-")
+            state = node.get("state", "?")
+            online = node.get("online", False)
+            pihole = node.get("pihole", False)
+            dns_ok = node.get("dns", False)
+            latency = node.get("dns_latency_ms")
 
-            state_color = Colors.GREEN if state == 'MASTER' else Colors.BLUE
-            online_dot = f"{Colors.GREEN}\u25cf{Colors.END}" if online else f"{Colors.RED}\u25cf{Colors.END}"
-            ftl_icon = f"{Colors.GREEN}\u2713{Colors.END}" if pihole else f"{Colors.RED}\u2717{Colors.END}"
-            dns_icon = f"{Colors.GREEN}\u2713{Colors.END}" if dns_ok else f"{Colors.RED}\u2717{Colors.END}"
+            state_color = Colors.GREEN if state == "MASTER" else Colors.BLUE
+            online_dot = (
+                f"{Colors.GREEN}\u25cf{Colors.END}"
+                if online
+                else f"{Colors.RED}\u25cf{Colors.END}"
+            )
+            ftl_icon = (
+                f"{Colors.GREEN}\u2713{Colors.END}"
+                if pihole
+                else f"{Colors.RED}\u2717{Colors.END}"
+            )
+            dns_icon = (
+                f"{Colors.GREEN}\u2713{Colors.END}"
+                if dns_ok
+                else f"{Colors.RED}\u2717{Colors.END}"
+            )
 
-            lat_str = ''
+            lat_str = ""
             if latency is not None:
                 lat_color = Colors.YELLOW if latency > latency_warn else Colors.GREEN
                 lat_str = f" {lat_color}({latency} ms){Colors.END}"
@@ -482,13 +540,15 @@ class PisenCommands:
             print(f"  Pi-hole FTL: {ftl_icon}  DNS: {dns_icon}{lat_str}")
 
             if online and pihole:
-                q = node.get('queries', 0)
-                b = node.get('blocked', 0)
-                c = node.get('clients', 0)
+                q = node.get("queries", 0)
+                b = node.get("blocked", 0)
+                c = node.get("clients", 0)
                 pct = f"{b / q * 100:.1f}%" if q > 0 else "0%"
-                print(f"  Queries today: {q:,}  Blocked: {b:,} ({pct})  Clients today: {c}")
+                print(
+                    f"  Queries today: {q:,}  Blocked: {b:,} ({pct})  Clients today: {c}"
+                )
 
-        ts = data.get('timestamp', '')
+        ts = data.get("timestamp", "")
         if ts:
             print(f"\n{Colors.DIM}Last updated: {ts}{Colors.END}")
 
@@ -508,18 +568,14 @@ class PisenCommands:
     def _check_service(self, service: str) -> bool:
         """Check if systemd service is active"""
         result = subprocess.run(
-            ['systemctl', 'is-active', service],
-            capture_output=True,
-            text=True
+            ["systemctl", "is-active", service], capture_output=True, text=True
         )
-        return result.stdout.strip() == 'active'
+        return result.stdout.strip() == "active"
 
     def _check_ping(self, host: str) -> bool:
         """Check if host is reachable via ping"""
         result = subprocess.run(
-            ['ping', '-c', '1', '-W', '1', host],
-            capture_output=True,
-            text=True
+            ["ping", "-c", "1", "-W", "1", host], capture_output=True, text=True
         )
         return result.returncode == 0
 
@@ -527,37 +583,41 @@ class PisenCommands:
         """Get local IP address (best effort)"""
         try:
             import socket
+
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
             ip = s.getsockname()[0]
             s.close()
             return ip
         except Exception:
-            return '127.0.0.1'
+            return "127.0.0.1"
 
 
 # ==================== Main Entry Point ====================
 
+
 def print_version():
     """Print version information"""
     try:
-        version_file = Path(__file__).resolve().parent.parent / 'VERSION'
+        version_file = Path(__file__).resolve().parent.parent / "VERSION"
         if not version_file.exists():
-            version_file = Path('/opt/pihole-monitor/VERSION')
+            version_file = Path("/opt/pihole-monitor/VERSION")
 
         if version_file.exists():
             version = version_file.read_text().strip()
         else:
-            version = 'unknown'
+            version = "unknown"
     except Exception:
-        version = 'unknown'
+        version = "unknown"
 
     current_year = date.today().year
     copyright_str = "2025" if current_year <= 2025 else f"2025-{current_year}"
     print(f"{Colors.CYAN}{Colors.BOLD}pisen{Colors.END} - Pi-hole Sentinel CLI Tool")
     print(f"Version:   {Colors.GREEN}{version}{Colors.END}")
     print(f"Copyright: {Colors.DIM}\u00a9 {copyright_str} JBakers{Colors.END}")
-    print(f"Project:   {Colors.CYAN}https://github.com/JBakers/pihole-sentinel{Colors.END}")
+    print(
+        f"Project:   {Colors.CYAN}https://github.com/JBakers/pihole-sentinel{Colors.END}"
+    )
 
 
 def main():
@@ -567,69 +627,48 @@ def main():
         Colors.disable()
 
     parser = argparse.ArgumentParser(
-        description='Pi-hole Sentinel CLI Tool - Manage your HA setup with ease',
-        epilog='For more info: https://github.com/JBakers/pihole-sentinel'
+        description="Pi-hole Sentinel CLI Tool - Manage your HA setup with ease",
+        epilog="For more info: https://github.com/JBakers/pihole-sentinel",
     )
 
     parser.add_argument(
-        'command',
-        nargs='?',
-        choices=['status', 'logs', 'vip', 'dashboard', 'health', 'test', 'sync', 'api'],
-        help='Command to execute'
+        "command",
+        nargs="?",
+        choices=["status", "logs", "vip", "dashboard", "health", "test", "sync", "api"],
+        help="Command to execute",
     )
     parser.add_argument(
-        '-s', '--status',
-        action='store_true',
-        help='Show service status'
+        "-s", "--status", action="store_true", help="Show service status"
+    )
+    parser.add_argument("-l", "--logs", action="store_true", help="Tail service logs")
+    parser.add_argument("-v", "--vip", action="store_true", help="Check VIP location")
+    parser.add_argument(
+        "-d", "--dashboard", action="store_true", help="Show dashboard access info"
     )
     parser.add_argument(
-        '-l', '--logs',
-        action='store_true',
-        help='Tail service logs'
+        "-H", "--health", action="store_true", help="Run comprehensive health check"
     )
     parser.add_argument(
-        '-v', '--vip',
-        action='store_true',
-        help='Check VIP location'
+        "-t", "--test", action="store_true", help="Show failover testing guide"
     )
     parser.add_argument(
-        '-d', '--dashboard',
-        action='store_true',
-        help='Show dashboard access info'
+        "-S", "--sync", action="store_true", help="Show sync status and configuration"
     )
     parser.add_argument(
-        '-H', '--health',
-        action='store_true',
-        help='Run comprehensive health check'
+        "-A",
+        "--api",
+        action="store_true",
+        help="Fetch and display current status from the monitor API",
     )
     parser.add_argument(
-        '-t', '--test',
-        action='store_true',
-        help='Show failover testing guide'
+        "--run", action="store_true", help="With sync: trigger immediate sync run"
     )
     parser.add_argument(
-        '-S', '--sync',
-        action='store_true',
-        help='Show sync status and configuration'
-    )
-    parser.add_argument(
-        '-A', '--api',
-        action='store_true',
-        help='Fetch and display current status from the monitor API'
-    )
-    parser.add_argument(
-        '--run',
-        action='store_true',
-        help='With sync: trigger immediate sync run'
-    )
-    parser.add_argument(
-        '--version',
-        action='store_true',
-        help='Show version information'
+        "--version", action="store_true", help="Show version information"
     )
 
     # Parse args manually to handle -h for health (not help)
-    if '--help' in sys.argv:
+    if "--help" in sys.argv:
         parser.print_help()
         sys.exit(0)
 
@@ -642,22 +681,22 @@ def main():
 
     # Determine command
     command = args.command
-    if args.status or (not command and '-s' in sys.argv):
-        command = 'status'
-    elif args.logs or (not command and '-l' in sys.argv):
-        command = 'logs'
-    elif args.vip or (not command and '-v' in sys.argv):
-        command = 'vip'
-    elif args.dashboard or (not command and '-d' in sys.argv):
-        command = 'dashboard'
-    elif args.health or (not command and '-H' in sys.argv):
-        command = 'health'
-    elif args.test or (not command and '-t' in sys.argv):
-        command = 'test'
-    elif args.sync or (not command and '-S' in sys.argv):
-        command = 'sync'
-    elif args.api or (not command and '-A' in sys.argv):
-        command = 'api'
+    if args.status or (not command and "-s" in sys.argv):
+        command = "status"
+    elif args.logs or (not command and "-l" in sys.argv):
+        command = "logs"
+    elif args.vip or (not command and "-v" in sys.argv):
+        command = "vip"
+    elif args.dashboard or (not command and "-d" in sys.argv):
+        command = "dashboard"
+    elif args.health or (not command and "-H" in sys.argv):
+        command = "health"
+    elif args.test or (not command and "-t" in sys.argv):
+        command = "test"
+    elif args.sync or (not command and "-S" in sys.argv):
+        command = "sync"
+    elif args.api or (not command and "-A" in sys.argv):
+        command = "api"
 
     if not command:
         parser.print_help()
@@ -669,24 +708,24 @@ def main():
         commands = PisenCommands(config)
 
         # Execute command
-        if command == 'status':
+        if command == "status":
             commands.status()
-        elif command == 'logs':
+        elif command == "logs":
             commands.logs()
-        elif command == 'vip':
+        elif command == "vip":
             commands.vip()
-        elif command == 'dashboard':
+        elif command == "dashboard":
             commands.dashboard()
-        elif command == 'health':
+        elif command == "health":
             commands.health()
-        elif command == 'test':
+        elif command == "test":
             commands.test()
-        elif command == 'sync':
+        elif command == "sync":
             if args.run:
                 commands.sync_run()
             else:
                 commands.sync()
-        elif command == 'api':
+        elif command == "api":
             commands.api()
 
     except KeyboardInterrupt:
@@ -697,5 +736,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

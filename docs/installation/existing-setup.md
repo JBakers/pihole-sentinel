@@ -3,11 +3,13 @@
 ## 🎯 For Users With Working Pi-holes
 
 You already have working Pi-holes and want to add:
+
 - ⚙️ Keepalived for automatic failover (Virtual IP)
 - 📊 Monitor dashboard for real-time status
 - 🔄 Built-in configuration sync (includes DHCP leases)
 
 **This guide is for you if:**
+
 - ✅ You have 2 working Pi-holes
 - ✅ You optionally already have sync (Nebula-sync, Gravity-sync, etc.)
 - ✅ You want to add HA without disrupting your existing setup
@@ -26,22 +28,24 @@ cd pihole-sentinel/
 **Run setup script:**
 
 ```bash
-python3 setup.py
+python3 install.py
 ```
 
 **The script will ask for:**
+
 ```
 Network interface (e.g., eth0, ens18)
-Primary Pi-hole IP
-Secondary Pi-hole IP
+Pi-Hole Node 1 IP
+Pi-Hole Node 2 IP
 Virtual IP (VIP) - Choose a FREE IP in your network
 Gateway IP (your router)
 DHCP failover (y/n)
-Monitor location (separate server or primary Pi-hole)
+Monitor location (separate server or first Pi-hole node)
 Pi-hole passwords (for API access)
 ```
 
 **💡 Tips:**
+
 - VIP must be an unused IP in the same subnet
 - Use the web interface password of your Pi-holes
 - Netmask is usually 24 for /24 networks
@@ -58,6 +62,7 @@ scp keepalived/scripts/*.sh root@<primary-ip>:/tmp/
 ```
 
 **SSH to primary:**
+
 ```bash
 ssh root@<primary-ip>
 
@@ -94,6 +99,7 @@ scp keepalived/scripts/*.sh root@<secondary-ip>:/tmp/
 ```
 
 **SSH to secondary:**
+
 ```bash
 ssh root@<secondary-ip>
 
@@ -125,6 +131,7 @@ scp generated_configs/monitor.env root@<monitor-ip>:/tmp/
 ```
 
 **SSH to monitor:**
+
 ```bash
 ssh root@<monitor-ip>
 
@@ -185,11 +192,13 @@ Open browser: `http://<monitor-ip>:8080`
 ### Step 5: Test Failover (5 min)
 
 **Test 1: DNS via VIP**
+
 ```powershell
 nslookup google.com <your-vip>
 ```
 
 **Test 2: Failover**
+
 ```bash
 # Stop primary Pi-hole
 ssh root@<primary-ip> "systemctl stop pihole-FTL"
@@ -213,6 +222,7 @@ ssh root@<primary-ip> "systemctl start pihole-FTL"
 ### What Nebula-sync Does (Keeps Working!)
 
 Your current Nebula-sync configuration is perfect and continues to work:
+
 ```yaml
 ✅ SYNC_GRAVITY_GROUP=true          # Groups
 ✅ SYNC_GRAVITY_AD_LIST=true        # Adlists
@@ -271,6 +281,7 @@ Your current Nebula-sync configuration is perfect and continues to work:
 Open: `http://<monitor-ip>:8080`
 
 You see:
+
 - ✅ Status of both Pi-holes (online/offline)
 - ✅ Which server is MASTER
 - ✅ VIP status
@@ -281,7 +292,9 @@ You see:
 ## 🔧 Keepalived Scripts Explained
 
 ### check_pihole_service.sh
+
 Checks if Pi-hole is healthy:
+
 1. ✅ pihole-FTL service active
 2. ✅ DNS responds locally
 3. ✅ DHCP port open (if DHCP active=true)
@@ -289,20 +302,25 @@ Checks if Pi-hole is healthy:
 **Important:** Only checks DHCP if `active=true` in pihole.toml!
 
 ### dhcp_control.sh
+
 Toggle DHCP on/off:
+
 ```bash
 # Enable: sets active=true in [dhcp] section
 # Disable: sets active=false in [dhcp] section
 # Restart pihole-FTL
 ```
 
-**Perfect with Nebula-sync:** 
+**Perfect with Nebula-sync:**
+
 - Nebula-sync syncs DHCP settings BUT excludes 'active'
 - Keepalived only manages 'active' flag
 - No conflicts!
 
 ### keepalived_notify.sh
+
 Triggered on state changes:
+
 ```bash
 MASTER:  Enable DHCP + send ARP update
 BACKUP:  Disable DHCP
@@ -314,12 +332,14 @@ FAULT:   Disable DHCP
 ### DHCP 'active' Flag
 
 **Nebula-sync configuration:**
+
 ```yaml
 SYNC_CONFIG_DHCP=true
 SYNC_CONFIG_DHCP_EXCLUDE=active  ← Crucial!
 ```
 
 This ensures that:
+
 - ✅ Nebula-sync: Syncs DHCP settings (range, router, etc.)
 - ✅ Keepalived: Only manages 'active' flag
 - ✅ No conflicts between sync and keepalived
@@ -327,11 +347,13 @@ This ensures that:
 ### DHCP Leases
 
 **Your Nebula-sync:**
+
 ```yaml
 SYNC_GRAVITY_DHCP_LEASES=true  ← Perfect!
 ```
 
 This syncs:
+
 - ✅ Static DHCP reservations
 - ✅ Client MAC/IP mappings
 - ✅ Hostnames
@@ -346,6 +368,7 @@ Keepalived:   Real-time health checks (every 5 sec)
 ```
 
 Perfect combination:
+
 - Nebula-sync: Configuration consistency
 - Keepalived: Instant failover
 
@@ -354,13 +377,14 @@ Perfect combination:
 ### Making Changes
 
 **On Primary:**
+
 1. Login: `http://<primary-ip>/admin`
 2. Make changes (add blocklist, etc.)
 3. Wait for Nebula-sync (max 12 hours) OR force sync:
-   ```bash
-   # If you run Nebula-sync container
-   docker exec nebula-sync /app/sync.sh
-   ```
+    ```bash
+    # If you run Nebula-sync container
+    docker exec nebula-sync /app/sync.sh
+    ```
 
 ### Failover Test
 
@@ -397,18 +421,21 @@ ssh root@<secondary-ip> "grep -A5 '\[dhcp\]' /etc/pihole/pihole.toml | grep acti
 ## 🔍 Troubleshooting
 
 ### Keepalived Logs
+
 ```bash
 ssh root@<primary-ip> "journalctl -u keepalived -n 50"
 ssh root@<primary-ip> "tail -f /var/log/keepalived-notify.log"
 ```
 
 ### Pi-hole Status
+
 ```bash
 ssh root@<primary-ip> "pihole status"
 ssh root@<secondary-ip> "pihole status"
 ```
 
 ### VIP Issues
+
 ```bash
 # Check VRRP traffic
 ssh root@<primary-ip> "tcpdump -i eth0 vrrp"
@@ -419,6 +446,7 @@ ssh root@<secondary-ip> "grep auth_pass /etc/keepalived/keepalived.conf"
 ```
 
 ### Monitor Dashboard Offline
+
 ```bash
 ssh root@<monitor-ip> "systemctl status pihole-monitor"
 ssh root@<monitor-ip> "journalctl -u pihole-monitor -n 50"
@@ -427,12 +455,14 @@ ssh root@<monitor-ip> "journalctl -u pihole-monitor -n 50"
 ## 📝 Configure Router/Clients
 
 ### Router DNS Settings
+
 ```
 Primary DNS:   <your-vip>    ← VIP
 Secondary DNS: 1.1.1.1       ← Backup (if both Pi-holes down)
 ```
 
 ### Client Static DNS
+
 ```
 DNS Server 1: <your-vip>     ← VIP
 DNS Server 2: <primary-ip>   ← Primary direct (backup)
@@ -455,6 +485,7 @@ DNS Server 2: <primary-ip>   ← Primary direct (backup)
 ## 🎉 Done!
 
 You now have:
+
 - ✅ Existing Pi-holes with Nebula-sync (keeps working)
 - ✅ Keepalived for automatic failover (new!)
 - ✅ Monitor dashboard for real-time status (new!)
@@ -462,6 +493,7 @@ You now have:
 - ✅ DHCP automatic toggle on failover (new!)
 
 **Total added value:**
+
 - Automatic failover within 15 seconds
 - No manual intervention needed during issues
 - Real-time monitoring and alerting

@@ -1,3 +1,258 @@
+## [0.25.4] - 2026-06-08
+
+### Fixed
+
+- **Missing/delayed failover notifications in multi-node outages** — the failover
+  notification trigger required a previously-known MASTER (`previous_vip_owner is
+not None`). During a multi-node outage the VIP owner is briefly undetectable via
+  ARP, which set the previous owner to "none" and then suppressed the notification
+  when the next node (e.g. node 3) became MASTER. The alert only fired later when
+  ARP refreshed (typically when a downed node restarted).
+- The trigger now fires whenever a new node becomes MASTER and differs from the
+  previous owner — including the "no MASTER" → node transition — while still
+  avoiding a spurious failover alert on the first poll (startup).
+- Failover reason text now explains when a node took over after no MASTER was
+  detected, instead of an "unknown" placeholder.
+
+### Documentation
+
+- Updated installer prompt labels and all docs (API reference, quick-start,
+  existing-setup, CLI tool, LOCAL_SETUP) to the unified "Pi-Hole Node N" naming
+  scheme for consistency with the dashboard and notifications.
+
+## [0.25.3] - 2026-06-08
+
+### Fixed
+
+- **Failover history UI for multi-node** — corrected JavaScript fallback node name mappings
+  in failover event table; previously showed "Secondary" label for node 3+.
+- **Inconsistent node display naming** — renamed all instances from mixed naming
+  ("Primary Pi-hole", "Secondary Pi-hole", "Pi-hole 3") to standardized "Pi-Hole Node 1",
+  "Pi-Hole Node 2", etc. throughout dashboard, settings panel, and all notifications.
+- **Notification template examples** — updated generic failover/recovery examples to use
+  dynamic template variables instead of hardcoded primary/secondary labels.
+
+### Improved
+
+- **Dashboard UI consistency** — all UI text on index.html and settings.html now uses
+  generic "Pi-hole nodes" terminology instead of primary/backup references.
+- **Chart legend & tooltips** — Master State History chart now dynamically renders all node
+  names from API response; fallback defaults corrected to "Pi-Hole Node X" pattern.
+
+## [0.25.2] - 2026-06-08
+
+### Fixed
+
+- **VRRP failback regression (multi-node)** — corrected
+  `keepalived/scripts/check_dhcp_service.sh` so BACKUP nodes are no longer
+  penalized when DHCP is intentionally disabled. The check now fails only when
+  the node currently owns the VIP and DHCP is off, restoring expected preempt
+  behavior where node 1 can reclaim MASTER after recovery.
+
+### Improved
+
+- **Consistent node naming (N-node)** — unified default node names to numbered
+  labels (`Pi-hole 1`, `Pi-hole 2`, `Pi-hole 3`, ...).
+- Updated installer naming defaults and generated monitor aliases
+  (`PRIMARY_NAME` / `SECONDARY_NAME`) to reflect configured node names.
+- Updated monitor environment fallback defaults for both new (`PIHOLE_N_NAME`)
+  and legacy (`PRIMARY_NAME`/`SECONDARY_NAME`) paths to keep dashboard labels
+  synchronized.
+
+## [0.25.1] - 2026-06-08
+
+### Documentation
+
+- Completed a full post-R1 audit to remove remaining active `setup.py`
+  references in user-facing and contributor-facing files.
+- Updated issue template, security policy, test automation guide, and test
+  documentation template to consistently reference `install.py`.
+
+### Improved
+
+- Updated GitHub Actions code-quality workflow checks to target `install.py`
+  (Black, Flake8, py_compile, Bandit, required-files check).
+- Updated `.gitattributes` production note and refreshed `PLAN.md` header
+  metadata to current date/version.
+
+## [0.25.0] - 2026-06-08
+
+### Changed
+
+- **R1 — Renamed `setup.py` → `install.py`** (breaking) — the production
+  deployment script is now invoked as `sudo python3 install.py`. The name
+  better reflects that it installs and deploys Pi-hole Sentinel rather than
+  being a Python packaging `setup.py`. File history is preserved via `git mv`.
+  The internal `SetupConfig` class name is unchanged.
+- **Renamed test file** `tests/test_setup.py` → `tests/test_install.py`
+  (`from setup import SetupConfig` → `from install import SetupConfig`).
+- **Updated all active references** — `Makefile` (lint/format/security/test
+  targets), `Dockerfile.dev`, `.github/scripts/run-syntax-checks.sh`,
+  `.githooks/pre-commit` (print() exclusion), `bin/pisen`, README, CLAUDE.md,
+  CODEOWNERS, BRANCH_PROTECTION.md and the docs under `docs/`.
+
+### Migration
+
+- Anyone running `python3 setup.py` must now run `python3 install.py`.
+  No configuration or data format changed.
+
+## [0.24.0] - 2026-06-08
+
+### New
+
+- **M1-P5 — N-node config sync** — `sync-pihole-config.sh` now consumes the
+  star-topology `SYNC_PEER_IPS` list from `sync.conf`. The hub (node 1) pushes
+  configuration to every peer (nodes 2..N) instead of a single hardcoded
+  secondary. Each peer is synced in an isolated subshell so one failing node is
+  reported without aborting the remaining peers. Falls back to `SECONDARY_IP`
+  for legacy 2-node setups.
+- **N-node Docker test environment** — new `docker-compose.test-nnode.yml`
+  brings up a 3-node mock setup (mocks on ports 8011-8013, monitor on 8090, a
+  dedicated `10.99.1.0/24` subnet) so it can run alongside the 2-node
+  environment. Drives the monitor through the `PIHOLE_{i}_*` env format.
+- **N-node integration tests** — `tests/test_integration_nnode.py` (8 tests)
+  validate the `nodes[]` status array, per-node names/fields, backward-compat
+  `primary`/`secondary`, third-node failover/recovery detection and the
+  `nodes[]` history array.
+
+### Improved
+
+- **`SYNC_PEER_IPS` parsing** — the `sync.conf` parser now preserves internal
+  spaces for the space-separated peer-IP list while still trimming surrounding
+  whitespace/quotes, and validates every peer IP (octet range checks) to guard
+  against injection via malformed config values.
+- **Make targets** — added `docker-up-nnode`, `docker-down-nnode`,
+  `docker-build-nnode`, `docker-status-nnode`, `docker-test-nnode` and
+  `docker-integration-nnode` for the 3-node environment.
+
+### Tests
+
+- Full unit suite: 569 passed, 10 skipped (env-dependent), coverage 71%.
+
+## [0.23.0] - 2026-06-05
+
+### New
+
+- **M1-P4 — N-node setup wizard** — `setup.py` now installs an arbitrary
+  number of Pi-hole nodes (minimum 2) instead of a fixed primary/secondary
+  pair. The wizard asks "How many Pi-hole nodes?" up front, then collects an
+  IP, web password and SSH details for each node.
+- **Per-node keepalived generation** — each node gets its own
+  `node{i}_keepalived.conf` with a VRRP priority that descends by 10
+  (node 1 = 150/MASTER, node 2 = 140/BACKUP, node 3 = 130/BACKUP, …) and a
+  unique `router_id PIHOLE{i}`.
+- **N-node `monitor.env`** — generated config now writes the new
+  `PIHOLE_{i}_IP/NAME/PASSWORD/SSH_USER/SSH_PORT` format for all nodes, plus
+  legacy `PRIMARY_*`/`SECONDARY_*` aliases for backward compatibility.
+- **Star-topology cross-node SSH** — node 1 (hub) sets up bidirectional
+  passwordless SSH with every other node and pushes config sync to all peers
+  (`SYNC_PEER_IPS` in `sync.conf`).
+
+### Improved
+
+- **Deployment loop** — keepalived deployment, preflight credential checks,
+  connectivity verification and uninstall now iterate over the full node list
+  instead of a hardcoded primary/secondary pair.
+- **`_config_nodes()` helper** — centralises node iteration with a legacy
+  fallback that synthesises a 2-node list from old `primary_*`/`secondary_*`
+  config keys, keeping existing call sites working.
+
+### Tests
+
+- Added `TestNodeHelpers`, `TestGenerateConfigsNNode` and `TestPreflightNNode`
+  in `tests/test_setup.py` (10 new tests). Full suite: 574 passed.
+
+## [0.22.0] - 2026-06-05
+
+### New
+
+- **M1-P3 — Dynamic node cards** — `index.html` dashboard now renders
+  Pi-hole node cards dynamically from the `nodes[]` array returned by
+  `/api/status`. Node cards are created, updated and removed at runtime
+  without page reload; supports N nodes (not just Primary/Secondary).
+- **`ensureNodeCards(nodes)`** — new JS function that diffs the current DOM
+  against the live node list and creates/removes cards as needed.
+- **Dynamic chart legend & tooltips** — the Master State History chart legend
+  and per-point tooltips now use actual node names from the API response
+  instead of hardcoded "Primary" / "Secondary" labels.
+- **Per-node color palette in chart** — up to 4+ nodes each get a distinct
+  background band color (green, amber, blue, purple, teal for N>4).
+
+### Improved
+
+- **Backward compatibility** — when `nodes[]` is absent (old API), the
+  dashboard falls back to `data.primary` / `data.secondary` automatically.
+
+## [0.21.0] - 2026-06-05
+
+### New
+
+- **M1-P2 — Multi-node API responses** — `/api/status` now returns a `nodes[]`
+  array with per-node status for all N configured Pi-holes. `/api/history` now
+  returns a `nodes[]` array per poll cycle. Both endpoints retain backward-
+  compatible `primary`/`secondary` fields for existing dashboard and API clients.
+- **`NodeStatusResponse` Pydantic model** — new response model for individual
+  node status in the N-node architecture.
+- **`.github/SECURITY.md`** — vulnerability disclosure policy added.
+- **`.github/CONTRIBUTING.md`** — contributor guide with dev setup, branch
+  naming, commit convention, test requirements, and PR checklist.
+- **`.github/CODE_OF_CONDUCT.md`** — Contributor Covenant v2.1 added.
+- **`.github/SUPPORT.md`** — support guide directing users to Discussions,
+  Issues, and docs.
+
+### Improved
+
+- **`_pihole_stats` refactored** — stats dict is now keyed by `node_index`
+  (int, 1-based) instead of hardcoded `"primary"`/`"secondary"` strings,
+  enabling N-node stat tracking.
+- **Test coverage: 71%** on `monitor.py` (was 54%, target was 60%+).
+- **Coverage config** — removed `--cov=setup` from `pytest.ini` and `Makefile`;
+  coverage now correctly reflects `dashboard/monitor.py` only.
+- **README** — removed hardcoded stale version note (`v0.16.8`); replaced with
+  a link to `CHANGELOG.md`.
+- **PLAN.md** — translated all Dutch content to English (policy: .md files must
+  be in English); updated to reflect completed work and new open items.
+
+## [0.20.1] - 2026-05-13
+
+### Fixed
+
+- **Docker test environment healthchecks** — added explicit `healthcheck`
+  definitions for the mock Pi-hole services in `docker-compose.test.yml` so
+  `depends_on: condition: service_healthy` can resolve reliably during local
+  test runs.
+
+## [0.20.0] - 2026-05-13
+
+### New
+
+- **M1-P1 Task 1.1 — Dynamic N-node config loading** — `monitor.py` now loads
+  `PIHOLE_1_IP`, `PIHOLE_2_IP`, ... node definitions dynamically, with per-node
+  SSH settings and backward-compatible fallback for legacy `PRIMARY_IP`/
+  `SECONDARY_IP` variables.
+- **M1-P1 Task 1.2 — Normalized database schema + migration** — added
+  `poll_cycles` and `node_status` tables, plus automatic migration from the old
+  2-node `status_history` layout on startup.
+
+### Improved
+
+- **M1-P1 Task 1.3 — Polling loop refactor** — `monitor_loop()` now iterates
+  over the configured node list, while still writing legacy `status_history`
+  rows for backward compatibility during this phase.
+- **M1-P1 Task 1.4 — VIP detection generalization** — `check_who_has_vip()`
+  now accepts a node list and returns one VIP match flag per node, while
+  preserving the legacy 2-node call signature for existing tests.
+- **M1-P1 Task 1.5 — Fault debounce generalization** — offline and Pi-hole-down
+  debounce tracking now uses per-node keys instead of hardcoded primary/
+  secondary state.
+
+### Tests
+
+- Added `tests/test_node_config.py` for dynamic node loading and legacy
+  compatibility.
+- Added `tests/test_database_schema.py` for the normalized schema and migration.
+- Full test suite passes: 564 passed, 28 skipped.
+
 ## [0.19.0] - 2026-05-10
 
 ### Security

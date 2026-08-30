@@ -77,7 +77,7 @@
 
 **Test Steps:**
 1. Clean Debian 12 system prepared
-2. Run `sudo python3 setup.py`
+2. Run `sudo python3 install.py`
 3. Follow interactive prompts
 4. Verify all services start
 
@@ -115,7 +115,7 @@
 
 **Test Steps:**
 1. Install previous version (v0.8.0)
-2. Run `git pull && sudo python3 setup.py`
+2. Run `git pull && sudo python3 install.py`
 3. Verify configuration migration
 4. Check all services restart
 
@@ -573,7 +573,7 @@ sudo systemctl status pihole-monitor
 | Step | Command/Action | Expected | Actual | Status |
 |------|----------------|----------|--------|--------|
 | 1 | Clone repository | Success | | [ ] PASS / [ ] FAIL |
-| 2 | Run setup.py | Success | | [ ] PASS / [ ] FAIL |
+| 2 | Run install.py | Success | | [ ] PASS / [ ] FAIL |
 | 3 | Access dashboard | Dashboard loads | | [ ] PASS / [ ] FAIL |
 | 4 | Test failover | VIP moves | | [ ] PASS / [ ] FAIL |
 

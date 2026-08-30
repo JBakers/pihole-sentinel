@@ -139,7 +139,7 @@ echo "=== Running Syntax Checks ==="
 # Python syntax check
 echo "Checking Python syntax..."
 python3 -m py_compile dashboard/monitor.py
-python3 -m py_compile setup.py
+python3 -m py_compile install.py
 echo "✓ Python syntax OK"
 
 # Bash syntax check

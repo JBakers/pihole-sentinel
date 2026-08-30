@@ -6,7 +6,7 @@
 
 **High Availability for Pi-hole**
 
-*Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy*
+_Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy_
 
 [![Version](https://img.shields.io/github/v/release/JBakers/pihole-sentinel?include_prereleases&label=version&color=blue)](https://github.com/JBakers/pihole-sentinel/releases)
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
@@ -28,21 +28,21 @@
 > While the codebase has passed quality audits (89/100 - Excellent) and is well-tested, it is **still in beta** and may receive breaking changes before the v1.0.0 stable release.
 >
 > **Recommended for:**
+>
 > - ✅ Home labs and testing environments
 > - ✅ Tech enthusiasts who want to contribute feedback
 > - ✅ Non-critical production environments (with testing first)
 >
 > **Not recommended for:**
+>
 > - ❌ Critical production environments without thorough testing
 > - ❌ Users who need guaranteed stability
 >
 > **Your feedback and testing help make Pi-hole Sentinel production-ready!** Please [report any issues](https://github.com/JBakers/pihole-sentinel/issues) you encounter.
 
 > [!NOTE]
-> **Current development status (2026-04-15):**
-> - Version: `0.16.8` (see [VERSION](VERSION))
-> - Default test suite: 220+ tests (`make test`)
-> - Docker integration suite: 18 integration tests (`make docker-integration`)
+> See [CHANGELOG.md](CHANGELOG.md) for the latest release notes and version history.
+
 ---
 
 ## Introduction
@@ -65,6 +65,7 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 ## Features
 
 ### 🔄 Automatic Failover
+
 - **Virtual IP (VIP)** that switches automatically between Pi-holes
 - **DNS failover** - always enabled, zero downtime
 - **Optional DHCP failover** - automatic activation/deactivation
@@ -72,6 +73,7 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 - **Compatible** with existing sync solutions (Nebula-sync, Gravity-sync, etc.)
 
 ### 📊 Real-time Monitoring
+
 - **Live web dashboard** - desktop and mobile responsive
 - **Service health checks** - connectivity, DNS resolution, DHCP status
 - **VIP detection** - knows which Pi-hole has the VIP at all times
@@ -79,6 +81,7 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 - **Dark mode support** - easy on the eyes
 
 ### 🔔 Smart Notifications
+
 - **Web-based configuration** - no config file editing
 - **Multiple services** - Telegram, Discord, Pushover, Ntfy, custom webhooks
 - **Event-based alerts** - failover, recovery, fault, startup
@@ -88,6 +91,7 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 - **Test notifications** - verify before saving settings
 
 ### ⌨️ Built-in Diagnostics
+
 - **System Commands panel** - run diagnostics directly from the browser
 - **Service status** - `systemctl status` output with full ANSI colour rendering
 - **Log viewer** - last 200 lines of monitor and keepalived logs in one click
@@ -110,11 +114,12 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 ### Installation
 
 **1. Download Pi-hole Sentinel and run the setup:**
+
 ```bash
 curl -fL --show-error -o pihole-sentinel.tar.gz https://github.com/JBakers/pihole-sentinel/releases/latest/download/pihole-sentinel.tar.gz
 tar -xzf pihole-sentinel.tar.gz
 cd pihole-sentinel/
-sudo python3 setup.py
+sudo python3 install.py
 ```
 
 > **Developers:** use `git clone https://github.com/JBakers/pihole-sentinel.git` to get the full repository including tests and tooling.
@@ -122,6 +127,7 @@ sudo python3 setup.py
 **2. Follow the interactive wizard:**
 
 The script will guide you through:
+
 - Network configuration (IPs, VIP, interface name)
 - DHCP failover setup (optional)
 - SSH key generation and distribution
@@ -136,15 +142,16 @@ http://<monitor-ip>:8080
 
 That's it! Your Pi-hole infrastructure now has automatic failover.
 
-
 ### What Gets Installed
 
 **On Pi-hole servers:**
+
 - Keepalived (VRRP failover daemon)
 - Health check scripts (FTL monitoring, DHCP control)
 - Notification scripts (state change alerts)
 
 **On monitor server:**
+
 - FastAPI monitoring service
 - SQLite database (status history)
 - Web dashboard (HTML/CSS/JS)
@@ -174,6 +181,7 @@ That's it! Your Pi-hole infrastructure now has automatic failover.
 ## System Requirements
 
 ### Pi-hole Servers
+
 - **Pi-hole:** v6.0+ (2024+)
 - **OS:** Debian 11+/Ubuntu 20.04+
 - **Access:** Root/sudo
@@ -183,6 +191,7 @@ That's it! Your Pi-hole infrastructure now has automatic failover.
 **Auto-installed packages:** `keepalived`, `arping`, `iproute2`, `dnsutils`, `build-essential`
 
 ### Monitor Server
+
 - **OS:** Any Linux (Debian/Ubuntu recommended)
 - **Python:** 3.8+ (tested with 3.11-3.13)
 - **RAM:** 512MB minimum
@@ -198,18 +207,21 @@ That's it! Your Pi-hole infrastructure now has automatic failover.
 ### Daily Operations
 
 **Check monitor status:**
+
 ```bash
 systemctl status pihole-monitor
 journalctl -u pihole-monitor -f
 ```
 
 **Check keepalived (on Pi-holes):**
+
 ```bash
 systemctl status keepalived
 tail -f /var/log/keepalived-notify.log
 ```
 
 **Access dashboard:**
+
 ```
 http://<monitor-ip>:8080
 ```
@@ -217,11 +229,13 @@ http://<monitor-ip>:8080
 ### Logs
 
 **Monitor logs:**
+
 ```bash
 journalctl -u pihole-monitor -f
 ```
 
 **Keepalived logs (on Pi-holes):**
+
 ```bash
 tail -f /var/log/keepalived-notify.log
 journalctl -u keepalived -f
@@ -230,16 +244,19 @@ journalctl -u keepalived -f
 ### Testing Failover
 
 **Stop Pi-hole on current MASTER:**
+
 ```bash
 systemctl stop pihole-FTL
 ```
 
 **Monitor dashboard** will show:
+
 - VIP moving to other server
 - Failover event logged
 - Notification sent (if configured)
 
 **Start Pi-hole to restore:**
+
 ```bash
 systemctl start pihole-FTL
 ```
@@ -249,26 +266,31 @@ systemctl start pihole-FTL
 If you enabled the built-in config sync during setup, it runs automatically via a systemd timer on the primary Pi-hole.
 
 **Check sync timer status:**
+
 ```bash
 systemctl status pihole-sync.timer
 ```
 
 **Stop sync (temporarily):**
+
 ```bash
 systemctl stop pihole-sync.timer
 ```
 
 **Stop sync (permanently, survives reboot):**
+
 ```bash
 systemctl stop pihole-sync.timer && systemctl disable pihole-sync.timer
 ```
 
 **Re-enable sync:**
+
 ```bash
 systemctl enable pihole-sync.timer && systemctl start pihole-sync.timer
 ```
 
 **Run sync manually:**
+
 ```bash
 systemctl start pihole-sync.service
 ```
@@ -278,6 +300,7 @@ See **[Configuration Sync](docs/maintenance/sync.md)** for full details.
 ### Upgrading
 
 **On monitor server:**
+
 ```bash
 cd /opt/pihole-monitor
 git pull
@@ -287,6 +310,7 @@ sudo systemctl restart pihole-monitor
 ```
 
 **On Pi-hole servers:**
+
 ```bash
 sudo systemctl restart keepalived
 ```
@@ -294,12 +318,14 @@ sudo systemctl restart keepalived
 ### Uninstalling
 
 **Run the setup wizard and choose option 4:**
+
 ```bash
-sudo python3 setup.py
+sudo python3 install.py
 # Choose: 4. Uninstall Pi-hole Sentinel from all servers
 ```
 
 The uninstaller will:
+
 - Ask for SSH access details (no Pi-hole passwords needed)
 - Stop and disable `pihole-monitor` and `keepalived` on all servers
 - Remove all Sentinel-managed files (`/opt/pihole-monitor`, keepalived configs, scripts)
@@ -314,11 +340,11 @@ The uninstaller will:
 1. **Open dashboard:** `http://<monitor-ip>:8080`
 2. **Click Settings** in navigation
 3. **Configure services:**
-   - Telegram: Bot token + Chat ID
-   - Discord: Webhook URL
-   - Pushover: User key + App token
-   - Ntfy: Topic name (optional: custom server)
-   - Webhook: Custom endpoint URL
+    - Telegram: Bot token + Chat ID
+    - Discord: Webhook URL
+    - Pushover: User key + App token
+    - Ntfy: Topic name (optional: custom server)
+    - Webhook: Custom endpoint URL
 
 4. **Test notifications** before saving
 5. **Save settings**
@@ -379,6 +405,7 @@ The uninstaller will:
 ### Monitor Issues
 
 **Service won't start:**
+
 ```bash
 # Check logs
 journalctl -u pihole-monitor -n 50
@@ -393,6 +420,7 @@ python monitor.py
 ```
 
 **Dashboard not accessible:**
+
 - Check firewall: `sudo ufw allow 8080/tcp`
 - Verify service: `systemctl status pihole-monitor`
 - Check binding: `ss -tlnp | grep 8080`
@@ -400,6 +428,7 @@ python monitor.py
 ### Keepalived Issues
 
 **VIP not assigned:**
+
 ```bash
 # Check keepalived status
 systemctl status keepalived
@@ -413,6 +442,7 @@ tail -f /var/log/keepalived-notify.log
 ```
 
 **Split-brain (both MASTER):**
+
 - Check network connectivity between Pi-holes
 - Verify interface name in `/etc/keepalived/keepalived.conf`
 - Check firewall allows VRRP (protocol 112)
@@ -420,6 +450,7 @@ tail -f /var/log/keepalived-notify.log
 ### Notification Issues
 
 **Notifications not working:**
+
 1. **Test in dashboard** - Settings → Test notification
 2. **Check credentials** - Verify tokens/keys are correct
 3. **Check logs** - `tail -f /var/log/keepalived-notify.log`
@@ -437,6 +468,7 @@ tail -f /var/log/keepalived-notify.log
 - **Network Security** - Deploy on trusted network (isolated VLAN recommended)
 
 **Best Practices:**
+
 - Use strong Pi-hole passwords (16+ characters)
 - Restrict dashboard access (firewall rules)
 - Regular system updates (`apt update && apt upgrade`)

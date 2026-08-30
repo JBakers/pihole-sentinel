@@ -17,14 +17,14 @@ assignees: ''
 | Pi-hole Version | <!-- run: pihole version --> |
 | Operating System | <!-- e.g. Debian 12, Ubuntu 24.04 --> |
 | Python Version | <!-- run: python3 --version --> |
-| Install method | <!-- setup.py (automated) / manual --> |
+| Install method | <!-- install.py (automated) / manual --> |
 | SSH user used during setup | <!-- root / non-root (e.g. david) --> |
 | DHCP failover enabled | <!-- yes / no --> |
 | Notification channel | <!-- Telegram / Discord / Pushover / Ntfy / webhook / none --> |
 
 ## Component
 
-- [ ] Setup script (`setup.py`)
+- [ ] Install script (`install.py`)
 - [ ] Monitor / Dashboard
 - [ ] Keepalived / VRRP / VIP failover
 - [ ] DHCP failover
@@ -49,7 +49,7 @@ assignees: ''
 
 Run the relevant commands and paste the output below.
 
-**Setup failures** — copy the full terminal output of setup.py, then run:
+**Install failures** — copy the full terminal output of install.py, then run:
 ```bash
 # Check SSH connectivity
 ssh -i /root/.ssh/id_pihole_sentinel <user>@<host> "echo ok"

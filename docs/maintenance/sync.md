@@ -3,6 +3,7 @@
 ## Overzicht
 
 Deze sync oplossing zorgt ervoor dat beide Pi-hole servers altijd dezelfde configuratie hebben:
+
 - ✅ Adlists (blocklists)
 - ✅ Whitelist / Blacklist
 - ✅ Regex filters
@@ -14,6 +15,7 @@ Deze sync oplossing zorgt ervoor dat beide Pi-hole servers altijd dezelfde confi
 - ✅ DHCP static leases
 
 **Wat wordt NIET gesynchroniseerd:**
+
 - ❌ DHCP 'active' flag (beheerd door Keepalived)
 - ❌ Query logs (historische data blijft lokaal)
 - ❌ Statistics (blijven per server)
@@ -34,6 +36,7 @@ Deze sync oplossing zorgt ervoor dat beide Pi-hole servers altijd dezelfde confi
 ```
 
 **Sync Richting:**
+
 - Primary → Secondary (one-way sync)
 - Maak alle wijzigingen op PRIMARY
 - Secondary wordt automatisch bijgewerkt
@@ -76,7 +79,7 @@ ssh root@192.168.1.10 "echo 'SSH connection successful'"
 
 ### Stap 2: Installeer Sync Script
 
-The recommended approach is to use `setup.py`, which deploys the sync script,
+The recommended approach is to use `install.py`, which deploys the sync script,
 configuration, and systemd timer automatically. For manual installation:
 
 **Op BEIDE servers (primary en secondary):**
@@ -91,7 +94,7 @@ ssh root@192.168.1.10 "chmod +x /usr/local/bin/sync-pihole-config.sh"
 ssh root@192.168.1.11 "chmod +x /usr/local/bin/sync-pihole-config.sh"
 ```
 
-The sync script loads IPs from `/etc/keepalived/.env` (deployed by setup.py)
+The sync script loads IPs from `/etc/keepalived/.env` (deployed by install.py)
 or `/etc/pihole-sentinel/sync.conf`. For manual setup, create the config:
 
 ```bash
@@ -141,12 +144,14 @@ ssh root@192.168.1.10
 ### Handmatige Sync
 
 **Op PRIMARY - Push configuratie naar secondary:**
+
 ```bash
 /usr/local/bin/sync-pihole-config.sh
 # Kies optie 1: Sync TO secondary
 ```
 
 **Op SECONDARY - Pull configuratie van primary:**
+
 ```bash
 /usr/local/bin/sync-pihole-config.sh
 # Kies optie 1: Sync FROM primary
@@ -155,12 +160,14 @@ ssh root@192.168.1.10
 ### Check Sync Status
 
 **Vergelijk configuraties:**
+
 ```bash
 # Op beide servers
 /usr/local/bin/sync-pihole-config.sh --diff
 ```
 
 Output voorbeeld:
+
 ```
 Configuration Comparison:
 =========================
@@ -178,21 +185,25 @@ Configurations are IN SYNC
 Als je de systemd timer hebt geïnstalleerd:
 
 **Check timer status:**
+
 ```bash
 systemctl status pihole-sync.timer
 ```
 
 **Check laatste sync:**
+
 ```bash
 journalctl -u pihole-sync.service -n 50
 ```
 
 **Forceer een sync nu:**
+
 ```bash
 systemctl start pihole-sync.service
 ```
 
 **Check volgende geplande sync:**
+
 ```bash
 systemctl list-timers pihole-sync.timer
 ```
@@ -204,22 +215,23 @@ systemctl list-timers pihole-sync.timer
 **Altijd wijzigingen maken op PRIMARY:**
 
 1. **Via Web Interface:**
-   - Login op http://192.168.1.10/admin
-   - Maak wijzigingen (add blocklist, whitelist domain, etc.)
-   - Sla op
+    - Login op http://192.168.1.10/admin
+    - Maak wijzigingen (add blocklist, whitelist domain, etc.)
+    - Sla op
 
 2. **Sync naar Secondary:**
-   ```bash
-   # Automatisch (als timer actief is)
-   # OF handmatig:
-   ssh root@192.168.1.10 "/usr/local/bin/sync-pihole-config.sh --auto"
-   ```
+
+    ```bash
+    # Automatisch (als timer actief is)
+    # OF handmatig:
+    ssh root@192.168.1.10 "/usr/local/bin/sync-pihole-config.sh --auto"
+    ```
 
 3. **Verificatie:**
-   ```bash
-   # Check of wijzigingen zijn overgenomen
-   ssh root@192.168.1.11 "pihole -q example.com"
-   ```
+    ```bash
+    # Check of wijzigingen zijn overgenomen
+    ssh root@192.168.1.11 "pihole -q example.com"
+    ```
 
 ### Voorbeelden
 
@@ -275,11 +287,13 @@ dig @localhost myserver.local
 ### Automatische Backups
 
 Het sync script maakt automatisch backups voor elke sync:
+
 - Locatie: `/root/pihole-sync-backup/`
 - Behoudt laatste 5 backups
 - Backup bevat: gravity.db, custom.list, pihole.toml
 
 **Lijst backups:**
+
 ```bash
 ls -lh /root/pihole-sync-backup/
 ```
@@ -287,6 +301,7 @@ ls -lh /root/pihole-sync-backup/
 ### Handmatige Backup
 
 **Create backup:**
+
 ```bash
 # Via web interface: Settings → Teleporter → Backup
 
@@ -298,6 +313,7 @@ pihole -a -t
 ### Restore van Backup
 
 **Als sync fout gaat:**
+
 ```bash
 # Automatic restore (script detecteert problemen)
 # Gebeurt automatisch als Pi-hole niet start na sync
@@ -315,6 +331,7 @@ systemctl restart pihole-FTL
 **Probleem:** "Cannot connect to secondary Pi-hole"
 
 **Oplossing:**
+
 ```bash
 # Test SSH connectie
 ssh root@192.168.1.11 "echo OK"
@@ -329,6 +346,7 @@ ssh root@192.168.1.11 "iptables -L"
 **Probleem:** "Failed to sync gravity.db"
 
 **Oplossing:**
+
 ```bash
 # Check of Pi-hole draait
 ssh root@192.168.1.11 "systemctl status pihole-FTL"
@@ -343,6 +361,7 @@ ssh root@192.168.1.11 "ls -la /etc/pihole/gravity.db"
 ### Secondary Start Niet Na Sync
 
 **Automatische restore:**
+
 ```bash
 # Script restore automatisch van laatste backup
 # Check logs:
@@ -350,6 +369,7 @@ journalctl -u pihole-sync.service -n 50
 ```
 
 **Handmatige restore:**
+
 ```bash
 ssh root@192.168.1.11
 cd /root/pihole-sync-backup
@@ -361,18 +381,21 @@ systemctl restart pihole-FTL
 ### Configuraties Out of Sync
 
 **Check verschillen:**
+
 ```bash
 # Op beide servers
 /usr/local/bin/sync-pihole-config.sh --diff
 ```
 
 **Forceer volledige sync:**
+
 ```bash
 # Op primary
 /usr/local/bin/sync-pihole-config.sh --auto
 ```
 
 **Als secondary volledig corrupt:**
+
 ```bash
 # Stop secondary
 ssh root@192.168.1.11 "systemctl stop pihole-FTL"
@@ -392,16 +415,19 @@ ssh root@192.168.1.11 "pihole -g"
 ### Check Sync Logs
 
 **Laatste sync:**
+
 ```bash
 journalctl -u pihole-sync.service -n 50
 ```
 
 **Real-time monitoring:**
+
 ```bash
 journalctl -u pihole-sync.service -f
 ```
 
 **Sync geschiedenis:**
+
 ```bash
 journalctl -u pihole-sync.service --since "24 hours ago"
 ```
@@ -411,12 +437,14 @@ journalctl -u pihole-sync.service --since "24 hours ago"
 Je kunt de sync status toevoegen aan je monitoring dashboard:
 
 **Check laatste sync tijd:**
+
 ```bash
 # Op primary
 systemctl show pihole-sync.timer | grep LastTriggerUSec
 ```
 
 **Check volgende sync:**
+
 ```bash
 systemctl list-timers pihole-sync.timer
 ```
@@ -426,6 +454,7 @@ systemctl list-timers pihole-sync.timer
 ### Sync Frequentie Aanpassen
 
 **Edit timer:**
+
 ```bash
 systemctl edit pihole-sync.timer
 ```
@@ -448,6 +477,7 @@ OnCalendar=*:0/30
 ```
 
 **Herlaad na wijziging:**
+
 ```bash
 systemctl daemon-reload
 systemctl restart pihole-sync.timer
@@ -456,11 +486,13 @@ systemctl restart pihole-sync.timer
 ### Custom Sync Items
 
 **Edit sync script om meer/minder te syncen:**
+
 ```bash
 nano /usr/local/bin/sync-pihole-config.sh
 ```
 
 **Bijvoorbeeld: Ook DNS logs syncen (niet aanbevolen):**
+
 ```bash
 # Add in sync_from_primary() function:
 rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/pihole-FTL.db" "${PIHOLE_DIR}/"
@@ -469,6 +501,7 @@ rsync -avz --progress "root@${PRIMARY_IP}:${PIHOLE_DIR}/pihole-FTL.db" "${PIHOLE
 ### Sync Notificaties
 
 **Email notificatie bij sync problemen:**
+
 ```bash
 # Installeer mail tools
 apt install mailutils
@@ -517,6 +550,7 @@ OnFailure=notify-email@%n.service
 ### Bij Updates
 
 **Voor Pi-hole update:**
+
 ```bash
 # 1. Stop automatische sync
 systemctl stop pihole-sync.timer
@@ -542,7 +576,7 @@ async def check_sync_status():
     # Compare adlist counts
     primary_count = await query_db(PRIMARY_IP, "SELECT COUNT(*) FROM adlist")
     secondary_count = await query_db(SECONDARY_IP, "SELECT COUNT(*) FROM adlist")
-    
+
     return {
         "in_sync": primary_count == secondary_count,
         "primary_count": primary_count,
@@ -563,6 +597,7 @@ Voor problemen met sync:
 ## Conclusie
 
 Met deze sync setup:
+
 - ✅ Beide Pi-holes hebben altijd dezelfde configuratie
 - ✅ Wijzigingen hoef je maar 1x te maken
 - ✅ Automatische backup voor elke sync

@@ -23,6 +23,7 @@ sys.path.insert(0, str(project_root))
 # Session-scoped fixtures (run once per test session)
 # ============================================================================
 
+
 @pytest.fixture(scope="session")
 def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     """
@@ -52,6 +53,7 @@ def test_data_dir() -> Path:
 # Function-scoped fixtures (run once per test function)
 # ============================================================================
 
+
 @pytest.fixture
 def sample_config() -> dict:
     """
@@ -77,7 +79,7 @@ def sample_config() -> dict:
 @pytest.fixture
 def sample_network_config() -> dict:
     """
-    Provide sample network configuration for setup.py tests.
+    Provide sample network configuration for install.py tests.
     """
     return {
         "interface": "eth0",
@@ -127,6 +129,7 @@ def mock_env_vars(monkeypatch) -> None:
 # ============================================================================
 # Mock data fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_pihole_auth_response() -> dict:
@@ -198,6 +201,7 @@ def mock_dhcp_config_disabled() -> dict:
 # ============================================================================
 # Utility functions for tests
 # ============================================================================
+
 
 def assert_valid_ip(ip: str) -> None:
     """

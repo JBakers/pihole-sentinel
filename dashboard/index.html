@@ -1289,26 +1289,8 @@
             </div>
         </div>
 
-        <div class="status-grid">
-            <div class="node-card" id="primary-card">
-                <div class="node-card-header">
-                    <h2>Primary Pi-hole</h2>
-                    <span class="badge" id="primary-badge">-</span>
-                </div>
-                <div class="node-ip" id="primary-ip">-</div>
-                <div class="status-items" id="primary-status"></div>
-                <div class="node-stats" id="primary-stats"></div>
-            </div>
-
-            <div class="node-card" id="secondary-card">
-                <div class="node-card-header">
-                    <h2>Secondary Pi-hole</h2>
-                    <span class="badge" id="secondary-badge">-</span>
-                </div>
-                <div class="node-ip" id="secondary-ip">-</div>
-                <div class="status-items" id="secondary-status"></div>
-                <div class="node-stats" id="secondary-stats"></div>
-            </div>
+        <div class="status-grid" id="nodes-grid">
+            <!-- Node cards are rendered dynamically by JavaScript -->
         </div>
 
         <div class="chart-card">
@@ -1334,7 +1316,7 @@
             <div class="summary-info" id="failover-summary"></div>
             <div class="collapsible-content" id="failover-content">
                 <div style="color: #666; margin-bottom: 15px;">
-                    Overview of all instances where MASTER state switched between Primary and Secondary nodes.
+                    Overview of all instances where MASTER state switched between Pi-hole nodes.
                 </div>
                 <table id="failover-table" style="width: 100%; border-collapse: collapse;">
                     <thead>
@@ -1664,15 +1646,61 @@
                 second: '2-digit'
             });
 
-            updateNode('primary', data.primary, dnsWarnMs);
-            updateNode('secondary', data.secondary, dnsWarnMs);
+            const nodes = (data.nodes && data.nodes.length > 0)
+                ? data.nodes
+                : [
+                    Object.assign({ index: 1 }, data.primary),
+                    Object.assign({ index: 2 }, data.secondary)
+                ];
+            ensureNodeCards(nodes);
+            // Cache node names for chart legend and tooltips
+            window._nodeNames = {};
+            for (const node of nodes) {
+                window._nodeNames[node.index] = node.name || 'Pi-hole ' + node.index;
+                updateNode(node.index, node, dnsWarnMs);
+            }
         }
 
-        function updateNode(nodeType, nodeData, dnsWarnMs) {
-            const card = document.getElementById(`${nodeType}-card`);
-            const badge = document.getElementById(`${nodeType}-badge`);
-            const status = document.getElementById(`${nodeType}-status`);
-            const ipElement = document.getElementById(`${nodeType}-ip`);
+        function ensureNodeCards(nodes) {
+            const grid = document.getElementById('nodes-grid');
+            const activeIds = new Set(nodes.map(n => `node-${n.index}-card`));
+
+            // Remove stale cards (node was removed from config)
+            Array.from(grid.children).forEach(child => {
+                if (!activeIds.has(child.id)) grid.removeChild(child);
+            });
+
+            // Create cards for new nodes
+            for (const node of nodes) {
+                const cardId = `node-${node.index}-card`;
+                if (!document.getElementById(cardId)) {
+                    const card = document.createElement('div');
+                    card.className = 'node-card';
+                    card.id = cardId;
+                    card.innerHTML = `
+                        <div class="node-card-header">
+                            <h2 id="node-${node.index}-name">${escapeHtml(node.name || 'Pi-hole ' + node.index)}</h2>
+                            <span class="badge" id="node-${node.index}-badge">-</span>
+                        </div>
+                        <div class="node-ip" id="node-${node.index}-ip">-</div>
+                        <div class="status-items" id="node-${node.index}-status"></div>
+                        <div class="node-stats" id="node-${node.index}-stats"></div>
+                    `;
+                    grid.appendChild(card);
+                } else {
+                    // Update name in case it changed
+                    const nameEl = document.getElementById(`node-${node.index}-name`);
+                    if (nameEl) nameEl.textContent = node.name || 'Pi-hole ' + node.index;
+                }
+            }
+        }
+
+        function updateNode(nodeIndex, nodeData, dnsWarnMs) {
+            const prefix = `node-${nodeIndex}`;
+            const card = document.getElementById(`${prefix}-card`);
+            const badge = document.getElementById(`${prefix}-badge`);
+            const status = document.getElementById(`${prefix}-status`);
+            const ipElement = document.getElementById(`${prefix}-ip`);
 
             // Update IP address
             if (ipElement && nodeData.ip) {
@@ -1787,7 +1815,7 @@
             `;
 
             // Pi-hole stats (queries, blocked, clients)
-            const statsEl = document.getElementById(`${nodeType}-stats`);
+            const statsEl = document.getElementById(`${prefix}-stats`);
             if (statsEl) {
                 if (serverOffline || !nodeData.pihole) {
                     statsEl.innerHTML = '';
@@ -1895,11 +1923,26 @@
             const maxLeases = Math.max(...limitedData.map(d => d.dhcp_leases || 0), 1);
             const isDark = document.body.classList.contains('dark-mode');
 
-            // Store master state data for the background plugin
+            // Per-node color palette (index 1-based; 0 = no master)
+            const nodeChartColors = [
+                null,
+                { bg: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.15)', legend: 'rgba(16, 185, 129, 0.35)' },
+                { bg: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.15)', legend: 'rgba(245, 158, 11, 0.35)' },
+                { bg: isDark ? 'rgba(59, 130, 246, 0.12)' : 'rgba(59, 130, 246, 0.15)', legend: 'rgba(59, 130, 246, 0.35)' },
+                { bg: isDark ? 'rgba(168, 85, 247, 0.12)' : 'rgba(168, 85, 247, 0.15)', legend: 'rgba(168, 85, 247, 0.35)' },
+            ];
+            const noMasterBg = isDark ? 'rgba(239, 68, 68, 0.06)' : 'rgba(239, 68, 68, 0.08)';
+            const fallbackColor = { bg: isDark ? 'rgba(6, 182, 212, 0.12)' : 'rgba(6, 182, 212, 0.15)', legend: 'rgba(6, 182, 212, 0.35)' };
+
+            // Determine which node index is MASTER per data point (0 = no master)
             const masterStates = limitedData.map(d => {
-                if (d.primary) return 'primary';
-                if (d.secondary) return 'secondary';
-                return 'none';
+                if (d.nodes && d.nodes.length > 0) {
+                    const master = d.nodes.find(n => n.state === 'MASTER');
+                    return master ? master.index : 0;
+                }
+                if (d.primary) return 1;
+                if (d.secondary) return 2;
+                return 0;
             });
 
             // Plugin: draw colored background bands based on MASTER state
@@ -1917,26 +1960,33 @@
                     for (let i = 0; i < masterStates.length; i++) {
                         const x1 = i === 0 ? left : xScale.getPixelForValue(i);
                         const x2 = i === masterStates.length - 1 ? right : xScale.getPixelForValue(i + 1);
-                        const state = masterStates[i];
-
-                        if (state === 'primary') {
-                            ctx.fillStyle = isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.15)';
-                        } else if (state === 'secondary') {
-                            ctx.fillStyle = isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.15)';
-                        } else {
-                            ctx.fillStyle = isDark ? 'rgba(239, 68, 68, 0.06)' : 'rgba(239, 68, 68, 0.08)';
-                        }
+                        const masterIdx = masterStates[i];
+                        const palette = masterIdx > 0
+                            ? (nodeChartColors[masterIdx] || fallbackColor)
+                            : null;
+                        ctx.fillStyle = palette ? palette.bg : noMasterBg;
                         ctx.fillRect(x1, top, x2 - x1, bottom - top);
                     }
                     ctx.restore();
                 }
             };
 
-            // Tooltip: master state per point
+            // Tooltip: master state per point (uses cached node names)
+            const nodeNames = window._nodeNames || { 1: 'Pi-Hole Node 1', 2: 'Pi-Hole Node 2' };
+            const nodeEmojis = ['', '🟢', '🟠', '🔵', '🟣'];
             const masterLabels = limitedData.map(d => {
-                if (d.primary) return '🟢 Primary is MASTER';
-                if (d.secondary) return '🟠 Secondary is MASTER';
-                return '🔴 No MASTER detected';
+                let masterIdx = 0;
+                if (d.nodes && d.nodes.length > 0) {
+                    const master = d.nodes.find(n => n.state === 'MASTER');
+                    masterIdx = master ? master.index : 0;
+                } else {
+                    if (d.primary) masterIdx = 1;
+                    else if (d.secondary) masterIdx = 2;
+                }
+                if (masterIdx === 0) return '🔴 No MASTER detected';
+                const emoji = nodeEmojis[masterIdx] || '⚪';
+                const name = nodeNames[masterIdx] || 'Pi-Hole Node ' + masterIdx;
+                return `${emoji} ${name} is MASTER`;
             });
 
             chart = new Chart(ctx, {
@@ -2002,11 +2052,22 @@
                                 usePointStyle: true,
                                 padding: 16,
                                 generateLabels: function () {
-                                    return [
-                                        { text: 'Primary is MASTER', fillStyle: 'rgba(16, 185, 129, 0.35)', strokeStyle: 'transparent', pointStyle: 'rectRounded' },
-                                        { text: 'Secondary is MASTER', fillStyle: 'rgba(245, 158, 11, 0.35)', strokeStyle: 'transparent', pointStyle: 'rectRounded' },
-                                        { text: 'DHCP Leases', fillStyle: '#6366f1', strokeStyle: '#6366f1', pointStyle: 'line', lineWidth: 2 },
-                                    ];
+                                    const names = window._nodeNames || { 1: 'Pi-Hole Node 1', 2: 'Pi-Hole Node 2' };
+                                    const emojis = ['', '🟢', '🟠', '🔵', '🟣'];
+                                    const items = Object.entries(names)
+                                        .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+                                        .map(([idx, name]) => {
+                                            idx = parseInt(idx);
+                                            const palette = nodeChartColors[idx] || fallbackColor;
+                                            return {
+                                                text: (emojis[idx] || '⚪') + ' ' + name + ' is MASTER',
+                                                fillStyle: palette.legend,
+                                                strokeStyle: 'transparent',
+                                                pointStyle: 'rectRounded'
+                                            };
+                                        });
+                                    items.push({ text: 'DHCP Leases', fillStyle: '#6366f1', strokeStyle: '#6366f1', pointStyle: 'line', lineWidth: 2 });
+                                    return items;
                                 }
                             }
                         },

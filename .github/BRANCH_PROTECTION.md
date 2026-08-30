@@ -20,6 +20,7 @@ To maintain code quality and prevent accidental changes, we protect the followin
 **Allowed flow:** `features` → `develop` → `testing` → `main`
 
 **Blocked flows:**
+
 - ❌ `testing` → `develop` (BLOCKED)
 - ❌ `main` → `testing` (BLOCKED)
 - ❌ `main` → `develop` (BLOCKED)
@@ -31,21 +32,23 @@ This is enforced automatically via GitHub Actions workflow (`.github/workflows/e
 
 **Important:** Branch protection features depend on your GitHub plan AND repository type:
 
-| Feature | Personal Repo (Free) | Personal Repo (Pro) | Organization Repo (Team/Enterprise) |
-|---------|---------------------|---------------------|-------------------------------------|
-| Require PR before merging | ✓ | ✓ | ✓ |
-| Required approvals | ✗ (0 only) | ✓ (1+) | ✓ (1+) |
-| **Restrict who can push** | ✗ | **✗** | **✓** |
-| Require status checks | ✓ | ✓ | ✓ |
-| CODEOWNERS | ✓ | ✓ | ✓ |
-| Bypass list | ✗ | ✗ | ✓ |
+| Feature                   | Personal Repo (Free) | Personal Repo (Pro) | Organization Repo (Team/Enterprise) |
+| ------------------------- | -------------------- | ------------------- | ----------------------------------- |
+| Require PR before merging | ✓                    | ✓                   | ✓                                   |
+| Required approvals        | ✗ (0 only)           | ✓ (1+)              | ✓ (1+)                              |
+| **Restrict who can push** | ✗                    | **✗**               | **✓**                               |
+| Require status checks     | ✓                    | ✓                   | ✓                                   |
+| CODEOWNERS                | ✓                    | ✓                   | ✓                                   |
+| Bypass list               | ✗                    | ✗                   | ✓                                   |
 
 **Key Limitation for Personal Repositories:**
+
 - **Even with GitHub Pro**, you CANNOT restrict who can push to branches
 - This feature ONLY works for Organization-owned repositories
 - For personal repos, protection relies on "Require pull request before merging"
 
 **For solo developers on personal repositories:**
+
 - You can require PRs and approvals (with Pro)
 - You can require status checks
 - You CANNOT restrict push access (organization feature only)
@@ -73,18 +76,18 @@ This is enforced automatically via GitHub Actions workflow (`.github/workflows/e
 #### Settings to Enable:
 
 1. **Require a pull request before merging** ✓
-   - **Required approvals:** `1`
-   - **Dismiss stale pull request approvals when new commits are pushed** ✓
-   - **Require review from Code Owners** ✓ (if you have a CODEOWNERS file)
-   - **Restrict who can dismiss pull request reviews**
-     - Add: Your GitHub username (only you can dismiss reviews)
+    - **Required approvals:** `1`
+    - **Dismiss stale pull request approvals when new commits are pushed** ✓
+    - **Require review from Code Owners** ✓ (if you have a CODEOWNERS file)
+    - **Restrict who can dismiss pull request reviews**
+        - Add: Your GitHub username (only you can dismiss reviews)
 
 2. **Require status checks to pass before merging** ✓
-   - **Require branches to be up to date before merging** ✓
-   - Status checks to require (if you set up CI/CD):
-     - `tests` (unit tests)
-     - `integration-tests` (integration tests)
-     - `lint` (code quality checks)
+    - **Require branches to be up to date before merging** ✓
+    - Status checks to require (if you set up CI/CD):
+        - `tests` (unit tests)
+        - `integration-tests` (integration tests)
+        - `lint` (code quality checks)
 
 3. **Require conversation resolution before merging** ✓
 
@@ -95,17 +98,17 @@ This is enforced automatically via GitHub Actions workflow (`.github/workflows/e
 6. **Include administrators** ✓ (even you must follow these rules)
 
 7. **Restrict who can push to matching branches** **[ORGANIZATION REPOSITORIES ONLY]**
-   - **Important:** This option only appears for Organization-owned repositories
-   - **Personal repositories:** You will NOT see this option (even with GitHub Pro)
-   - If you see this option (organization repo):
-     - Enable "Restrict pushes that create matching branches"
-     - Add specific users/teams who can push
-     - Or leave empty to allow no direct pushes (force PR workflow)
-   - If you DON'T see this option (personal repo):
-     - **This is normal and expected**
-     - Skip this setting entirely
-     - Your protection relies on "Require PR before merging" (step 1)
-     - You can still approve and merge your own PRs
+    - **Important:** This option only appears for Organization-owned repositories
+    - **Personal repositories:** You will NOT see this option (even with GitHub Pro)
+    - If you see this option (organization repo):
+        - Enable "Restrict pushes that create matching branches"
+        - Add specific users/teams who can push
+        - Or leave empty to allow no direct pushes (force PR workflow)
+    - If you DON'T see this option (personal repo):
+        - **This is normal and expected**
+        - Skip this setting entirely
+        - Your protection relies on "Require PR before merging" (step 1)
+        - You can still approve and merge your own PRs
 
 8. **Allow force pushes** ✗ (disabled - prevent history rewriting)
 
@@ -124,17 +127,17 @@ This is enforced automatically via GitHub Actions workflow (`.github/workflows/e
 #### Settings to Enable:
 
 1. **Require a pull request before merging** ✓
-   - **Required approvals:** `1`
-   - **Dismiss stale pull request approvals when new commits are pushed** ✓
-   - **Require review from Code Owners** ✓
-   - **Restrict who can dismiss pull request reviews**
-     - Add: Your GitHub username
+    - **Required approvals:** `1`
+    - **Dismiss stale pull request approvals when new commits are pushed** ✓
+    - **Require review from Code Owners** ✓
+    - **Restrict who can dismiss pull request reviews**
+        - Add: Your GitHub username
 
 2. **Require status checks to pass before merging** ✓
-   - **Require branches to be up to date before merging** ✓
-   - Status checks to require:
-     - `tests` (unit tests)
-     - `lint` (code quality)
+    - **Require branches to be up to date before merging** ✓
+    - Status checks to require:
+        - `tests` (unit tests)
+        - `lint` (code quality)
 
 3. **Require conversation resolution before merging** ✓
 
@@ -143,8 +146,8 @@ This is enforced automatically via GitHub Actions workflow (`.github/workflows/e
 5. **Include administrators** ✓
 
 6. **Restrict who can push to matching branches** **[ORGANIZATION REPOSITORIES ONLY]**
-   - Personal repos: You will NOT see this option - skip it
-   - Organization repos: Add specific users/teams who can push
+    - Personal repos: You will NOT see this option - skip it
+    - Organization repos: Add specific users/teams who can push
 
 7. **Allow force pushes** ✗ (disabled)
 
@@ -161,14 +164,14 @@ This is enforced automatically via GitHub Actions workflow (`.github/workflows/e
 #### Settings to Enable:
 
 1. **Require a pull request before merging** ✓ (optional, for stricter workflow)
-   - **Required approvals:** `0` or `1` (your choice)
-   - This ensures code review even for development
+    - **Required approvals:** `0` or `1` (your choice)
+    - This ensures code review even for development
 
 2. **Require status checks to pass before merging** ✓
-   - **Require branches to be up to date before merging** ✓
-   - Status checks to require:
-     - `tests` (unit tests must pass)
-     - `lint` (code quality checks)
+    - **Require branches to be up to date before merging** ✓
+    - Status checks to require:
+        - `tests` (unit tests must pass)
+        - `lint` (code quality checks)
 
 3. **Include administrators** ✗ (you can push directly if needed)
 
@@ -189,7 +192,7 @@ Create a file `.github/CODEOWNERS` in your repository:
 # Specific paths (examples)
 /dashboard/*        @YourGitHubUsername
 /keepalived/*       @YourGitHubUsername
-/setup.py           @YourGitHubUsername
+/install.py           @YourGitHubUsername
 *.md                @YourGitHubUsername
 ```
 
@@ -204,19 +207,20 @@ This automatically requests your review on all pull requests.
 **You CANNOT restrict who can push** even with GitHub Pro. Instead, use these protections:
 
 1. **Require pull request before merging** (step 1 in protection rules)
-   - This forces you to create a PR instead of pushing directly
-   - You can approve and merge your own PRs
+    - This forces you to create a PR instead of pushing directly
+    - You can approve and merge your own PRs
 
 2. **Include administrators** (step 6 in protection rules)
-   - Even as admin, you must follow the PR workflow
-   - Prevents accidental direct pushes
+    - Even as admin, you must follow the PR workflow
+    - Prevents accidental direct pushes
 
 3. **Repository access control:**
-   - Go to **Settings** → **Collaborators**
-   - Don't add any collaborators (if solo project)
-   - If you have collaborators, give them "Read" access only
+    - Go to **Settings** → **Collaborators**
+    - Don't add any collaborators (if solo project)
+    - If you have collaborators, give them "Read" access only
 
 **Recommendation for Solo Developers:**
+
 - Enable "Require PR before merging" with 1 required approval
 - Enable "Include administrators"
 - This creates a good workflow without needing organization features
@@ -232,6 +236,7 @@ If you transfer your repo to a GitHub Organization (Team/Enterprise plan):
 5. Repeat for `testing` branch
 
 **To transfer to organization:**
+
 1. Create a GitHub Organization (requires Team plan)
 2. Go to repo **Settings** → **General**
 3. Scroll to "Danger Zone"
@@ -286,58 +291,59 @@ To enable automatic status checks, create `.github/workflows/tests.yml`:
 name: Tests
 
 on:
-  push:
-    branches: [ develop, testing, main ]
-  pull_request:
-    branches: [ develop, testing, main ]
+    push:
+        branches: [develop, testing, main]
+    pull_request:
+        branches: [develop, testing, main]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
+            - name: Set up Python
+              uses: actions/setup-python@v4
+              with:
+                  python-version: "3.11"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r dashboard/requirements.txt
-          pip install pylint flake8
+            - name: Install dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install -r requirements.txt
+                  pip install -r dashboard/requirements.txt
+                  pip install pylint flake8
 
-      - name: Run linters
-        run: |
-          pylint dashboard/monitor.py || true
-          flake8 dashboard/monitor.py || true
+            - name: Run linters
+              run: |
+                  pylint dashboard/monitor.py || true
+                  flake8 dashboard/monitor.py || true
 
-      - name: Run unit tests
-        run: |
-          # Add pytest when tests are implemented
-          echo "Unit tests will run here"
+            - name: Run unit tests
+              run: |
+                  # Add pytest when tests are implemented
+                  echo "Unit tests will run here"
 
-      - name: Shell script check
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck
-          find . -name "*.sh" -exec shellcheck {} \; || true
+            - name: Shell script check
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y shellcheck
+                  find . -name "*.sh" -exec shellcheck {} \; || true
 
-  integration:
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/testing' || github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v3
+    integration:
+        runs-on: ubuntu-latest
+        if: github.ref == 'refs/heads/testing' || github.ref == 'refs/heads/main'
+        steps:
+            - uses: actions/checkout@v3
 
-      - name: Integration tests
-        run: |
-          # Add integration tests when implemented
-          echo "Integration tests will run here"
+            - name: Integration tests
+              run: |
+                  # Add integration tests when implemented
+                  echo "Integration tests will run here"
 ```
 
 This creates:
+
 - A `tests` status check (runs on all branches)
 - An `integration` status check (runs only on testing and main)
 
@@ -358,6 +364,7 @@ git push origin main
 ```
 
 **Expected result:** Push should be rejected with:
+
 ```
 ! [remote rejected] main -> main (protected branch hook declined)
 ```
@@ -374,9 +381,9 @@ git push origin --delete main
 
 1. Create a PR from develop to testing
 2. Verify you see:
-   - "Review required" (if you enabled it)
-   - "Status checks required" (if CI/CD is set up)
-   - "Branch must be up-to-date" message
+    - "Review required" (if you enabled it)
+    - "Status checks required" (if CI/CD is set up)
+    - "Branch must be up-to-date" message
 
 ---
 
@@ -408,6 +415,7 @@ git push origin --delete main
 ### For Personal Repositories (Most Common)
 
 **Settings you WILL see and should enable:**
+
 1. ✓ Require a pull request before merging (with 1 approval if you have Pro)
 2. ✓ Require status checks to pass before merging
 3. ✓ Require conversation resolution before merging
@@ -417,6 +425,7 @@ git push origin --delete main
 7. ✗ Allow deletions (disabled)
 
 **Settings you will NOT see (organization only):**
+
 - ✗ Restrict who can push to matching branches
 - ✗ Bypass list
 
@@ -425,6 +434,7 @@ git push origin --delete main
 ### For Organization Repositories
 
 All of the above, PLUS:
+
 - ✓ Restrict who can push to matching branches
 - ✓ Bypass list (for CI/CD or specific users)
 
@@ -435,6 +445,7 @@ All of the above, PLUS:
 After following this guide, you should have:
 
 **Essential (All Repository Types):**
+
 - [ ] Branch protection rule for `main` configured
 - [ ] Branch protection rule for `testing` configured
 - [ ] Branch protection rule for `develop` configured
@@ -444,13 +455,16 @@ After following this guide, you should have:
 - [ ] Branch deletions disabled on all protected branches
 
 **If You Have GitHub Pro (Personal Repo):**
+
 - [ ] Required approvals set to 1 (you can approve your own PRs)
 
 **If You Have Organization Repository:**
+
 - [ ] "Restrict who can push to matching branches" configured
 - [ ] Only specific users/teams can merge to `main` and `testing`
 
 **Optional (All Repository Types):**
+
 - [ ] CODEOWNERS file created (if applicable)
 - [ ] GitHub Actions CI/CD set up
 - [ ] Status checks configured and required
@@ -466,10 +480,10 @@ The `.github/workflows/enforce-merge-direction.yml` workflow automatically runs 
 
 1. **Detects the merge direction** (source branch → target branch)
 2. **Checks against allowed patterns**:
-   - ✅ `feature/*` → `develop`
-   - ✅ `develop` → `testing`
-   - ✅ `testing` → `main`
-   - ❌ All reverse merges (BLOCKED)
+    - ✅ `feature/*` → `develop`
+    - ✅ `develop` → `testing`
+    - ✅ `testing` → `main`
+    - ❌ All reverse merges (BLOCKED)
 3. **Blocks the PR** if direction is wrong
 4. **Adds a helpful comment** explaining the correct direction
 
@@ -480,9 +494,9 @@ If you accidentally create a PR like `testing` → `develop`:
 1. ❌ GitHub Actions check will **FAIL**
 2. ❌ PR will show **"Some checks were not successful"**
 3. 💬 A comment will appear explaining:
-   - Why it's blocked
-   - What the correct direction is
-   - How to fix it
+    - Why it's blocked
+    - What the correct direction is
+    - How to fix it
 4. 🚫 **You cannot merge** until the PR is closed
 
 ### Example Block Message
@@ -544,27 +558,27 @@ git push -u origin test-wrong-direction
 After reading this guide, complete these steps:
 
 1. **Branch Protection Rules:**
-   - [ ] Set up protection for `main` branch
-   - [ ] Set up protection for `testing` branch
-   - [ ] Set up protection for `develop` branch
-   - [ ] Enable "Require status checks to pass before merging"
-   - [ ] Add `check-merge-direction` as required status check
+    - [ ] Set up protection for `main` branch
+    - [ ] Set up protection for `testing` branch
+    - [ ] Set up protection for `develop` branch
+    - [ ] Enable "Require status checks to pass before merging"
+    - [ ] Add `check-merge-direction` as required status check
 
 2. **GitHub Actions:**
-   - [ ] Verify `.github/workflows/enforce-merge-direction.yml` exists
-   - [ ] Verify workflow runs on pull requests
-   - [ ] Test with a wrong-direction PR to confirm it blocks
+    - [ ] Verify `.github/workflows/enforce-merge-direction.yml` exists
+    - [ ] Verify workflow runs on pull requests
+    - [ ] Test with a wrong-direction PR to confirm it blocks
 
 3. **Workflow Testing:**
-   - [ ] Create a test feature branch
-   - [ ] Create PR to develop (should pass)
-   - [ ] Create PR to testing (should fail)
-   - [ ] Verify status checks work correctly
+    - [ ] Create a test feature branch
+    - [ ] Create PR to develop (should pass)
+    - [ ] Create PR to testing (should fail)
+    - [ ] Verify status checks work correctly
 
 4. **Team Communication:**
-   - [ ] Inform collaborators about merge direction rules
-   - [ ] Document any exceptions or special cases
-   - [ ] Add link to this guide in README.md
+    - [ ] Inform collaborators about merge direction rules
+    - [ ] Document any exceptions or special cases
+    - [ ] Add link to this guide in README.md
 
 ---
 
