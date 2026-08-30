@@ -24,7 +24,7 @@ _Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy_
 > **✨ NEW: Multi-Node Support (N-node HA)**
 >
 > Pi-hole Sentinel is no longer limited to a single primary/secondary pair. You can now run
-> **3 or more Pi-hole nodes** in one VRRP failover ring, with a dynamic dashboard, per-node
+> **2 or more Pi-hole nodes** in one VRRP failover ring, with a dynamic dashboard, per-node
 > health checks, and star-topology config sync (one hub syncs to every peer). Two nodes are
 > still fully supported and remain the default. See [What's New: Multi-Node](#whats-new-multi-node-support) below.
 
