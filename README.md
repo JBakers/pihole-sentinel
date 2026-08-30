@@ -20,6 +20,14 @@ _Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy_
 
 ---
 
+> [!TIP]
+> **✨ NEW: Multi-Node Support (N-node HA)**
+>
+> Pi-hole Sentinel is no longer limited to a single primary/secondary pair. You can now run
+> **3 or more Pi-hole nodes** in one VRRP failover ring, with a dynamic dashboard, per-node
+> health checks, and star-topology config sync (one hub syncs to every peer). Two nodes are
+> still fully supported and remain the default. See [What's New: Multi-Node](#whats-new-multi-node-support) below.
+
 > [!WARNING]
 > **🚧 ACTIVE DEVELOPMENT - BETA STATUS**
 >
@@ -47,26 +55,60 @@ _Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy_
 
 ## Introduction
 
-Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS infrastructure. When your primary Pi-hole fails, the backup takes over instantly using a Virtual IP (VIP) that seamlessly switches between servers - no manual intervention, no DNS changes on your devices.
+Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS infrastructure. When one of your Pi-holes fails, another node takes over instantly using a Virtual IP (VIP) that seamlessly switches between servers - no manual intervention, no DNS changes on your devices.
 
-**Built for home networks and small businesses** that need reliability without complexity. Works with your existing Pi-hole setup - no special configuration required.
+**Built for home networks and small businesses** that need reliability without complexity. Works with your existing Pi-hole setup - no special configuration required. Runs with **2 nodes** (classic HA pair) or **N nodes** (extra redundancy) — you choose during setup.
 
 ### Why Pi-hole Sentinel?
 
-- 🚫 **No more network outages** when Pi-hole fails
+- 🆕 **Multi-node HA** - run 2, 3, or more Pi-holes in a single VRRP failover ring
+- 🚫 **No more network outages** when a Pi-hole fails
 - ⚡ **Instant automatic failover** (< 3 seconds)
-- 📊 **Beautiful web dashboard** with real-time monitoring
+- 📊 **Beautiful web dashboard** with real-time monitoring, dynamic per-node cards
 - 🔔 **Smart notifications** via Telegram, Discord, Pushover, Ntfy, webhooks
-- 🔧 **Simple setup** with automated deployment script
+- 🔧 **Simple setup** with an interactive N-node wizard
 - 🔄 **Works with existing Pi-holes** - no reconfiguration needed
+
+---
+
+## ✨ What's New: Multi-Node Support
+
+Pi-hole Sentinel now supports **N-node high availability** instead of a fixed primary/secondary pair:
+
+- **Any number of nodes (2+)** - the setup wizard asks "How many Pi-hole nodes do you want to
+  configure?" and generates a full VRRP ring for however many you choose
+- **Descending VRRP priority** - node 1 = priority 150, each following node -10
+  (node 2 = 140, node 3 = 130, ...), so failover always falls through to the next healthy node
+- **Dynamic dashboard** - node cards, the Master State History chart, and failover history are
+  generated from the live `nodes[]` API response instead of hardcoded primary/secondary fields
+- **Unified naming** - every node is labeled `Pi-Hole Node N` consistently across the dashboard,
+  settings, and notifications (previously mixed "Primary"/"Secondary"/"Pi-hole 3")
+- **Star-topology config sync** - `sync-pihole-config.sh` now reads a `SYNC_PEER_IPS` list and
+  pushes gravity.db/config from the hub (node 1) to every peer, each synced independently so one
+  failing peer doesn't block the rest
+- **Backward compatible** - existing 2-node deployments keep working unchanged; the legacy
+  `PRIMARY_IP`/`SECONDARY_IP` environment format is still read as a fallback
+- **N-node test environment** - a dedicated 3-node Docker Compose stack
+  (`docker-compose.test-nnode.yml`) and integration test suite validate failover/recovery
+  across 3+ nodes
+
+See [CHANGELOG.md](CHANGELOG.md) (v0.23.0 - v0.25.4) for the full list of changes.
 
 ---
 
 ## Features
 
+### 🆕 Multi-Node HA
+
+- **N-node VRRP ring** - configure 2 or more Pi-hole nodes, not just a fixed pair
+- **Descending priority failover** - each extra node is a lower-priority backup, so the ring
+  keeps failing over to the next healthy node
+- **Dynamic node cards** - dashboard renders one card per configured node from the `nodes[]` API
+- **Star-topology sync** - one hub node pushes config to every peer via `SYNC_PEER_IPS`
+
 ### 🔄 Automatic Failover
 
-- **Virtual IP (VIP)** that switches automatically between Pi-holes
+- **Virtual IP (VIP)** that switches automatically between Pi-hole nodes
 - **DNS failover** - always enabled, zero downtime
 - **Optional DHCP failover** - automatic activation/deactivation
 - **DHCP misconfiguration detection** - warns about split-brain scenarios
@@ -76,8 +118,8 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 
 - **Live web dashboard** - desktop and mobile responsive
 - **Service health checks** - connectivity, DNS resolution, DHCP status
-- **VIP detection** - knows which Pi-hole has the VIP at all times
-- **Historical data** - event timeline and failover history
+- **VIP detection** - knows which node has the VIP at all times
+- **Historical data** - event timeline and failover history, including which node took over
 - **Dark mode support** - easy on the eyes
 
 ### 🔔 Smart Notifications
@@ -87,7 +129,7 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 - **Event-based alerts** - failover, recovery, fault, startup
 - **Fault debounce** - brief service restarts (< 60 s) suppressed; real faults only
 - **Always-paired** - every fault notification is followed by a recovery notification
-- **Resilient DNS** - notifications delivered even when both Pi-holes are offline (uses 1.1.1.1/8.8.8.8)
+- **Resilient DNS** - notifications delivered even when all Pi-hole nodes are offline (uses 1.1.1.1/8.8.8.8)
 - **Test notifications** - verify before saving settings
 
 ### ⌨️ Built-in Diagnostics
@@ -105,10 +147,10 @@ Pi-hole Sentinel brings enterprise-grade high availability to your Pi-hole DNS i
 
 ### Prerequisites
 
-- ✅ **2 Pi-holes** - v6.0+, Debian/Ubuntu, static IPs
+- ✅ **2 or more Pi-holes** - v6.0+, Debian/Ubuntu, static IPs (any number of nodes ≥ 2)
 - ✅ **SSH root access** - passwords asked once for SSH key setup
 - ✅ **Pi-hole passwords** - for web interface API access
-- ✅ **Monitor server** - separate server recommended (or install on primary Pi-hole)
+- ✅ **Monitor server** - separate server recommended (or install on node 1)
 - ✅ **Free IP address** - for the Virtual IP (VIP)
 
 ### Installation
@@ -128,10 +170,11 @@ sudo python3 install.py
 
 The script will guide you through:
 
-- Network configuration (IPs, VIP, interface name)
+- **How many Pi-hole nodes** to configure (minimum 2, no upper limit)
+- Network configuration (IP, name, SSH details per node, VIP, interface name)
 - DHCP failover setup (optional)
 - SSH key generation and distribution
-- Automated deployment to all servers
+- Automated deployment to all nodes
 - Service startup and verification
 
 **3. Access the dashboard:**
@@ -144,9 +187,9 @@ That's it! Your Pi-hole infrastructure now has automatic failover.
 
 ### What Gets Installed
 
-**On Pi-hole servers:**
+**On each Pi-hole node:**
 
-- Keepalived (VRRP failover daemon)
+- Keepalived (VRRP failover daemon, priority set per node: 150, 140, 130, ...)
 - Health check scripts (FTL monitoring, DHCP control)
 - Notification scripts (state change alerts)
 
@@ -196,7 +239,7 @@ That's it! Your Pi-hole infrastructure now has automatic failover.
 - **Python:** 3.8+ (tested with 3.11-3.13)
 - **RAM:** 512MB minimum
 - **Disk:** 1GB free space
-- **Network:** Access to both Pi-holes
+- **Network:** Access to all Pi-hole nodes
 
 **Auto-installed packages:** Python packages via pip (`fastapi`, `uvicorn`, `aiohttp`, `aiosqlite`, etc.)
 
@@ -251,7 +294,7 @@ systemctl stop pihole-FTL
 
 **Monitor dashboard** will show:
 
-- VIP moving to other server
+- VIP moving to the next healthy node
 - Failover event logged
 - Notification sent (if configured)
 
@@ -263,7 +306,7 @@ systemctl start pihole-FTL
 
 ### Configuration Sync
 
-If you enabled the built-in config sync during setup, it runs automatically via a systemd timer on the primary Pi-hole.
+If you enabled the built-in config sync during setup, it runs automatically via a systemd timer on the hub node (node 1). In an N-node setup the hub pushes configuration to every peer listed in `SYNC_PEER_IPS`; each peer is synced independently, so one unreachable node doesn't block the rest.
 
 **Check sync timer status:**
 
@@ -359,8 +402,8 @@ The uninstaller will:
 
 ### Notification Events
 
-- **Failover** - Secondary becomes MASTER (primary failed)
-- **Recovery** - Primary becomes MASTER again (back online)
+- **Failover** - Another node becomes MASTER (previous MASTER failed)
+- **Recovery** - The highest-priority node becomes MASTER again (back online)
 - **Fault** - Service issue persisting > 60 s (e.g. Pi-hole FTL down)
 - **Recovery (fault)** - Fault resolved; confirmation sent automatically
 - **Startup** - Monitoring service started (optional, disabled by default)
@@ -371,32 +414,42 @@ The uninstaller will:
 
 ## Architecture
 
+Pi-hole Sentinel scales from a classic 2-node pair to an N-node VRRP ring. Every node runs
+Pi-hole + FTL + Keepalived; priority descends per node (150, 140, 130, ...) so the VIP always
+falls through to the next healthy node.
+
 ```
-┌──────────────┐         VIP           ┌──────────────┐
-│  Primary     │◄─────(Keepalived)────►│  Secondary   │
-│  Pi-hole     │                       │  Pi-hole     │
-│              │      VRRP Protocol    │              │
-│  + FTL       │                       │  + FTL       │
-│  + Keepalived│                       │  + Keepalived│
-└──────┬───────┘                       └───────┬──────┘
-       │                                       │
-       │            ┌──────────────┐           │
-       └────────────►   Monitor    ◄───────────┘
-                    │   Server     │
-                    │              │
-                    │  + FastAPI   │
-                    │  + SQLite    │
-                    │  + Dashboard │
-                    └──────────────┘
+        VIP (VRRP ring, priority 150 ► 140 ► 130 ► ...)
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│  Pi-hole     │    │  Pi-hole     │    │  Pi-hole     │
+│  Node 1      │◄──►│  Node 2      │◄──►│  Node N      │   ...
+│  (MASTER,    │    │  (BACKUP,    │    │  (BACKUP,    │
+│   prio 150)  │    │   prio 140)  │    │   prio 130)  │
+│  + FTL       │    │  + FTL       │    │  + FTL       │
+│  + Keepalived│    │  + Keepalived│    │  + Keepalived│
+└──────┬───────┘    └──────┬───────┘    └──────┬───────┘
+       │                   │                   │
+       │                   ▼                   │
+       │          ┌──────────────┐             │
+       └─────────►│   Monitor    │◄────────────┘
+                   │   Server     │
+                   │              │
+                   │  + FastAPI   │
+                   │  + SQLite    │
+                   │  + Dashboard │
+                   └──────────────┘
 ```
+
+A minimal deployment still works with exactly 2 nodes (node 1 + node 2) - N-node is opt-in via
+the number you give the setup wizard, not a requirement.
 
 ### How It Works
 
-1. **Keepalived (VRRP)** - Runs on both Pi-holes, manages VIP assignment
-2. **Health Checks** - Monitors Pi-hole FTL service every 2 seconds
-3. **Automatic Failover** - VIP moves to backup when primary fails (< 3s)
-4. **Monitor Service** - Polls both Pi-holes every 10 seconds
-5. **Web Dashboard** - Real-time status, history, notifications
+1. **Keepalived (VRRP)** - Runs on every node, manages VIP assignment across the whole ring
+2. **Health Checks** - Monitors each node's Pi-hole FTL service every 2 seconds
+3. **Automatic Failover** - VIP moves to the next highest-priority healthy node (< 3s)
+4. **Monitor Service** - Polls all configured nodes every 10 seconds, exposes them via the `nodes[]` API
+5. **Web Dashboard** - Real-time status, history, and notifications for every node, rendered dynamically
 
 ---
 
@@ -441,11 +494,12 @@ ip addr show | grep <VIP>
 tail -f /var/log/keepalived-notify.log
 ```
 
-**Split-brain (both MASTER):**
+**Split-brain (multiple nodes report MASTER):**
 
-- Check network connectivity between Pi-holes
+- Check network connectivity between all nodes
 - Verify interface name in `/etc/keepalived/keepalived.conf`
 - Check firewall allows VRRP (protocol 112)
+- Verify each node has a unique, descending VRRP priority (150, 140, 130, ...)
 
 ### Notification Issues
 
