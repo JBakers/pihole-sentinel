@@ -25,6 +25,9 @@ Completed milestones:
   documentation added.
 - R12/R13: development test documentation consolidated and hook messages
   standardized in English.
+- R11: release automation standardized future tags on `vX.Y.Z`.
+- Configurable database retention and automatic daily cleanup are implemented,
+      documented, and covered by tests.
 - v0.25.2 through v0.25.4: multi-node failback, naming, history, and failover
   notification defects fixed.
 
@@ -44,17 +47,33 @@ backlog below.
 
 ### P0 - v1.0 Release Readiness
 
-- [ ] Run the complete unit, lint, syntax, and security suites on `develop`.
-- [ ] Run both two-node and three-node Docker integration environments.
-- [ ] Validate upgrade from a legacy two-node environment and database migration
-      without losing history or notification settings.
-- [ ] Validate legacy `PRIMARY_*` and `SECONDARY_*` configuration compatibility.
+Implemented foundations already covered by automated tests:
+
+- [x] Unit suite passes on the v0.25.5 `develop` baseline: 569 passed and 10
+      environment-dependent tests skipped.
+- [x] Two-node and three-node Docker harnesses and integration suites exist.
+- [x] Database migration and legacy `PRIMARY_*`/`SECONDARY_*` compatibility are
+      implemented and covered by automated tests.
+- [x] Release automation creates consistent `vX.Y.Z` tags and tarballs.
+
+Remaining release evidence:
+
+- [ ] Resolve the existing Pylint and Flake8 debt, then run the complete lint,
+      syntax, and security suites successfully on `develop`.
+- [ ] Execute and record both two-node and three-node Docker integration suites
+      against the release candidate.
+- [ ] Perform and record an end-to-end upgrade from the current stable legacy
+      two-node deployment, including database migration and preservation of
+      history and notification settings.
 - [ ] Manually test VIP failover and failback across every configured node.
-- [ ] Verify DNS continuity, DHCP ownership, debounce, and paired notifications.
-- [ ] Verify dashboard behavior on desktop and mobile with two and three nodes.
-- [ ] Audit installation, upgrade, rollback, and uninstall documentation against a
-      clean supported host.
-- [ ] Verify release artifacts, version metadata, checksums, and `vX.Y.Z` tag naming.
+- [ ] Record end-to-end DNS continuity, DHCP ownership, debounce, and paired
+      notification behavior during the manual failover scenarios.
+- [ ] Record dashboard behavior at desktop and mobile breakpoints with two and
+      three nodes.
+- [ ] Complete dedicated upgrade, rollback, and uninstall guidance, then audit all
+      installation lifecycle documentation against a clean supported host.
+- [ ] Add SHA-256 checksums to release artifacts and verify the release workflow,
+      version metadata, generated tarballs, and tag against a release candidate.
 - [ ] Record an explicit go/no-go decision before the owner promotes `develop` to
       `main` as v1.0.0.
 
@@ -71,7 +90,6 @@ backlog below.
 
 ### P2 - Project Maintenance
 
-- [ ] R11: use `vX.Y.Z` consistently for all future tags and release titles.
 - [ ] R15: publish and pin a GitHub Discussions welcome post with support and issue
       reporting guidance. This is a manual GitHub task.
 - [ ] Decide whether GitHub Pages or another hosted documentation system adds
@@ -79,7 +97,6 @@ backlog below.
 
 ### Product Backlog
 
-- [ ] Add configurable database retention and automatic history cleanup.
 - [ ] Add a Prometheus-compatible `GET /metrics` endpoint.
 - [ ] Evaluate first-class HTTPS/TLS support versus documented reverse proxies.
 
