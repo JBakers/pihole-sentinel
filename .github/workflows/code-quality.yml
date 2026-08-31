@@ -18,7 +18,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.10'
           cache: 'pip'
 
       - name: Install dependencies
@@ -96,7 +96,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.10'
 
       - name: Install dependencies
         run: |
@@ -154,5 +154,9 @@ jobs:
         run: |
           VERSION=$(cat VERSION)
           echo "VERSION file: $VERSION"
-          grep -q "$VERSION" CHANGELOG.md || echo "Warning: VERSION not found in CHANGELOG.md"
-          grep -q "$VERSION" README.md || echo "Warning: VERSION not found in README.md"
+          grep -q "\[$VERSION\]" CHANGELOG.md
+          grep -Eq "Current development version:.*$VERSION" README.md
+          grep -Eq "Latest version:.*$VERSION" docs/README.md
+          grep -Eq "Current Version:.*$VERSION" PLAN.md
+          grep -Eq "Version:.*$VERSION" CLAUDE.md
+          grep -q "version = \"$VERSION\"" pyproject.toml

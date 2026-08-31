@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-09-01
 
-**Version:** 0.26.1
+**Version:** 0.26.2
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
@@ -13,7 +13,7 @@ This document provides comprehensive guidance for AI assistants working with the
 > all open tasks, bugs, and design decisions.
 > This file (CLAUDE.md) is the **reference document** — PLAN.md is the **working document**.
 
-**Recent Updates (v0.26.1, September 2026):**
+**Recent Updates (v0.26.2, September 2026):**
 
 - Multi-node support is stable on `main`; active development continues on `develop`
 - Permanent branch flow simplified to `develop` -> `main`
@@ -25,6 +25,7 @@ This document provides comprehensive guidance for AI assistants working with the
 - Safety project scans use the optional `SAFETY_API_KEY` CI secret
 - Two-node and three-node Docker test harnesses run independently and wait for health checks
 - Installer code and tests are normalized with the configured Black style
+- Release documentation and CI metadata validate the active version consistently
 
 ---
 
@@ -502,11 +503,11 @@ pihole-sentinel/
 ### Languages & Frameworks
 
 - **Python 3.10+** (tested with 3.13)
-    - FastAPI (≥0.104.0) - Web framework for monitoring API
-    - Uvicorn (≥0.24.0) - ASGI server
-    - aiohttp (≥3.9.0) - Async HTTP client for Pi-hole API
-    - aiosqlite (≥0.19.0) - Async SQLite database
-    - aiofiles (≥23.2.0) - Async file operations
+    - FastAPI (≥0.115.0) - Web framework for monitoring API
+    - Uvicorn (≥0.30.0) - ASGI server
+    - aiohttp (≥3.14.1) - Async HTTP client for Pi-hole API
+    - aiosqlite (≥0.20.0) - Async SQLite database
+    - aiofiles (≥24.1.0) - Async file operations
     - python-dotenv (≥1.0.0) - Environment variable management
     - python-dateutil (≥2.8.2) - Date/time utilities
 
