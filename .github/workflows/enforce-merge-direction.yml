@@ -1,8 +1,8 @@
 name: Enforce Merge Direction
 
-# This workflow prevents merges in the wrong direction
-# Allowed: features → develop → testing → main
-# Blocked: main → testing, testing → develop, develop → features
+# This workflow prevents merges in the wrong direction.
+# Allowed: feature branches -> develop -> main
+# Blocked: main -> develop, develop -> feature branches
 
 on:
   pull_request:
@@ -34,61 +34,40 @@ jobs:
           BLOCKED=false
           REASON=""
 
-          # Block: testing → develop
-          if [[ "$BASE_BRANCH" == "develop" ]] && [[ "$HEAD_BRANCH" == "testing" ]]; then
-            BLOCKED=true
-            REASON="❌ BLOCKED: Cannot merge testing → develop (wrong direction!)"
-          fi
-
-          # Block: main → testing
-          if [[ "$BASE_BRANCH" == "testing" ]] && [[ "$HEAD_BRANCH" == "main" ]]; then
-            BLOCKED=true
-            REASON="❌ BLOCKED: Cannot merge main → testing (wrong direction!)"
-          fi
-
-          # Block: main → develop
+          # Block: main -> develop
           if [[ "$BASE_BRANCH" == "develop" ]] && [[ "$HEAD_BRANCH" == "main" ]]; then
             BLOCKED=true
-            REASON="❌ BLOCKED: Cannot merge main → develop (wrong direction!)"
+            REASON="BLOCKED: Cannot merge main -> develop (wrong direction)"
           fi
 
-          # Block: testing → features (any feature branch)
-          if [[ "$HEAD_BRANCH" == "testing" ]] && [[ "$BASE_BRANCH" =~ ^(feature|fix|chore|docs)/ ]]; then
-            BLOCKED=true
-            REASON="❌ BLOCKED: Cannot merge testing → feature branch (wrong direction!)"
-          fi
-
-          # Block: develop → features (any feature branch)
+          # Block: develop -> feature branches
           if [[ "$HEAD_BRANCH" == "develop" ]] && [[ "$BASE_BRANCH" =~ ^(feature|fix|chore|docs)/ ]]; then
             BLOCKED=true
-            REASON="❌ BLOCKED: Cannot merge develop → feature branch (wrong direction!)"
+            REASON="BLOCKED: Cannot merge develop -> feature branch (wrong direction)"
           fi
 
           # Check if blocked
           if [[ "$BLOCKED" == "true" ]]; then
             echo "::error::$REASON"
             echo ""
-            echo "✅ ALLOWED merge directions:"
-            echo "   • feature/* → develop"
-            echo "   • develop → testing"
-            echo "   • testing → main"
+            echo "ALLOWED merge directions:"
+            echo "   - feature/* -> develop"
+            echo "   - develop -> main"
             echo ""
-            echo "❌ Your PR: $HEAD_BRANCH → $BASE_BRANCH"
+            echo "Your PR: $HEAD_BRANCH -> $BASE_BRANCH"
             echo ""
             echo "Please close this PR and create one in the correct direction."
             exit 1
           fi
 
           # If we reach here, merge direction is allowed
-          echo "✅ Merge direction is ALLOWED: $HEAD_BRANCH → $BASE_BRANCH"
+          echo "Merge direction is ALLOWED: $HEAD_BRANCH -> $BASE_BRANCH"
 
           # Provide helpful info about the merge
           if [[ "$BASE_BRANCH" == "develop" ]]; then
-            echo "📝 Merging to develop - this is the integration branch"
-          elif [[ "$BASE_BRANCH" == "testing" ]]; then
-            echo "🧪 Merging to testing - ensure all changes are tested thoroughly"
+            echo "Merging to develop - this is the integration branch"
           elif [[ "$BASE_BRANCH" == "main" ]]; then
-            echo "🚀 Merging to main - this will be a production release!"
+            echo "Merging to main - the repository owner controls this production promotion"
           fi
 
       - name: Add merge direction comment
@@ -100,29 +79,22 @@ jobs:
             const baseRef = context.payload.pull_request.base.ref;
             const headRef = context.payload.pull_request.head.ref;
 
-            let emoji = '✅';
             let message = '';
 
             if (baseRef === 'main') {
-              emoji = '🚀';
-              message = '**Production Release**\n\nThis PR will merge to `main` - ensure all testing is complete!';
-            } else if (baseRef === 'testing') {
-              emoji = '🧪';
-              message = '**Testing Branch**\n\nThis PR will merge to `testing` - ready for QA validation.';
+              message = '**Production Release**\n\nThis PR promotes `develop` to `main`. Only the repository owner may complete this merge after release validation.';
             } else if (baseRef === 'develop') {
-              emoji = '📝';
               message = '**Development Branch**\n\nThis PR will merge to `develop` - integration and development testing.';
             }
 
-            const comment = emoji + ' **Merge Direction Check: PASSED**\n\n' +
+            const comment = '**Merge Direction Check: PASSED**\n\n' +
               message + '\n\n' +
-              '**Merge flow:** `' + headRef + '` → `' + baseRef + '`\n\n' +
+              '**Merge flow:** `' + headRef + '` -> `' + baseRef + '`\n\n' +
               '<details>\n' +
-              '<summary>ℹ️ Allowed merge directions</summary>\n\n' +
-              '- ✅ `feature/*` → `develop`\n' +
-              '- ✅ `develop` → `testing`\n' +
-              '- ✅ `testing` → `main`\n' +
-              '- ❌ Reverse merges are blocked\n\n' +
+              '<summary>Allowed merge directions</summary>\n\n' +
+              '- `feature/*` -> `develop`\n' +
+              '- `develop` -> `main`\n' +
+              '- Reverse merges are blocked\n\n' +
               '</details>';
 
             github.rest.issues.createComment({

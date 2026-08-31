@@ -1,3 +1,24 @@
+## [0.25.5] - 2026-08-31
+
+### Improved
+
+- Simplified the permanent branch model to `develop` and `main`. Development
+  now integrates on `develop`; only the repository owner promotes validated
+  changes to `main`.
+- Updated CI merge-direction checks and local hooks for the two-branch model.
+- Consolidated all active work into `PLAN.md` and retired the stale
+  `TODO_USER.md` session tracker.
+- Archived the container sidecar proof of concept by tag and documented its
+  proven components, open design work, and restoration path.
+- Consolidated release validation guidance under `docs/development/`.
+
+### Documentation
+
+- Replaced stale multi-node phase handovers with an updated v1.0 readiness,
+  repository maintenance, product, and future v2 backlog.
+- Updated branch protection, contribution, testing, hook, and agent guidance
+  to remove the retired `testing` branch.
+
 ## [0.25.4] - 2026-06-08
 
 ### Fixed

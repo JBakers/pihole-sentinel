@@ -2,9 +2,9 @@ name: Code Quality
 
 on:
   push:
-    branches: [ develop, testing, main ]
+    branches: [ develop, main ]
   pull_request:
-    branches: [ develop, testing, main ]
+    branches: [ develop, main ]
 
 jobs:
   python-checks:

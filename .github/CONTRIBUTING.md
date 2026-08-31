@@ -44,14 +44,15 @@ make docker-down        # Tear down
 
 | Type      | Pattern                    | Example                        |
 | --------- | -------------------------- | ------------------------------ |
-| Feature   | `feature/<short-name>`     | `feature/multi-node-support`   |
+| Feature   | `feature/<short-name>`     | `feature/metrics-export`       |
 | Bug fix   | `fix/<short-description>`  | `fix/dns-latency-null-crash`   |
 | Docs      | `docs/<short-description>` | `docs/update-installation`     |
 | Chore     | `chore/<short-description>`| `chore/update-dependencies`    |
 
-**Branches flow:** `feature/*` → `develop` → `testing` → `main`
+**Branch flow:** `feature/*` -> `develop` -> `main`
 
-Direct pushes to `main` and `testing` are blocked. Always open a PR.
+Open normal contribution pull requests against `develop`. Only the repository
+owner promotes validated changes from `develop` to `main`.
 
 ---
 
@@ -103,7 +104,7 @@ Before opening a pull request, confirm:
 - [ ] No new linting errors: `make lint`
 - [ ] `VERSION` file bumped (patch for fixes, minor for features)
 - [ ] `CHANGELOG.md` updated with a concise entry under `[Unreleased]`
-- [ ] PR targets the `develop` branch (never `main` or `testing` directly)
+- [ ] PR targets the `develop` branch (never `main` directly)
 - [ ] PR description explains *what* changed and *why*
 
 ---

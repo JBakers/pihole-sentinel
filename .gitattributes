@@ -33,7 +33,6 @@ Dockerfile.dev          export-ignore
 # AI assistant / internal planning
 CLAUDE.md               export-ignore
 PLAN.md                 export-ignore
-TODO_USER.md            export-ignore
 
 # Git hooks & GitHub internals
 .githooks/              export-ignore

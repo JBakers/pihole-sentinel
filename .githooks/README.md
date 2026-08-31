@@ -16,16 +16,16 @@ Enforces version management rules before every commit:
 
 ### pre-merge-commit
 
-🚫 **CRITICAL SECURITY HOOK** - Prevents AI agents from merging to protected branches:
+**CRITICAL SECURITY HOOK** - Prevents AI agents from merging to the protected branch:
 
-- ✅ Blocks all merges to `testing` branch (only user may merge)
-- ✅ Blocks all merges to `main` branch (only user may merge)
-- ✅ Enforces CLAUDE.md mandatory rules for AI agents
-- ✅ Provides clear error messages and instructions
-- ✅ Allows repository owner to override with `--no-verify` if needed
+- Blocks all merges to `main` (only the repository owner may merge)
+- Enforces CLAUDE.md mandatory rules for AI agents
+- Provides clear error messages and override instructions for the owner
 
 **Why this hook exists:**
-This hook prevents AI assistants (Claude, Copilot, etc.) from accidentally merging to protected branches. According to CLAUDE.md project rules, ONLY the repository owner may merge from `develop` → `testing` → `main`.
+This hook prevents AI assistants from accidentally merging into `main`. According
+to CLAUDE.md, development happens on `develop` and only the repository owner may
+promote `develop` to `main`.
 
 ## Installation
 
@@ -77,23 +77,23 @@ git commit -m "test: trying to commit without version update"
 
 ### Testing pre-merge-commit hook
 
-Test the merge protection (should block merges to testing/main):
+Test the merge protection (should block merges to `main`):
 
 ```bash
-# Switch to testing branch
-git checkout testing
+# Switch to main
+git switch main
 
 # Try to merge develop (should fail)
 git merge develop
 
 # You should see:
-# 🚫 MERGE GEBLOKKEERD: Beschermde Branch
-# ❌ FOUT: Kan niet mergen naar 'testing' branch
+# MERGE BLOCKED: Protected branch
+# ERROR: Cannot merge into 'main'
 ```
 
 **Expected behavior:**
 
-- ✅ Merge to `testing` or `main` is **blocked** with clear error message
+- Merge to `main` is **blocked** with a clear error message
 - ✅ Hook explains why (CLAUDE.md rules)
 - ✅ Hook provides override instructions for repository owner
 - ✅ Hook tells AI agents to abort the merge
@@ -122,7 +122,7 @@ git merge --continue --no-verify
 
 ## Uninstalling
 
-### If using Option 1:
+### If using Option 1
 
 ```bash
 # Remove individual hooks
@@ -133,7 +133,7 @@ rm .git/hooks/pre-merge-commit
 rm .git/hooks/pre-*
 ```
 
-### If using Option 2:
+### If using Option 2
 
 ```bash
 git config --unset core.hooksPath
