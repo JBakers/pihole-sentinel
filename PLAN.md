@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-09-01
 **Active Branch:** `develop`
-**Current Version:** 0.26.1
+**Current Version:** 0.26.2
 
 This is the single source of truth for active work, priorities, and future design
 work. Completed release details belong in `CHANGELOG.md`; operational guidance

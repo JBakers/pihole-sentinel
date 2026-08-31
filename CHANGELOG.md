@@ -1,3 +1,12 @@
+## [0.26.2] - 2026-09-01
+
+### Improved
+
+- Added consistent active-version metadata to the README and documentation
+  index, and refreshed the technical dependency reference.
+- Strengthened CI version validation across `VERSION`, `pyproject.toml`,
+  `CHANGELOG.md`, `README.md`, `PLAN.md`, and `CLAUDE.md`.
+
 ## [0.26.1] - 2026-09-01
 
 ### Improved

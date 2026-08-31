@@ -8,6 +8,8 @@
 
 _Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy_
 
+**Current development version:** `0.26.2`
+
 [![Version](https://img.shields.io/github/v/release/JBakers/pihole-sentinel?include_prereleases&label=version&color=blue)](https://github.com/JBakers/pihole-sentinel/releases)
 [![License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/JBakers/pihole-sentinel)](https://github.com/JBakers/pihole-sentinel/issues)
@@ -20,13 +22,15 @@ _Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy_
 
 ---
 
+<!-- markdownlint-disable MD028 -->
+
 > [!TIP]
 > **✨ NEW: Multi-Node Support (N-node HA)**
 >
 > Pi-hole Sentinel is no longer limited to a single primary/secondary pair. You can now run
 > **2 or more Pi-hole nodes** in one VRRP failover ring, with a dynamic dashboard, per-node
 > health checks, and star-topology config sync (one hub syncs to every peer). Two nodes are
-> still fully supported and remain the default. See [What's New: Multi-Node](#whats-new-multi-node-support) below.
+> still fully supported and remain the default. See [What's New: Multi-Node](#-whats-new-multi-node-support) below.
 
 > [!WARNING]
 > **🚧 ACTIVE DEVELOPMENT - BETA STATUS**
@@ -50,6 +54,8 @@ _Automatic failover • Real-time monitoring • Seamless DNS/DHCP redundancy_
 
 > [!NOTE]
 > See [CHANGELOG.md](CHANGELOG.md) for the latest release notes and version history.
+
+<!-- markdownlint-enable MD028 -->
 
 ---
 
@@ -92,7 +98,7 @@ Pi-hole Sentinel now supports **N-node high availability** instead of a fixed pr
   (`docker-compose.test-nnode.yml`) and integration test suite validate failover/recovery
   across 3+ nodes
 
-See [CHANGELOG.md](CHANGELOG.md) (v0.23.0 - v0.25.4) for the full list of changes.
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 ---
 
