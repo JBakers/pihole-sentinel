@@ -1,3 +1,19 @@
+## [0.25.8] - 2026-08-31
+
+### Fixed
+
+- Isolated the three-node Docker test harness with its own Compose project so
+  it can run alongside the two-node harness without replacing its monitor.
+- Updated both Docker startup targets to wait for healthy services before
+  running integration tests, eliminating startup-race test skips.
+- Allowed only validated `localhost:<port>` API targets for the local Docker
+  harness while preserving strict validation for deployed Pi-hole IP addresses.
+
+### Documentation
+
+- Recorded successful release-candidate Docker integration evidence: 18
+  two-node and 8 three-node tests passed locally.
+
 ## [0.25.7] - 2026-08-31
 
 ### Security

@@ -28,6 +28,8 @@
 #   Node 2:     http://localhost:8012/mock/state
 #   Node 3:     http://localhost:8013/mock/state
 
+name: pihole-sentinel-nnode
+
 x-mock-pihole: &mock-pihole
   build:
     context: docker/mock-pihole

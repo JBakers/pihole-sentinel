@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-08-31
 **Active Branch:** `develop`
-**Current Version:** 0.25.6
+**Current Version:** 0.25.8
 
 This is the single source of truth for active work, priorities, and future design
 work. Completed release details belong in `CHANGELOG.md`; operational guidance
@@ -66,8 +66,9 @@ Remaining release evidence:
       and Bash syntax checks, Bandit medium/high checks, `pip check`, and Safety
       pass after patched dependency lower bounds were added. The CI project scan
       uses `SAFETY_API_KEY` when the repository secret is configured.
-- [ ] Execute and record both two-node and three-node Docker integration suites
-      against the release candidate.
+- [x] Execute and record both two-node and three-node Docker integration suites
+      against the release candidate: 18 two-node tests and 8 three-node tests
+      passed locally on 2026-08-31.
 - [ ] Perform and record an end-to-end upgrade from the current stable legacy
       two-node deployment, including database migration and preservation of
       history and notification settings.

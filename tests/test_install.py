@@ -130,6 +130,17 @@ class TestCheckPiholeApi:
         assert msg == "invalid IP address"
         urlopen.assert_not_called()
 
+    def test_invalid_localhost_port_returns_false_without_http_request(self):
+        """A malformed local Docker endpoint cannot construct an API request."""
+        c = _make_config()
+
+        with patch("urllib.request.urlopen") as urlopen:
+            ok, msg = c._check_pihole_api("localhost:not-a-port", "pass")
+
+        assert ok is False
+        assert msg == "invalid IP address"
+        urlopen.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # preflight_checks  (unit)

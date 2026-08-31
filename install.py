@@ -184,6 +184,15 @@ class SetupConfig:
         except ValueError:
             return False
 
+    def validate_pihole_api_host(self, host):
+        """Validate an API target, allowing localhost ports for Docker tests."""
+        if self.validate_ip(host):
+            return True
+        if not isinstance(host, str) or not host.startswith("localhost:"):
+            return False
+        _, port = host.split(":", 1)
+        return port.isdigit() and self.validate_port(port)
+
     def validate_subnet(self, ip, netmask):
         """Validate if IP and netmask form a valid subnet."""
         try:
@@ -1471,7 +1480,7 @@ class SetupConfig:
 
     def _check_pihole_api(self, ip, password):
         """Return (ok: bool, message: str) for Pi-hole v6 API authentication."""
-        if not self.validate_ip(ip):
+        if not self.validate_pihole_api_host(ip):
             return False, "invalid IP address"
 
         url = f"http://{ip}/api/auth"
