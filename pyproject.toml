@@ -1,6 +1,6 @@
 [project]
 name = "pihole-sentinel"
-version = "0.26.0"
+version = "0.26.1"
 description = "High-availability monitoring and failover tooling for Pi-hole"
 requires-python = ">=3.10"
 license = { text = "GPL-3.0-or-later" }
@@ -72,6 +72,5 @@ disable = [
     "use-implicit-booleaness-not-comparison",
     "use-implicit-booleaness-not-comparison-to-zero",
     "use-implicit-booleaness-not-comparison-to-string",
-    "use-implicit-booleaness-not-len",
     "use-implicit-booleaness-not-len",
 ]

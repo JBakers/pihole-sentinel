@@ -111,9 +111,7 @@ class TestCheckPiholeApi:
 
         c = _make_config()
 
-        with patch(
-            "urllib.request.urlopen", side_effect=urllib.error.URLError("refused")
-        ):
+        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("refused")):
             ok, msg = c._check_pihole_api("10.0.0.1", "pass")
 
         assert ok is False
@@ -143,6 +141,37 @@ class TestCheckPiholeApi:
 
 
 # ---------------------------------------------------------------------------
+# Remote staging cleanup (unit)
+# ---------------------------------------------------------------------------
+
+
+class TestRemoteStagingCleanup:
+    """Unit tests for SetupConfig.cleanup_remote_staging_dir()."""
+
+    def test_cleanup_removes_staging_dir(self):
+        """Successful cleanup issues a guarded removal command."""
+        c = _make_config()
+
+        with patch.object(c, "remote_exec") as remote_exec:
+            c.cleanup_remote_staging_dir("10.0.0.1", "root", "22", "~/.cache/staging", "password")
+
+        remote_exec.assert_called_once_with("10.0.0.1", "root", "22", "rm -rf -- ~/.cache/staging", "password")
+
+    def test_cleanup_suppresses_remote_failure(self):
+        """A cleanup failure cannot mask a preceding deployment result."""
+        c = _make_config()
+
+        with patch.object(
+            c,
+            "remote_exec",
+            side_effect=subprocess.CalledProcessError(255, "ssh"),
+        ) as remote_exec:
+            c.cleanup_remote_staging_dir("10.0.0.1", "root", "22", "~/.cache/staging")
+
+        remote_exec.assert_called_once_with("10.0.0.1", "root", "22", "rm -rf -- ~/.cache/staging", None)
+
+
+# ---------------------------------------------------------------------------
 # preflight_checks  (unit)
 # ---------------------------------------------------------------------------
 
@@ -154,8 +183,9 @@ class TestPreflightChecks:
         """All SSH + API checks pass → no sys.exit."""
         c = _make_config()
 
-        with patch.object(c, "remote_exec") as mock_ssh, patch.object(
-            c, "_check_pihole_api", return_value=(True, "OK")
+        with (
+            patch.object(c, "remote_exec") as mock_ssh,
+            patch.object(c, "_check_pihole_api", return_value=(True, "OK")),
         ):
             c.preflight_checks()  # must not raise / exit
 
@@ -170,8 +200,9 @@ class TestPreflightChecks:
             if host == "10.99.0.10":
                 raise subprocess.CalledProcessError(255, "ssh")
 
-        with patch.object(c, "remote_exec", side_effect=ssh_fails), patch.object(
-            c, "_check_pihole_api", return_value=(True, "OK")
+        with (
+            patch.object(c, "remote_exec", side_effect=ssh_fails),
+            patch.object(c, "_check_pihole_api", return_value=(True, "OK")),
         ):
             with pytest.raises(SystemExit) as exc:
                 c.preflight_checks()
@@ -184,8 +215,9 @@ class TestPreflightChecks:
         """Wrong Pi-hole password → sys.exit(1)."""
         c = _make_config()
 
-        with patch.object(c, "remote_exec"), patch.object(
-            c, "_check_pihole_api", return_value=(False, "wrong password")
+        with (
+            patch.object(c, "remote_exec"),
+            patch.object(c, "_check_pihole_api", return_value=(False, "wrong password")),
         ):
             with pytest.raises(SystemExit) as exc:
                 c.preflight_checks()
@@ -198,9 +230,10 @@ class TestPreflightChecks:
         """Multiple failures are all reported before exiting."""
         c = _make_config()
 
-        with patch.object(
-            c, "remote_exec", side_effect=subprocess.CalledProcessError(255, "ssh")
-        ), patch.object(c, "_check_pihole_api", return_value=(False, "wrong password")):
+        with (
+            patch.object(c, "remote_exec", side_effect=subprocess.CalledProcessError(255, "ssh")),
+            patch.object(c, "_check_pihole_api", return_value=(False, "wrong password")),
+        ):
             with pytest.raises(SystemExit):
                 c.preflight_checks()
 
@@ -212,8 +245,9 @@ class TestPreflightChecks:
         """Without separate monitor, no SSH check for monitor."""
         c = _make_config(separate_monitor=False)
 
-        with patch.object(c, "remote_exec") as mock_ssh, patch.object(
-            c, "_check_pihole_api", return_value=(True, "OK")
+        with (
+            patch.object(c, "remote_exec") as mock_ssh,
+            patch.object(c, "_check_pihole_api", return_value=(True, "OK")),
         ):
             c.preflight_checks()
 
@@ -338,11 +372,14 @@ class TestUninstall:
         c = _make_config()
         exec_calls = []
 
-        with patch.object(
-            c,
-            "remote_exec",
-            side_effect=lambda h, u, p, cmd: exec_calls.append((h, cmd)),
-        ), patch("builtins.input", return_value="yes"):
+        with (
+            patch.object(
+                c,
+                "remote_exec",
+                side_effect=lambda h, u, p, cmd: exec_calls.append((h, cmd)),
+            ),
+            patch("builtins.input", return_value="yes"),
+        ):
             c.uninstall()
 
         all_cmds = " ".join(cmd for _, cmd in exec_calls)
@@ -356,9 +393,14 @@ class TestUninstall:
         c = _make_config()
         exec_calls = []
 
-        with patch.object(
-            c, "remote_exec", side_effect=lambda h, u, p, cmd: exec_calls.append(cmd)
-        ), patch("builtins.input", return_value="yes"):
+        with (
+            patch.object(
+                c,
+                "remote_exec",
+                side_effect=lambda h, u, p, cmd: exec_calls.append(cmd),
+            ),
+            patch("builtins.input", return_value="yes"),
+        ):
             c.uninstall()
 
         all_cmds = " ".join(exec_calls)
@@ -371,8 +413,9 @@ class TestUninstall:
         """Input other than 'yes' cancels without touching any server."""
         c = _make_config()
 
-        with patch.object(c, "remote_exec") as mock_exec, patch(
-            "builtins.input", return_value="no"
+        with (
+            patch.object(c, "remote_exec") as mock_exec,
+            patch("builtins.input", return_value="no"),
         ):
             c.uninstall()
 
@@ -385,11 +428,14 @@ class TestUninstall:
         c = _make_config(separate_monitor=False, monitor_ip=None)
         exec_calls = []
 
-        with patch.object(
-            c,
-            "remote_exec",
-            side_effect=lambda h, u, p, cmd: exec_calls.append((h, cmd)),
-        ), patch("builtins.input", return_value="yes"):
+        with (
+            patch.object(
+                c,
+                "remote_exec",
+                side_effect=lambda h, u, p, cmd: exec_calls.append((h, cmd)),
+            ),
+            patch("builtins.input", return_value="yes"),
+        ):
             c.uninstall()
 
         # No calls against 10.99.0.20 (monitor-only IP)
@@ -400,9 +446,10 @@ class TestUninstall:
         """SSH errors during uninstall are reported but don't crash setup."""
         c = _make_config()
 
-        with patch.object(
-            c, "remote_exec", side_effect=Exception("connection refused")
-        ), patch("builtins.input", return_value="yes"):
+        with (
+            patch.object(c, "remote_exec", side_effect=Exception("connection refused")),
+            patch("builtins.input", return_value="yes"),
+        ):
             # Must not raise
             c.uninstall()
 
@@ -421,9 +468,7 @@ class TestBackupExistingConfigs:
         mock_result.stdout = stdout_value
 
         with patch("subprocess.run", return_value=mock_result):
-            return c.backup_existing_configs(
-                "10.99.0.20", "root", "22", config_type="monitor"
-            )
+            return c.backup_existing_configs("10.99.0.20", "root", "22", config_type="monitor")
 
     def test_returns_timestamp_when_files_backed_up(self):
         c = _make_config()
@@ -582,9 +627,10 @@ class TestPreflightNNode:
     def test_preflight_checks_all_nodes(self):
         c = _make_nnode_config(3)
 
-        with patch.object(c, "remote_exec") as mock_ssh, patch.object(
-            c, "_check_pihole_api", return_value=(True, "OK")
-        ) as mock_api:
+        with (
+            patch.object(c, "remote_exec") as mock_ssh,
+            patch.object(c, "_check_pihole_api", return_value=(True, "OK")) as mock_api,
+        ):
             c.preflight_checks()
 
         # monitor + 3 nodes = 4 SSH checks; 3 API checks

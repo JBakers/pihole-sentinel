@@ -1,8 +1,8 @@
 # Pi-hole Sentinel Development Plan
 
-**Last Updated:** 2026-08-31
+**Last Updated:** 2026-09-01
 **Active Branch:** `develop`
-**Current Version:** 0.26.0
+**Current Version:** 0.26.1
 
 This is the single source of truth for active work, priorities, and future design
 work. Completed release details belong in `CHANGELOG.md`; operational guidance

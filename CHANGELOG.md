@@ -1,3 +1,10 @@
+## [0.26.1] - 2026-09-01
+
+### Improved
+
+- Normalized `install.py` and its test suite with the configured Black style
+  and resolved the resulting Pylint style warnings.
+
 ## [0.26.0] - 2026-08-31
 
 ### Changed
@@ -11,6 +18,11 @@
   name when possible, with a short commit SHA fallback.
 - Made the local Safety target skip with an explicit message when no API key is
   configured, matching the CI behavior.
+- Blocked pull requests into `main` unless their source branch is `develop`.
+- Made remote deployment staging cleanup best-effort so SSH cleanup failures
+  cannot hide the original deployment outcome, while verbose mode reports a
+  failed cleanup for manual follow-up.
+- Aligned merge-direction workflow messages with the rules it enforces.
 
 ## [0.25.8] - 2026-08-31
 
