@@ -1,13 +1,15 @@
 # Python requirements
 # Updated to latest versions with security patches (2024)
 fastapi>=0.115.0  # Updated from 0.104.0 - includes CVE fixes
+starlette>=1.3.1  # Security fixes for CVE-2026-48818, CVE-2026-54282, and CVE-2026-54283
 uvicorn[standard]>=0.30.0  # Updated from 0.24.0 - security updates
-aiohttp>=3.10.0  # Updated from 3.9.0 - fixes CVE-2024-23334
+aiohttp>=3.14.1  # Security fixes for CVE-2026-34993 and CVE-2026-54273 through CVE-2026-54280
 aiodns>=3.2.0    # Custom resolver for notifications when Pi-holes are offline
 aiosqlite>=0.20.0  # Updated from 0.19.0
 aiofiles>=24.1.0  # Updated from 23.2.0
 packaging>=23.0          # Semantic version comparison in update checker
 python-dotenv>=1.0.0
 python-dateutil>=2.9.0  # Updated from 2.8.2
-setuptools>=75.0.0  # Updated from 65.0.0
+idna>=3.15  # Security fix for CVE-2026-45409
+setuptools>=83.0.0  # Security fix for CVE-2026-59890
 wheel>=0.44.0  # Updated from 0.38.0

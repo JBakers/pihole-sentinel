@@ -79,7 +79,11 @@ format:
 
 check-security:
 	bandit -r dashboard/ install.py
-	safety check
+	@if [ -n "$$SAFETY_API_KEY" ]; then \
+		safety --key "$$SAFETY_API_KEY" scan --target . --output json; \
+	else \
+		echo "Safety scan skipped: set SAFETY_API_KEY to enable it."; \
+	fi
 
 # Cleanup
 clean:
@@ -98,9 +102,7 @@ docker-build:
 	docker compose -f docker-compose.test.yml build
 
 docker-up: docker-build
-	docker compose -f docker-compose.test.yml up -d
-	@echo "Waiting for services to start..."
-	@sleep 12
+	docker compose -f docker-compose.test.yml up -d --wait
 	@echo ""
 	@echo "=== Pi-hole Sentinel Test Environment ==="
 	@echo "Dashboard:    http://localhost:8080"
@@ -189,9 +191,7 @@ docker-build-nnode:
 	docker compose -f docker-compose.test-nnode.yml build
 
 docker-up-nnode: docker-build-nnode
-	docker compose -f docker-compose.test-nnode.yml up -d
-	@echo "Waiting for services to start..."
-	@sleep 12
+	docker compose -f docker-compose.test-nnode.yml up -d --wait
 	@echo ""
 	@echo "=== Pi-hole Sentinel N-Node Test Environment (3 nodes) ==="
 	@echo "Dashboard:    http://localhost:8090"

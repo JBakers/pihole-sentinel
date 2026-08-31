@@ -2,9 +2,9 @@ name: Code Quality
 
 on:
   push:
-    branches: [ develop, testing, main ]
+    branches: [ develop, main ]
   pull_request:
-    branches: [ develop, testing, main ]
+    branches: [ develop, main ]
 
 jobs:
   python-checks:
@@ -109,8 +109,14 @@ jobs:
           bandit -r dashboard/monitor.py install.py || true
 
       - name: Check for known vulnerabilities
+        env:
+          SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
         run: |
-          safety check --json || true
+          if [ -n "$SAFETY_API_KEY" ]; then
+            safety --key "$SAFETY_API_KEY" scan --target . --output json
+          else
+            echo "Safety scan skipped: SAFETY_API_KEY repository secret is not configured."
+          fi
 
   file-checks:
     name: File and Structure Checks

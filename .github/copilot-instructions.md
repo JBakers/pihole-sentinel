@@ -9,7 +9,7 @@ Dit bestand dient alleen als redirect. Alle instructies, regels en documentatie 
 ## Samenvatting van de 4 Fundamentele Regels
 
 1. **Commit Approval:** Vraag ALTIJD toestemming voor ELKE commit.
-2. **Branch Restrictions:** AI commit ALLEEN op `develop`. NOOIT op `testing` of `main`.
+2. **Branch Restrictions:** AI commit ALLEEN op `develop`. NOOIT op `main`; alleen de gebruiker mergeert `develop` naar `main`.
 3. **Version Bump:** Elke code change vereist `VERSION` + `CHANGELOG.md` update.
 4. **Testing:** Test ALTIJD lokaal met `make test` voor commit.
 

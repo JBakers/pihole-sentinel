@@ -20,6 +20,7 @@ pytest-cov>=4.1.0              # Code coverage reporting
 pytest-timeout>=2.2.0          # Test timeout handling
 pytest-mock>=3.12.0            # Mocking support
 requests>=2.31.0               # HTTP client for integration tests
+pip>=26.1.2                    # Security fixes for CVE-2026-3219 and CVE-2026-8643
 
 # Code Quality
 pylint>=3.0.0                  # Python linter
@@ -31,6 +32,9 @@ mypy>=1.7.0                    # Static type checker
 # Security
 bandit>=1.7.5                  # Security linter
 safety>=2.3.5                  # Dependency vulnerability scanner
+nltk>=3.10.0                   # Patched Safety dependency
+cryptography>=48.0.1           # Patched Safety dependency
+joserfc>=1.6.8                 # Patched Safety dependency
 
 # Documentation
 sphinx>=7.2.0                  # Documentation generator (optional)

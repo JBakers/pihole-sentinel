@@ -1,6 +1,6 @@
 # Pi-hole Sentinel Documentation
 
-**Latest version:** see [VERSION](../VERSION) — **Last Updated:** 2026-04-15
+**Latest version:** see [VERSION](../VERSION) — **Last Updated:** 2026-08-31
 
 > [!WARNING]
 > **Beta Software:** Pi-hole Sentinel is in active development. While stable enough for testing, expect potential breaking changes before v1.0.0. See [main README](../README.md) for details.
@@ -40,6 +40,8 @@
 
 - **[Development Guide](development/README.md)** - Setup dev environment
 - **[Testing Guide](development/testing.md)** - Unified testing guide (manual + automated + coverage plan)
+- **[Release Test Report](development/release-test-report-template.md)** - Release sign-off template
+- **[Container Architecture PoC](development/container-architecture-poc.md)** - Archived v2 design work
 - **[Contributing](../README.md#contributing)** - How to contribute
 
 ---
@@ -56,7 +58,9 @@ docs/
 │   └── sync.md
 ├── development/
 │   ├── README.md
-│   └── testing.md
+│   ├── testing.md
+│   ├── release-test-report-template.md
+│   └── container-architecture-poc.md
 ├── usage/
 │   └── cli-tool.md
 └── api/
@@ -67,12 +71,12 @@ docs/
 
 ## 📖 Quick Links
 
-| Resource | Description |
-|----------|-------------|
-| [Main README](../README.md) | Project overview and quick start |
-| [Changelog](../CHANGELOG.md) | Version history |
-| [License](../LICENSE) | GPLv3 License |
-| [GitHub](https://github.com/JBakers/pihole-sentinel) | Source code and issues |
+| Resource                                             | Description                      |
+| ---------------------------------------------------- | -------------------------------- |
+| [Main README](../README.md)                          | Project overview and quick start |
+| [Changelog](../CHANGELOG.md)                         | Version history                  |
+| [License](../LICENSE)                                | GPLv3 License                    |
+| [GitHub](https://github.com/JBakers/pihole-sentinel) | Source code and issues           |
 
 ---
 

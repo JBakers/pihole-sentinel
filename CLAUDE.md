@@ -1,8 +1,8 @@
 # CLAUDE.md - AI Assistant Guide for Pi-hole Sentinel
 
-**Last Updated:** 2026-06-08
+**Last Updated:** 2026-08-31
 
-**Version:** 0.25.4
+**Version:** 0.26.0
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
@@ -13,12 +13,17 @@ This document provides comprehensive guidance for AI assistants working with the
 > all open tasks, bugs, and design decisions.
 > This file (CLAUDE.md) is the **reference document** — PLAN.md is the **working document**.
 
-**Recent Updates (v0.12.4, March 2026):**
+**Recent Updates (v0.26.0, August 2026):**
 
-- install.py end-to-end deployment with preflight checks + automatic rollback
-- Fault debounce + paired recovery notifications
-- System Commands panel + ANSI colour rendering in dashboard
-- Container architecture PoC on `feature/container-architecture` branch
+- Multi-node support is stable on `main`; active development continues on `develop`
+- Permanent branch flow simplified to `develop` -> `main`
+- Active work consolidated in `PLAN.md`
+- Container architecture PoC archived for possible v2 continuation
+- Project metadata and an aligned Pylint/Flake8 baseline added
+- Deployment staging uses private per-run directories for sensitive files
+- Dependency lower bounds are aligned with the current Safety database
+- Safety project scans use the optional `SAFETY_API_KEY` CI secret
+- Two-node and three-node Docker test harnesses run independently and wait for health checks
 
 ---
 
@@ -200,24 +205,22 @@ Version: X.Y.Z
 
 ---
 
-### Critical: NEVER Merge to Protected Branches (FOOLPROOF SAFEGUARD)
+### Critical: NEVER Merge to Main (FOOLPROOF SAFEGUARD)
 
 **🚨 AI AGENTS MAY ONLY COMMIT TO THE DEVELOP BRANCH 🚨**
 
-**🚨 ONLY THE USER MAY MERGE TO TESTING/MAIN BRANCHES 🚨**
+**🚨 ONLY THE USER MAY MERGE TO MAIN 🚨**
 
 #### Merge Restrictions (ABSOLUTE)
 
 **MANDATORY RULE - NO EXCEPTIONS:**
 
 - ✅ AI agents may **ONLY** commit to the `develop` branch
-- 🚫 AI agents may **NEVER** merge to the `testing` branch
 - 🚫 AI agents may **NEVER** merge to the `main` branch
-- 🚫 AI agents may **NEVER** push to the `testing` branch
 - 🚫 AI agents may **NEVER** push to the `main` branch
-- ✅ **Only the repository owner** may merge from `develop` → `testing` → `main`
+- ✅ **Only the repository owner** may merge from `develop` -> `main`
 
-**Enforcement:** Git hook `.githooks/pre-merge-commit` blocks all merges to `testing` and `main`.
+**Enforcement:** Git hook `.githooks/pre-merge-commit` blocks all merges to `main`.
 Install hooks: `git config core.hooksPath .githooks`
 
 **If you accidentally start a merge on a protected branch:**
@@ -226,7 +229,7 @@ Install hooks: `git config core.hooksPath .githooks`
 2. `git checkout develop`
 3. Inform the user
 
-**If user asks you to merge to testing/main:** Do NOT execute it. Provide the commands for them to run locally.
+**If user asks you to merge to main:** Do NOT execute it. Provide the commands for them to run locally.
 
 ---
 
@@ -280,7 +283,7 @@ Pi-hole Sentinel is a High Availability (HA) solution for Pi-hole DNS servers th
 
 - **Pi-hole Servers:** Pi-hole v6.0+, Debian/Ubuntu, static IPs
 - **Monitor Server:** Any Linux (Debian/Ubuntu recommended), 512MB RAM, 1GB disk
-- **Python:** 3.8+ (tested with 3.13)
+- **Python:** 3.10+ (tested with 3.13)
 - **Network:** All servers must be on the same subnet
 
 ---
@@ -357,8 +360,9 @@ Pi-hole Sentinel is a High Availability (HA) solution for Pi-hole DNS servers th
 
 ### Container Architecture (Docker Sidecar Model)
 
-> **Status:** In development on `feature/container-architecture` branch.
-> See **[PLAN.md](PLAN.md)** for full plan and progress.
+> **Status:** Archived proof of concept for possible v2 development.
+> See **[PLAN.md](PLAN.md)** and
+> **[docs/development/container-architecture-poc.md](docs/development/container-architecture-poc.md)**.
 
 The new container architecture runs sentinel as a sidecar alongside each Pi-hole:
 
@@ -496,7 +500,7 @@ pihole-sentinel/
 
 ### Languages & Frameworks
 
-- **Python 3.8+** (tested with 3.13)
+- **Python 3.10+** (tested with 3.13)
     - FastAPI (≥0.104.0) - Web framework for monitoring API
     - Uvicorn (≥0.24.0) - ASGI server
     - aiohttp (≥3.9.0) - Async HTTP client for Pi-hole API
@@ -760,7 +764,6 @@ sqlite3 /opt/pihole-monitor/monitor.db \
 | -------------------------------------------------------------------------- | ------------------------------------------ |
 | [README.md](README.md)                                                     | User-facing project overview + quick start |
 | [PLAN.md](PLAN.md)                                                         | 📌 Active development plan, bugs, TODOs    |
-| [TODO_USER.md](TODO_USER.md)                                               | Open bugs + improvement tracker            |
 | [CHANGELOG.md](CHANGELOG.md)                                               | Full version history                       |
 | [docs/installation/quick-start.md](docs/installation/quick-start.md)       | Installation guide                         |
 | [docs/installation/existing-setup.md](docs/installation/existing-setup.md) | Add HA to existing Pi-holes                |
@@ -773,6 +776,6 @@ sqlite3 /opt/pihole-monitor/monitor.db \
 
 > **📌 See [PLAN.md](PLAN.md) for the active development plan, open bugs, and TODOs.**
 
-**Last Updated:** 2026-03-28
+**Last Updated:** 2026-08-31
 **Maintainer:** JBakers
 **Repository:** https://github.com/JBakers/pihole-sentinel

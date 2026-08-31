@@ -5,7 +5,8 @@ This directory is reserved for the future containerized web installer.
 ## Status
 
 - Current branch (`develop`): placeholder only
-- Active implementation branch: `feature/container-architecture`
+- Archived proof of concept: `archive/container-architecture-poc-2026-08-31`
+- No active implementation branch
 
 ## Planned Scope
 
@@ -17,4 +18,4 @@ This directory is reserved for the future containerized web installer.
 For active planning and progress, see:
 
 - `PLAN.md`
-- `feature/container-architecture` branch
+- `docs/development/container-architecture-poc.md`

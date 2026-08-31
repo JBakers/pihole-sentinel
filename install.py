@@ -19,6 +19,7 @@ import socket
 import string
 import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from getpass import getpass
@@ -182,6 +183,15 @@ class SetupConfig:
             return True
         except ValueError:
             return False
+
+    def validate_pihole_api_host(self, host):
+        """Validate an API target, allowing localhost ports for Docker tests."""
+        if self.validate_ip(host):
+            return True
+        if not isinstance(host, str) or not host.startswith("localhost:"):
+            return False
+        _, port = host.split(":", 1)
+        return port.isdigit() and self.validate_port(port)
 
     def validate_subnet(self, ip, netmask):
         """Validate if IP and netmask form a valid subnet."""
@@ -430,6 +440,18 @@ class SetupConfig:
             return subprocess.run(
                 cmd + [local_file, f"{user}@{host}:{remote_path}"], check=True
             )
+
+    def create_remote_staging_dir(self, host, user, port, password=None):
+        """Create and return a private, unique remote directory for deployment files."""
+        staging_dir = f"~/.cache/pihole-sentinel-deploy-{secrets.token_hex(16)}"
+        self.remote_exec(
+            host,
+            user,
+            port,
+            f"umask 077 && mkdir -p ~/.cache && mkdir -- {staging_dir}",
+            password,
+        )
+        return staging_dir
 
     def configure_timezone_and_ntp(
         self, host, user, port, password=None, timezone=None
@@ -1458,6 +1480,9 @@ class SetupConfig:
 
     def _check_pihole_api(self, ip, password):
         """Return (ok: bool, message: str) for Pi-hole v6 API authentication."""
+        if not self.validate_pihole_api_host(ip):
+            return False, "invalid IP address"
+
         url = f"http://{ip}/api/auth"
         payload = json.dumps({"password": password}).encode()
         req = urllib.request.Request(
@@ -1467,7 +1492,8 @@ class SetupConfig:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=8) as resp:
+            # The URL uses a validated IP address and a fixed HTTP path.
+            with urllib.request.urlopen(req, timeout=8) as resp:  # nosec B310
                 body = json.loads(resp.read().decode())
             if body.get("session", {}).get("valid"):
                 return True, "OK"
@@ -2000,6 +2026,7 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
         port = self.config["monitor_ssh_port"]
         password = self.config.get("monitor_ssh_pass")
         S = self._s(user)
+        staging_dir = None
 
         try:
             print(f"\nDeploying monitor to {host} via SSH...")
@@ -2023,29 +2050,27 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
 
             # Create remote temp directory
             print("├─ Preparing deployment staging area...")
-            self.remote_exec(
-                host, user, port, "mkdir -p /tmp/pihole-sentinel-deploy", password
-            )
+            staging_dir = self.create_remote_staging_dir(host, user, port, password)
 
             # Copy necessary files
             print("Copying files...")
             files_to_copy = [
-                ("dashboard/monitor.py", "/tmp/pihole-sentinel-deploy/monitor.py"),
-                ("dashboard/index.html", "/tmp/pihole-sentinel-deploy/index.html"),
+                ("dashboard/monitor.py", f"{staging_dir}/monitor.py"),
+                ("dashboard/index.html", f"{staging_dir}/index.html"),
                 (
                     "dashboard/settings.html",
-                    "/tmp/pihole-sentinel-deploy/settings.html",
+                    f"{staging_dir}/settings.html",
                 ),
                 (
                     "generated_configs/monitor.env",
-                    "/tmp/pihole-sentinel-deploy/monitor.env",
+                    f"{staging_dir}/monitor.env",
                 ),
                 (
                     "systemd/pihole-monitor.service",
-                    "/tmp/pihole-sentinel-deploy/pihole-monitor.service",
+                    f"{staging_dir}/pihole-monitor.service",
                 ),
-                ("requirements.txt", "/tmp/pihole-sentinel-deploy/requirements.txt"),
-                ("VERSION", "/tmp/pihole-sentinel-deploy/VERSION"),
+                ("requirements.txt", f"{staging_dir}/requirements.txt"),
+                ("VERSION", f"{staging_dir}/VERSION"),
             ]
 
             total_files = len(files_to_copy)
@@ -2096,7 +2121,7 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
                     host,
                     user,
                     port,
-                    f"cd /tmp/pihole-sentinel-deploy && {S}/opt/pihole-monitor/venv/bin/pip install -r requirements.txt",
+                    f"cd {staging_dir} && {S}/opt/pihole-monitor/venv/bin/pip install -r requirements.txt",
                     password,
                 )
                 print(
@@ -2107,7 +2132,7 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
                     host,
                     user,
                     port,
-                    f"cd /tmp/pihole-sentinel-deploy && {S}/opt/pihole-monitor/venv/bin/pip install -q -r requirements.txt >/dev/null 2>&1",
+                    f"cd {staging_dir} && {S}/opt/pihole-monitor/venv/bin/pip install -q -r requirements.txt >/dev/null 2>&1",
                     password,
                 )
                 print(
@@ -2116,12 +2141,12 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
 
             print("├─ Copying application files...")
             commands = [
-                f"{S}cp /tmp/pihole-sentinel-deploy/monitor.py /opt/pihole-monitor/",
-                f"{S}cp /tmp/pihole-sentinel-deploy/index.html /opt/pihole-monitor/",
-                f"{S}cp /tmp/pihole-sentinel-deploy/settings.html /opt/pihole-monitor/",
-                f"{S}cp /tmp/pihole-sentinel-deploy/monitor.env /opt/pihole-monitor/.env",
-                f"{S}cp /tmp/pihole-sentinel-deploy/pihole-monitor.service /etc/systemd/system/",
-                f"{S}cp /tmp/pihole-sentinel-deploy/VERSION /opt/VERSION",
+                f"{S}cp {staging_dir}/monitor.py /opt/pihole-monitor/",
+                f"{S}cp {staging_dir}/index.html /opt/pihole-monitor/",
+                f"{S}cp {staging_dir}/settings.html /opt/pihole-monitor/",
+                f"{S}cp {staging_dir}/monitor.env /opt/pihole-monitor/.env",
+                f"{S}cp {staging_dir}/pihole-monitor.service /etc/systemd/system/",
+                f"{S}cp {staging_dir}/VERSION /opt/VERSION",
             ]
             for cmd in commands:
                 self.remote_exec(host, user, port, cmd, password)
@@ -2158,7 +2183,7 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
                     host,
                     user,
                     port,
-                    "/tmp/pihole-sentinel-deploy/id_pihole_sentinel",
+                    f"{staging_dir}/id_pihole_sentinel",
                     password,
                 )
                 # Immediately restrict permissions on the temp copy
@@ -2166,7 +2191,7 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
                     host,
                     user,
                     port,
-                    f"{S}chmod 600 /tmp/pihole-sentinel-deploy/id_pihole_sentinel",
+                    f"{S}chmod 600 {staging_dir}/id_pihole_sentinel",
                     password,
                 )
                 self.remote_exec(
@@ -2174,8 +2199,8 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
                     user,
                     port,
                     f"{S}mkdir -p /opt/pihole-monitor/.ssh && "
-                    f"{S}cp /tmp/pihole-sentinel-deploy/id_pihole_sentinel /opt/pihole-monitor/.ssh/id_pihole_sentinel && "
-                    f"{S}rm -f /tmp/pihole-sentinel-deploy/id_pihole_sentinel",
+                    f"{S}cp {staging_dir}/id_pihole_sentinel /opt/pihole-monitor/.ssh/id_pihole_sentinel && "
+                    f"{S}rm -f {staging_dir}/id_pihole_sentinel",
                     password,
                 )
 
@@ -2226,14 +2251,14 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
                         host,
                         user,
                         port,
-                        "/tmp/pihole-sentinel-deploy/notify_settings.json",
+                        f"{staging_dir}/notify_settings.json",
                         password,
                     )
                     self.remote_exec(
                         host,
                         user,
                         port,
-                        f"{S}cp /tmp/pihole-sentinel-deploy/notify_settings.json /opt/pihole-monitor/notify_settings.json",
+                        f"{S}cp {staging_dir}/notify_settings.json /opt/pihole-monitor/notify_settings.json",
                         password,
                     )
                 finally:
@@ -2269,9 +2294,8 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
             self.remote_exec(
                 host, user, port, f"{S}systemctl restart pihole-monitor", password
             )
-            self.remote_exec(
-                host, user, port, "rm -rf /tmp/pihole-sentinel-deploy", password
-            )
+            self.remote_exec(host, user, port, f"rm -rf -- {staging_dir}", password)
+            staging_dir = None
 
             print(f"✓ Monitor deployed successfully to {host}!")
             return True
@@ -2280,13 +2304,9 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
             print(f"✗ Error deploying monitor to {host}: {e}")
             return False
         finally:
-            # Always clean up temp directory (may contain SSH key)
-            try:
-                self.remote_exec(
-                    host, user, port, "rm -rf /tmp/pihole-sentinel-deploy", password
-                )
-            except Exception:
-                pass
+            # Always clean up staging files (which may contain an SSH key).
+            if staging_dir:
+                self.remote_exec(host, user, port, f"rm -rf -- {staging_dir}", password)
 
     def deploy_keepalived(self, node_type="primary"):
         """Deploy keepalived configuration to a node."""
@@ -2351,34 +2371,32 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
 
             # Copy and set permissions for scripts
             print("Setting up monitoring scripts...")
-            for script in [
-                "check_pihole_service.sh",
-                "check_dhcp_service.sh",
-                "dhcp_control.sh",
-                "keepalived_notify.sh",
-            ]:
-                # Scripts: 755 root:root (executable by root only)
-                # First copy to temp location and fix line endings
-                subprocess.run(
-                    ["sudo", "cp", f"keepalived/scripts/{script}", f"/tmp/{script}"],
-                    check=True,
-                )
-                # Convert CRLF to LF (fix Windows line endings)
-                subprocess.run(
-                    ["sudo", "sed", "-i", "s/\\r$//", f"/tmp/{script}"], check=True
-                )
-                # Move to final location
-                subprocess.run(
-                    ["sudo", "mv", f"/tmp/{script}", f"/usr/local/bin/{script}"],
-                    check=True,
-                )
-                subprocess.run(
-                    ["sudo", "chown", "root:root", f"/usr/local/bin/{script}"],
-                    check=True,
-                )
-                subprocess.run(
-                    ["sudo", "chmod", "755", f"/usr/local/bin/{script}"], check=True
-                )
+            with tempfile.TemporaryDirectory(prefix="pihole-sentinel-") as staging_dir:
+                for script in [
+                    "check_pihole_service.sh",
+                    "check_dhcp_service.sh",
+                    "dhcp_control.sh",
+                    "keepalived_notify.sh",
+                ]:
+                    # Scripts: 755 root:root (executable by root only)
+                    staged_script = os.path.join(staging_dir, script)
+                    subprocess.run(
+                        ["cp", f"keepalived/scripts/{script}", staged_script],
+                        check=True,
+                    )
+                    # Convert CRLF to LF (fix Windows line endings)
+                    subprocess.run(["sed", "-i", "s/\r$//", staged_script], check=True)
+                    subprocess.run(
+                        ["sudo", "mv", staged_script, f"/usr/local/bin/{script}"],
+                        check=True,
+                    )
+                    subprocess.run(
+                        ["sudo", "chown", "root:root", f"/usr/local/bin/{script}"],
+                        check=True,
+                    )
+                    subprocess.run(
+                        ["sudo", "chmod", "755", f"/usr/local/bin/{script}"], check=True
+                    )
 
             # Enable and start keepalived
             print("Starting keepalived service...")
@@ -2418,6 +2436,7 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
         node_type = node["name"]
         config_basename = f"node{node['index']}"
         S = self._s(user)
+        staging_dir = None
 
         try:
             print(f"\nDeploying {node_type} keepalived to {host} via SSH...")
@@ -2435,38 +2454,36 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
             print("Running pre-deployment checks...")
             # Create remote temp directory
             print("├─ Preparing deployment staging area...")
-            self.remote_exec(
-                host, user, port, "mkdir -p /tmp/pihole-sentinel-deploy", password
-            )
+            staging_dir = self.create_remote_staging_dir(host, user, port, password)
 
             # Copy necessary files
             print("Copying files...")
             files_to_copy = [
                 (
                     f"generated_configs/{config_basename}_keepalived.conf",
-                    "/tmp/pihole-sentinel-deploy/keepalived.conf",
+                    f"{staging_dir}/keepalived.conf",
                 ),
                 (
                     f"generated_configs/{config_basename}.env",
-                    "/tmp/pihole-sentinel-deploy/.env",
+                    f"{staging_dir}/.env",
                 ),
                 (
                     "keepalived/scripts/check_pihole_service.sh",
-                    "/tmp/pihole-sentinel-deploy/check_pihole_service.sh",
+                    f"{staging_dir}/check_pihole_service.sh",
                 ),
                 (
                     "keepalived/scripts/check_dhcp_service.sh",
-                    "/tmp/pihole-sentinel-deploy/check_dhcp_service.sh",
+                    f"{staging_dir}/check_dhcp_service.sh",
                 ),
                 (
                     "keepalived/scripts/dhcp_control.sh",
-                    "/tmp/pihole-sentinel-deploy/dhcp_control.sh",
+                    f"{staging_dir}/dhcp_control.sh",
                 ),
                 (
                     "keepalived/scripts/keepalived_notify.sh",
-                    "/tmp/pihole-sentinel-deploy/keepalived_notify.sh",
+                    f"{staging_dir}/keepalived_notify.sh",
                 ),
-                ("bin/pisen", "/tmp/pihole-sentinel-deploy/pisen"),
+                ("bin/pisen", f"{staging_dir}/pisen"),
             ]
 
             total_files = len(files_to_copy)
@@ -2487,7 +2504,7 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
                 f"{S}chmod 755 /etc/keepalived",
                 f"{S}mkdir -p /usr/local/bin",
                 f"{S}chmod 755 /usr/local/bin",
-                f"{S}cp /tmp/pihole-sentinel-deploy/keepalived.conf /etc/keepalived/keepalived.conf",
+                f"{S}cp {staging_dir}/keepalived.conf /etc/keepalived/keepalived.conf",
                 f"{S}chown root:root /etc/keepalived/keepalived.conf",
                 f"{S}chmod 644 /etc/keepalived/keepalived.conf",
                 # Auto-detect actual network interface on this host and patch keepalived.conf.
@@ -2502,18 +2519,18 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
                 f'{S}sed -i "s/^    interface .*/    interface $REMOTE_IFACE/" /etc/keepalived/keepalived.conf && '
                 'echo "Auto-configured VRRP interface: $REMOTE_IFACE" || '
                 "echo 'Warning: could not auto-detect interface, keeping installer value'",
-                f"{S}cp /tmp/pihole-sentinel-deploy/.env /etc/keepalived/.env",
+                f"{S}cp {staging_dir}/.env /etc/keepalived/.env",
                 f"{S}chown root:root /etc/keepalived/.env",
                 f"{S}chmod 600 /etc/keepalived/.env",
                 # Copy and fix line endings for scripts
                 "for script in check_pihole_service.sh check_dhcp_service.sh dhcp_control.sh keepalived_notify.sh; do "
-                + "cp /tmp/pihole-sentinel-deploy/$script /tmp/$script && "
+                + f"cp {staging_dir}/$script /tmp/$script && "
                 + "sed -i 's/\\r$//' /tmp/$script && "
                 + f"{S}mv /tmp/$script /usr/local/bin/$script && "
                 + f"{S}chown root:root /usr/local/bin/$script && "
                 + f"{S}chmod 755 /usr/local/bin/$script; done",
                 # Install pisen CLI tool
-                f"{S}cp /tmp/pihole-sentinel-deploy/pisen /usr/local/bin/pisen && "
+                f"{S}cp {staging_dir}/pisen /usr/local/bin/pisen && "
                 f"{S}sed -i 's/\\r$//' /usr/local/bin/pisen && "
                 f"{S}chown root:root /usr/local/bin/pisen && "
                 f"{S}chmod 755 /usr/local/bin/pisen",
@@ -2559,9 +2576,8 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
             )
 
             # Cleanup staging area
-            self.remote_exec(
-                host, user, port, "rm -rf /tmp/pihole-sentinel-deploy", password
-            )
+            self.remote_exec(host, user, port, f"rm -rf -- {staging_dir}", password)
+            staging_dir = None
 
             print(f"✓ Keepalived {node_type} deployed successfully to {host}!")
             return True
@@ -2578,6 +2594,9 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
             print(f"  ssh root@{host} 'journalctl -xeu keepalived --no-pager -n 50'")
             print(f"  ssh root@{host} 'keepalived --config-test'")
             return False
+        finally:
+            if staging_dir:
+                self.remote_exec(host, user, port, f"rm -rf -- {staging_dir}", password)
 
     def deploy_sync_remote(self, sync_interval=10, sync_options=None):
         """Deploy the sync script and systemd timer to the primary Pi-hole.
@@ -2590,6 +2609,7 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
         user = self.config.get("primary_ssh_user", "root")
         port = self.config.get("primary_ssh_port", "22")
         password = self.config.get("primary_ssh_pass")
+        staging_dir = None
 
         if sync_options is None:
             sync_options = {}
@@ -2650,28 +2670,26 @@ WantedBy=timers.target
 
             # Prepare staging area
             print("├─ Preparing deployment staging area...")
-            self.remote_exec(
-                host, user, port, "mkdir -p /tmp/pihole-sentinel-deploy", password
-            )
+            staging_dir = self.create_remote_staging_dir(host, user, port, password)
 
             # Copy files
             print("├─ Copying sync files...")
             files_to_copy = [
                 (
                     "sync-pihole-config.sh",
-                    "/tmp/pihole-sentinel-deploy/sync-pihole-config.sh",
+                    f"{staging_dir}/sync-pihole-config.sh",
                 ),
                 (
                     "systemd/pihole-sync.service",
-                    "/tmp/pihole-sentinel-deploy/pihole-sync.service",
+                    f"{staging_dir}/pihole-sync.service",
                 ),
                 (
                     "generated_configs/pihole-sync.timer",
-                    "/tmp/pihole-sentinel-deploy/pihole-sync.timer",
+                    f"{staging_dir}/pihole-sync.timer",
                 ),
                 (
                     "generated_configs/sync.conf",
-                    "/tmp/pihole-sentinel-deploy/sync.conf",
+                    f"{staging_dir}/sync.conf",
                 ),
             ]
             for local, remote in files_to_copy:
@@ -2681,23 +2699,24 @@ WantedBy=timers.target
             print("├─ Installing sync service...")
             commands = [
                 # Install sync script
-                "cp /tmp/pihole-sentinel-deploy/sync-pihole-config.sh /usr/local/bin/sync-pihole-config.sh",
+                f"cp {staging_dir}/sync-pihole-config.sh /usr/local/bin/sync-pihole-config.sh",
                 "chown root:root /usr/local/bin/sync-pihole-config.sh",
                 "chmod 755 /usr/local/bin/sync-pihole-config.sh",
                 # Install sync config
                 "mkdir -p /etc/pihole-sentinel",
-                "cp /tmp/pihole-sentinel-deploy/sync.conf /etc/pihole-sentinel/sync.conf",
+                f"cp {staging_dir}/sync.conf /etc/pihole-sentinel/sync.conf",
                 "chmod 600 /etc/pihole-sentinel/sync.conf",
                 # Install systemd units
-                "cp /tmp/pihole-sentinel-deploy/pihole-sync.service /etc/systemd/system/pihole-sync.service",
-                "cp /tmp/pihole-sentinel-deploy/pihole-sync.timer /etc/systemd/system/pihole-sync.timer",
+                f"cp {staging_dir}/pihole-sync.service /etc/systemd/system/pihole-sync.service",
+                f"cp {staging_dir}/pihole-sync.timer /etc/systemd/system/pihole-sync.timer",
                 "systemctl daemon-reload",
                 "systemctl enable --now pihole-sync.timer",
                 # Cleanup
-                "rm -rf /tmp/pihole-sentinel-deploy",
+                f"rm -rf -- {staging_dir}",
             ]
             for cmd in commands:
                 self.remote_exec(host, user, port, cmd, password)
+            staging_dir = None
 
             # Verify
             print("├─ Verifying sync timer...")
@@ -2717,6 +2736,9 @@ WantedBy=timers.target
         except subprocess.CalledProcessError as e:
             print(f"\n{Colors.RED}✗ Error deploying sync to {host}: {e}{Colors.END}")
             return False
+        finally:
+            if staging_dir:
+                self.remote_exec(host, user, port, f"rm -rf -- {staging_dir}", password)
 
     def show_next_steps(self):
         """Show next steps for manual deployment."""

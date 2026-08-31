@@ -1,3 +1,87 @@
+## [0.26.0] - 2026-08-31
+
+### Changed
+
+- Raised the minimum supported Python version from 3.8 to 3.10. The current
+  patched Starlette and aiohttp dependency ranges require Python 3.10+.
+
+### Fixed
+
+- Updated protected-branch merge messages to resolve `MERGE_HEAD` as a branch
+  name when possible, with a short commit SHA fallback.
+- Made the local Safety target skip with an explicit message when no API key is
+  configured, matching the CI behavior.
+
+## [0.25.8] - 2026-08-31
+
+### Fixed
+
+- Isolated the three-node Docker test harness with its own Compose project so
+  it can run alongside the two-node harness without replacing its monitor.
+- Updated both Docker startup targets to wait for healthy services before
+  running integration tests, eliminating startup-race test skips.
+- Allowed only validated `localhost:<port>` API targets for the local Docker
+  harness while preserving strict validation for deployed Pi-hole IP addresses.
+
+### Documentation
+
+- Recorded successful release-candidate Docker integration evidence: 18
+  two-node and 8 three-node tests passed locally.
+
+## [0.25.7] - 2026-08-31
+
+### Security
+
+- Added patched lower bounds for FastAPI's Starlette dependency, aiohttp, IDNA,
+  setuptools, pip, and Safety's vulnerable transitive dependencies.
+- Upgraded the development dependency set and verified it with `pip check` and
+  Safety: no known vulnerabilities are reported.
+- Replaced deprecated `safety check` automation with `safety scan`; CI runs the
+  scan when the `SAFETY_API_KEY` repository secret is configured.
+
+## [0.25.6] - 2026-08-31
+
+### Improved
+
+- Added `pyproject.toml` with project metadata and shared Black, isort, and
+  Pylint settings.
+- Added an explicit Flake8 baseline that preserves useful defect checks while
+  accommodating the established formatter, test-fixture, and dynamic runtime
+  patterns. Pylint and Flake8 now complete successfully on `develop`.
+
+### Security
+
+- Replaced predictable remote and local `/tmp` deployment staging paths with
+  private, per-run directories and guaranteed cleanup on deployment failures.
+- Validated Pi-hole API hosts before making preflight requests and documented
+  the intentionally configurable dashboard LAN binding for static analysis.
+
+### Documentation
+
+- Documented private deployment staging and `BIND_HOST` hardening for
+  reverse-proxy-only dashboard deployments.
+
+## [0.25.5] - 2026-08-31
+
+### Improved
+
+- Simplified the permanent branch model to `develop` and `main`. Development
+  now integrates on `develop`; only the repository owner promotes validated
+  changes to `main`.
+- Updated CI merge-direction checks and local hooks for the two-branch model.
+- Consolidated all active work into `PLAN.md` and retired the stale
+  `TODO_USER.md` session tracker.
+- Archived the container sidecar proof of concept by tag and documented its
+  proven components, open design work, and restoration path.
+- Consolidated release validation guidance under `docs/development/`.
+
+### Documentation
+
+- Replaced stale multi-node phase handovers with an updated v1.0 readiness,
+  repository maintenance, product, and future v2 backlog.
+- Updated branch protection, contribution, testing, hook, and agent guidance
+  to remove the retired `testing` branch.
+
 ## [0.25.4] - 2026-06-08
 
 ### Fixed

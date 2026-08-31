@@ -32,6 +32,7 @@ make test
 ```
 
 For Docker integration tests:
+
 ```bash
 make docker-up          # Start mock Pi-hole environment
 make docker-integration # Run integration tests
@@ -42,16 +43,17 @@ make docker-down        # Tear down
 
 ## Branch Naming
 
-| Type      | Pattern                    | Example                        |
-| --------- | -------------------------- | ------------------------------ |
-| Feature   | `feature/<short-name>`     | `feature/multi-node-support`   |
-| Bug fix   | `fix/<short-description>`  | `fix/dns-latency-null-crash`   |
-| Docs      | `docs/<short-description>` | `docs/update-installation`     |
-| Chore     | `chore/<short-description>`| `chore/update-dependencies`    |
+| Type    | Pattern                     | Example                      |
+| ------- | --------------------------- | ---------------------------- |
+| Feature | `feature/<short-name>`      | `feature/metrics-export`     |
+| Bug fix | `fix/<short-description>`   | `fix/dns-latency-null-crash` |
+| Docs    | `docs/<short-description>`  | `docs/update-installation`   |
+| Chore   | `chore/<short-description>` | `chore/update-dependencies`  |
 
-**Branches flow:** `feature/*` → `develop` → `testing` → `main`
+**Branch flow:** `feature/*` -> `develop` -> `main`
 
-Direct pushes to `main` and `testing` are blocked. Always open a PR.
+Open normal contribution pull requests against `develop`. Only the repository
+owner promotes validated changes from `develop` to `main`.
 
 ---
 
@@ -68,6 +70,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 Types: `feat`, `fix`, `docs`, `test`, `chore`, `refactor`, `perf`
 
 Examples:
+
 ```
 feat(api): add nodes[] array to /api/status response
 fix(monitor): handle None dns_latency in status response
@@ -87,6 +90,7 @@ Before submitting a PR:
 4. **Tests must be Windows-compatible** (no `os.chmod` in tests without guards)
 
 Test file conventions:
+
 - File: `tests/test_<feature>.py`
 - Class: `class Test<Feature>:`
 - Method: `def test_<scenario>:`
@@ -103,14 +107,15 @@ Before opening a pull request, confirm:
 - [ ] No new linting errors: `make lint`
 - [ ] `VERSION` file bumped (patch for fixes, minor for features)
 - [ ] `CHANGELOG.md` updated with a concise entry under `[Unreleased]`
-- [ ] PR targets the `develop` branch (never `main` or `testing` directly)
-- [ ] PR description explains *what* changed and *why*
+- [ ] PR targets the `develop` branch (never `main` directly)
+- [ ] PR description explains _what_ changed and _why_
 
 ---
 
 ## Reporting Issues
 
 Use [GitHub Issues](https://github.com/JBakers/pihole-sentinel/issues). Please include:
+
 - Pi-hole version
 - Sentinel version (`cat VERSION`)
 - Relevant log output

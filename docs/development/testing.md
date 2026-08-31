@@ -168,10 +168,10 @@ Located in `.github/scripts/`:
 
 ### GitHub Actions Workflows
 
-| Workflow                      | Trigger                      | Purpose                          |
-| ----------------------------- | ---------------------------- | -------------------------------- |
-| `code-quality.yml`            | Push to develop/testing/main | Syntax, quality, security checks |
-| `enforce-merge-direction.yml` | Pull requests                | Validate merge direction         |
+| Workflow                      | Trigger              | Purpose                          |
+| ----------------------------- | -------------------- | -------------------------------- |
+| `code-quality.yml`            | Push to develop/main | Syntax, quality, security checks |
+| `enforce-merge-direction.yml` | Pull requests        | Validate merge direction         |
 
 ### Makefile Targets
 
@@ -181,7 +181,7 @@ make test              # Run all tests with coverage
 make test-cov          # HTML coverage report
 make lint              # Code quality (pylint, flake8)
 make format            # Auto-format (black, isort)
-make check-security    # Security scans (bandit)
+SAFETY_API_KEY=<key> make check-security    # Bandit plus Safety project scan
 ```
 
 ---
@@ -216,12 +216,15 @@ curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/history?hours=1
 curl -s -H "X-API-Key: <key>" http://<monitor>:8080/api/notifications/settings
 ```
 
-### Test Sign-Off Criteria (testing -> main)
+### Release Sign-Off Criteria (develop -> main)
+
+Record release evidence with
+[`release-test-report-template.md`](release-test-report-template.md).
 
 - [ ] All automated tests pass
 - [ ] Failover tested and working (< 5s)
 - [ ] DNS disruption < 3s
-- [ ] 7+ days stable in testing environment
+- [ ] Release candidate stable in the target environment
 - [ ] No critical bugs
 - [ ] Browser compatibility verified
 - [ ] Security audit passed
