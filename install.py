@@ -457,8 +457,11 @@ class SetupConfig:
         """Best-effort cleanup that must not mask a deployment result."""
         try:
             self.remote_exec(host, user, port, f"rm -rf -- {staging_dir}", password)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
+        except (subprocess.CalledProcessError, FileNotFoundError) as error:
+            if VERBOSE:
+                print(
+                    f"│  Warning: failed to clean up remote staging dir on {host}: {error}"
+                )
 
     def configure_timezone_and_ntp(
         self, host, user, port, password=None, timezone=None
@@ -2301,8 +2304,6 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
             self.remote_exec(
                 host, user, port, f"{S}systemctl restart pihole-monitor", password
             )
-            self.remote_exec(host, user, port, f"rm -rf -- {staging_dir}", password)
-            staging_dir = None
 
             print(f"✓ Monitor deployed successfully to {host}!")
             return True
@@ -2584,10 +2585,6 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
                 password,
             )
 
-            # Cleanup staging area
-            self.remote_exec(host, user, port, f"rm -rf -- {staging_dir}", password)
-            staging_dir = None
-
             print(f"✓ Keepalived {node_type} deployed successfully to {host}!")
             return True
 
@@ -2722,12 +2719,9 @@ WantedBy=timers.target
                 f"cp {staging_dir}/pihole-sync.timer /etc/systemd/system/pihole-sync.timer",
                 "systemctl daemon-reload",
                 "systemctl enable --now pihole-sync.timer",
-                # Cleanup
-                f"rm -rf -- {staging_dir}",
             ]
             for cmd in commands:
                 self.remote_exec(host, user, port, cmd, password)
-            staging_dir = None
 
             # Verify
             print("├─ Verifying sync timer...")

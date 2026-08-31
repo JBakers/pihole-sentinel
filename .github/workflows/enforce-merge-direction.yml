@@ -1,8 +1,8 @@
 name: Enforce Merge Direction
 
-# This workflow prevents merges in the wrong direction.
+# This workflow enforces the protected main promotion and reverse-merge rules.
 # Allowed: feature branches -> develop, develop -> main
-# Blocked: all other branch directions
+# Blocked: non-develop -> main, main -> develop, develop -> topic branches
 
 on:
   pull_request:
@@ -100,7 +100,7 @@ jobs:
               '<summary>Allowed merge directions</summary>\n\n' +
               '- `feature/*` -> `develop`\n' +
               '- `develop` -> `main` (owner-controlled release promotion)\n' +
-              '- All other merge directions are blocked\n\n' +
+              '- Direct topic branches -> `main` and reverse merges are blocked\n\n' +
               '</details>';
 
             github.rest.issues.createComment({

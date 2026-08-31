@@ -13,7 +13,9 @@
   configured, matching the CI behavior.
 - Blocked pull requests into `main` unless their source branch is `develop`.
 - Made remote deployment staging cleanup best-effort so SSH cleanup failures
-  cannot hide the original deployment outcome.
+  cannot hide the original deployment outcome, while verbose mode reports a
+  failed cleanup for manual follow-up.
+- Aligned merge-direction workflow messages with the rules it enforces.
 
 ## [0.25.8] - 2026-08-31
 

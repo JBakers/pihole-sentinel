@@ -171,10 +171,14 @@ class TestRemoteStagingCleanup:
             c,
             "remote_exec",
             side_effect=subprocess.CalledProcessError(255, "ssh"),
-        ):
+        ) as remote_exec:
             c.cleanup_remote_staging_dir(
                 "10.0.0.1", "root", "22", "~/.cache/staging"
             )
+
+        remote_exec.assert_called_once_with(
+            "10.0.0.1", "root", "22", "rm -rf -- ~/.cache/staging", None
+        )
 
 
 # ---------------------------------------------------------------------------
