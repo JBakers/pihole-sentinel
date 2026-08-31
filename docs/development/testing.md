@@ -168,10 +168,10 @@ Located in `.github/scripts/`:
 
 ### GitHub Actions Workflows
 
-| Workflow                      | Trigger                      | Purpose                          |
-| ----------------------------- | ---------------------------- | -------------------------------- |
-| `code-quality.yml`            | Push to develop/main         | Syntax, quality, security checks |
-| `enforce-merge-direction.yml` | Pull requests                | Validate merge direction         |
+| Workflow                      | Trigger              | Purpose                          |
+| ----------------------------- | -------------------- | -------------------------------- |
+| `code-quality.yml`            | Push to develop/main | Syntax, quality, security checks |
+| `enforce-merge-direction.yml` | Pull requests        | Validate merge direction         |
 
 ### Makefile Targets
 

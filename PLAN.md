@@ -47,35 +47,35 @@ backlog below.
 - [ ] Run the complete unit, lint, syntax, and security suites on `develop`.
 - [ ] Run both two-node and three-node Docker integration environments.
 - [ ] Validate upgrade from a legacy two-node environment and database migration
-  without losing history or notification settings.
+      without losing history or notification settings.
 - [ ] Validate legacy `PRIMARY_*` and `SECONDARY_*` configuration compatibility.
 - [ ] Manually test VIP failover and failback across every configured node.
 - [ ] Verify DNS continuity, DHCP ownership, debounce, and paired notifications.
 - [ ] Verify dashboard behavior on desktop and mobile with two and three nodes.
 - [ ] Audit installation, upgrade, rollback, and uninstall documentation against a
-  clean supported host.
+      clean supported host.
 - [ ] Verify release artifacts, version metadata, checksums, and `vX.Y.Z` tag naming.
 - [ ] Record an explicit go/no-go decision before the owner promotes `develop` to
-  `main` as v1.0.0.
+      `main` as v1.0.0.
 
 ### P1 - Repository Hygiene
 
 - [ ] R4/R8: plan and execute root cleanup without breaking published commands:
-  move visual assets under `assets/`, rationalize Docker Compose locations and
-  names, and assess moving `sync-pihole-config.sh` under `bin/`.
+      move visual assets under `assets/`, rationalize Docker Compose locations and
+      names, and assess moving `sync-pihole-config.sh` under `bin/`.
 - [ ] Update every code, workflow, documentation, packaging, and download path in
-  the same change as each moved file.
+      the same change as each moved file.
 - [ ] R9: add a minimal `pyproject.toml` for tool and project metadata.
 - [ ] Document or rename `system-requirements.txt` to a conventional, unambiguous
-  system dependency filename.
+      system dependency filename.
 
 ### P2 - Project Maintenance
 
 - [ ] R11: use `vX.Y.Z` consistently for all future tags and release titles.
 - [ ] R15: publish and pin a GitHub Discussions welcome post with support and issue
-  reporting guidance. This is a manual GitHub task.
+      reporting guidance. This is a manual GitHub task.
 - [ ] Decide whether GitHub Pages or another hosted documentation system adds
-  enough value to maintain.
+      enough value to maintain.
 
 ### Product Backlog
 

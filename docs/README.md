@@ -71,12 +71,12 @@ docs/
 
 ## 📖 Quick Links
 
-| Resource | Description |
-| -------- | ----------- |
-| [Main README](../README.md) | Project overview and quick start |
-| [Changelog](../CHANGELOG.md) | Version history |
-| [License](../LICENSE) | GPLv3 License |
-| [GitHub](https://github.com/JBakers/pihole-sentinel) | Source code and issues |
+| Resource                                             | Description                      |
+| ---------------------------------------------------- | -------------------------------- |
+| [Main README](../README.md)                          | Project overview and quick start |
+| [Changelog](../CHANGELOG.md)                         | Version history                  |
+| [License](../LICENSE)                                | GPLv3 License                    |
+| [GitHub](https://github.com/JBakers/pihole-sentinel) | Source code and issues           |
 
 ---
 
