@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-08-31
 
-**Version:** 0.25.8
+**Version:** 0.26.0
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
@@ -13,7 +13,7 @@ This document provides comprehensive guidance for AI assistants working with the
 > all open tasks, bugs, and design decisions.
 > This file (CLAUDE.md) is the **reference document** — PLAN.md is the **working document**.
 
-**Recent Updates (v0.25.8, August 2026):**
+**Recent Updates (v0.26.0, August 2026):**
 
 - Multi-node support is stable on `main`; active development continues on `develop`
 - Permanent branch flow simplified to `develop` -> `main`
@@ -283,7 +283,7 @@ Pi-hole Sentinel is a High Availability (HA) solution for Pi-hole DNS servers th
 
 - **Pi-hole Servers:** Pi-hole v6.0+, Debian/Ubuntu, static IPs
 - **Monitor Server:** Any Linux (Debian/Ubuntu recommended), 512MB RAM, 1GB disk
-- **Python:** 3.8+ (tested with 3.13)
+- **Python:** 3.10+ (tested with 3.13)
 - **Network:** All servers must be on the same subnet
 
 ---
@@ -500,7 +500,7 @@ pihole-sentinel/
 
 ### Languages & Frameworks
 
-- **Python 3.8+** (tested with 3.13)
+- **Python 3.10+** (tested with 3.13)
     - FastAPI (≥0.104.0) - Web framework for monitoring API
     - Uvicorn (≥0.24.0) - ASGI server
     - aiohttp (≥3.9.0) - Async HTTP client for Pi-hole API

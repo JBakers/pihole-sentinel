@@ -79,8 +79,11 @@ format:
 
 check-security:
 	bandit -r dashboard/ install.py
-	@test -n "$$SAFETY_API_KEY" || (echo "SAFETY_API_KEY is required for 'safety scan'."; exit 2)
-	safety --key "$$SAFETY_API_KEY" scan --target . --output json
+	@if [ -n "$$SAFETY_API_KEY" ]; then \
+		safety --key "$$SAFETY_API_KEY" scan --target . --output json; \
+	else \
+		echo "Safety scan skipped: set SAFETY_API_KEY to enable it."; \
+	fi
 
 # Cleanup
 clean:

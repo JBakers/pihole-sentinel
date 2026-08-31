@@ -23,6 +23,12 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+merge_source() {
+    git name-rev --name-only --no-undefined MERGE_HEAD 2>/dev/null \
+        || git rev-parse --short MERGE_HEAD 2>/dev/null \
+        || echo "unknown"
+}
+
 # Get current branch
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 
@@ -46,7 +52,7 @@ for PROTECTED in "${PROTECTED_BRANCHES[@]}"; do
 
         # Try to detect merge source
         if git rev-parse -q --verify MERGE_HEAD > /dev/null 2>&1; then
-            MERGE_SOURCE=$(git rev-parse --abbrev-ref MERGE_HEAD 2>/dev/null || echo "unknown")
+            MERGE_SOURCE=$(merge_source)
             echo -e "${CYAN}Attempted merge: '$MERGE_SOURCE' -> '$CURRENT_BRANCH'${NC}"
             echo ""
         fi
@@ -67,7 +73,7 @@ done
 
 # Additional check: Detect if this is actually a merge commit
 if git rev-parse -q --verify MERGE_HEAD > /dev/null 2>&1; then
-    MERGE_SOURCE=$(git rev-parse --abbrev-ref MERGE_HEAD 2>/dev/null || echo "unknown")
+    MERGE_SOURCE=$(merge_source)
 
     # Double-check we're not merging to protected branches
     for PROTECTED in "${PROTECTED_BRANCHES[@]}"; do

@@ -236,7 +236,7 @@ That's it! Your Pi-hole infrastructure now has automatic failover.
 ### Monitor Server
 
 - **OS:** Any Linux (Debian/Ubuntu recommended)
-- **Python:** 3.8+ (tested with 3.11-3.13)
+- **Python:** 3.10+ (tested with 3.11-3.13)
 - **RAM:** 512MB minimum
 - **Disk:** 1GB free space
 - **Network:** Access to all Pi-hole nodes

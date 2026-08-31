@@ -1,3 +1,17 @@
+## [0.26.0] - 2026-08-31
+
+### Changed
+
+- Raised the minimum supported Python version from 3.8 to 3.10. The current
+  patched Starlette and aiohttp dependency ranges require Python 3.10+.
+
+### Fixed
+
+- Updated protected-branch merge messages to resolve `MERGE_HEAD` as a branch
+  name when possible, with a short commit SHA fallback.
+- Made the local Safety target skip with an explicit message when no API key is
+  configured, matching the CI behavior.
+
 ## [0.25.8] - 2026-08-31
 
 ### Fixed
