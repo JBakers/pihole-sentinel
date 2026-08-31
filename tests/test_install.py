@@ -143,6 +143,41 @@ class TestCheckPiholeApi:
 
 
 # ---------------------------------------------------------------------------
+# Remote staging cleanup (unit)
+# ---------------------------------------------------------------------------
+
+
+class TestRemoteStagingCleanup:
+    """Unit tests for SetupConfig.cleanup_remote_staging_dir()."""
+
+    def test_cleanup_removes_staging_dir(self):
+        """Successful cleanup issues a guarded removal command."""
+        c = _make_config()
+
+        with patch.object(c, "remote_exec") as remote_exec:
+            c.cleanup_remote_staging_dir(
+                "10.0.0.1", "root", "22", "~/.cache/staging", "password"
+            )
+
+        remote_exec.assert_called_once_with(
+            "10.0.0.1", "root", "22", "rm -rf -- ~/.cache/staging", "password"
+        )
+
+    def test_cleanup_suppresses_remote_failure(self):
+        """A cleanup failure cannot mask a preceding deployment result."""
+        c = _make_config()
+
+        with patch.object(
+            c,
+            "remote_exec",
+            side_effect=subprocess.CalledProcessError(255, "ssh"),
+        ):
+            c.cleanup_remote_staging_dir(
+                "10.0.0.1", "root", "22", "~/.cache/staging"
+            )
+
+
+# ---------------------------------------------------------------------------
 # preflight_checks  (unit)
 # ---------------------------------------------------------------------------
 

@@ -453,6 +453,13 @@ class SetupConfig:
         )
         return staging_dir
 
+    def cleanup_remote_staging_dir(self, host, user, port, staging_dir, password=None):
+        """Best-effort cleanup that must not mask a deployment result."""
+        try:
+            self.remote_exec(host, user, port, f"rm -rf -- {staging_dir}", password)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+
     def configure_timezone_and_ntp(
         self, host, user, port, password=None, timezone=None
     ):
@@ -2306,7 +2313,9 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
         finally:
             # Always clean up staging files (which may contain an SSH key).
             if staging_dir:
-                self.remote_exec(host, user, port, f"rm -rf -- {staging_dir}", password)
+                self.cleanup_remote_staging_dir(
+                    host, user, port, staging_dir, password
+                )
 
     def deploy_keepalived(self, node_type="primary"):
         """Deploy keepalived configuration to a node."""
@@ -2596,7 +2605,9 @@ SSH_KEY_PATH=/opt/pihole-monitor/.ssh/id_pihole_sentinel
             return False
         finally:
             if staging_dir:
-                self.remote_exec(host, user, port, f"rm -rf -- {staging_dir}", password)
+                self.cleanup_remote_staging_dir(
+                    host, user, port, staging_dir, password
+                )
 
     def deploy_sync_remote(self, sync_interval=10, sync_options=None):
         """Deploy the sync script and systemd timer to the primary Pi-hole.
@@ -2738,7 +2749,9 @@ WantedBy=timers.target
             return False
         finally:
             if staging_dir:
-                self.remote_exec(host, user, port, f"rm -rf -- {staging_dir}", password)
+                self.cleanup_remote_staging_dir(
+                    host, user, port, staging_dir, password
+                )
 
     def show_next_steps(self):
         """Show next steps for manual deployment."""

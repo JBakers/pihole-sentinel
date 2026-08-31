@@ -73,5 +73,4 @@ disable = [
     "use-implicit-booleaness-not-comparison-to-zero",
     "use-implicit-booleaness-not-comparison-to-string",
     "use-implicit-booleaness-not-len",
-    "use-implicit-booleaness-not-len",
 ]

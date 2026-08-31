@@ -11,6 +11,9 @@
   name when possible, with a short commit SHA fallback.
 - Made the local Safety target skip with an explicit message when no API key is
   configured, matching the CI behavior.
+- Blocked pull requests into `main` unless their source branch is `develop`.
+- Made remote deployment staging cleanup best-effort so SSH cleanup failures
+  cannot hide the original deployment outcome.
 
 ## [0.25.8] - 2026-08-31
 

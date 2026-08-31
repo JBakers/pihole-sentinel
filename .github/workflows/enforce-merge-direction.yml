@@ -1,8 +1,8 @@
 name: Enforce Merge Direction
 
 # This workflow prevents merges in the wrong direction.
-# Allowed: feature branches -> develop -> main
-# Blocked: main -> develop, develop -> feature branches
+# Allowed: feature branches -> develop, develop -> main
+# Blocked: all other branch directions
 
 on:
   pull_request:
@@ -34,6 +34,12 @@ jobs:
           BLOCKED=false
           REASON=""
 
+          # Only the validated develop branch may be promoted to main.
+          if [[ "$BASE_BRANCH" == "main" ]] && [[ "$HEAD_BRANCH" != "develop" ]]; then
+            BLOCKED=true
+            REASON="BLOCKED: Only develop may merge into main"
+          fi
+
           # Block: main -> develop
           if [[ "$BASE_BRANCH" == "develop" ]] && [[ "$HEAD_BRANCH" == "main" ]]; then
             BLOCKED=true
@@ -52,7 +58,7 @@ jobs:
             echo ""
             echo "ALLOWED merge directions:"
             echo "   - feature/* -> develop"
-            echo "   - develop -> main"
+            echo "   - develop -> main (owner-controlled release promotion)"
             echo ""
             echo "Your PR: $HEAD_BRANCH -> $BASE_BRANCH"
             echo ""
@@ -93,8 +99,8 @@ jobs:
               '<details>\n' +
               '<summary>Allowed merge directions</summary>\n\n' +
               '- `feature/*` -> `develop`\n' +
-              '- `develop` -> `main`\n' +
-              '- Reverse merges are blocked\n\n' +
+              '- `develop` -> `main` (owner-controlled release promotion)\n' +
+              '- All other merge directions are blocked\n\n' +
               '</details>';
 
             github.rest.issues.createComment({
