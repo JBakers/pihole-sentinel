@@ -1,0 +1,7 @@
+[flake8]
+max-line-length = 120
+extend-ignore = E203, E501, W293, W503
+per-file-ignores =
+    dashboard/monitor.py: F401, F541, F811, F824, F841, E731
+    install.py: E722, F541, F841
+    tests/*: E302, E402, F401, F811, F841, W391

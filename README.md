@@ -519,12 +519,16 @@ tail -f /var/log/keepalived-notify.log
 - **SSH Keys** - Ed25519 keys generated automatically
 - **VRRP Auth** - Keepalived uses password authentication
 - **File Permissions** - Secrets stored with restrictive permissions (600)
+- **Private Deployment Staging** - Sensitive deployment files use unique,
+  per-run private directories and are removed after deployment
 - **Network Security** - Deploy on trusted network (isolated VLAN recommended)
 
 **Best Practices:**
 
 - Use strong Pi-hole passwords (16+ characters)
 - Restrict dashboard access (firewall rules)
+- Set `BIND_HOST=127.0.0.1` when the dashboard is only accessed through a
+  reverse proxy
 - Regular system updates (`apt update && apt upgrade`)
 - Monitor logs weekly
 - Backup configurations
@@ -575,6 +579,8 @@ TRUST_PROXY_HEADERS=true
 ```
 
 Only enable this when requests are guaranteed to come through your own proxy.
+For a reverse-proxy-only deployment, also set `BIND_HOST=127.0.0.1` so the
+dashboard is not directly reachable on the network.
 
 ---
 

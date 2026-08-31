@@ -1,0 +1,77 @@
+[project]
+name = "pihole-sentinel"
+version = "0.25.6"
+description = "High-availability monitoring and failover tooling for Pi-hole"
+requires-python = ">=3.8"
+license = { text = "GPL-3.0-or-later" }
+
+[tool.black]
+line-length = 120
+target-version = ["py38"]
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.pylint.main]
+py-version = "3.8"
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.messages_control]
+disable = [
+    "bare-except",
+    "broad-exception-caught",
+    "broad-exception-raised",
+    "consider-using-f-string",
+    "cyclic-import",
+    "disallowed-name",
+    "duplicate-code",
+    "f-string-without-interpolation",
+    "fixme",
+    "global-statement",
+    "global-variable-not-assigned",
+    "import-outside-toplevel",
+    "invalid-name",
+    "line-too-long",
+    "logging-fstring-interpolation",
+    "logging-not-lazy",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "no-member",
+    "no-else-break",
+    "no-else-return",
+    "no-value-for-parameter",
+    "not-an-iterable",
+    "possibly-unused-variable",
+    "protected-access",
+    "raise-missing-from",
+    "redefined-outer-name",
+    "reimported",
+    "subprocess-run-check",
+    "too-few-public-methods",
+    "too-many-arguments",
+    "too-many-branches",
+    "too-many-locals",
+    "too-many-lines",
+    "too-many-nested-blocks",
+    "too-many-positional-arguments",
+    "too-many-public-methods",
+    "too-many-return-statements",
+    "too-many-statements",
+    "unnecessary-lambda-assignment",
+    "unsubscriptable-object",
+    "unsupported-binary-operation",
+    "unspecified-encoding",
+    "unused-argument",
+    "unused-import",
+    "unused-variable",
+    "use-dict-literal",
+    "use-maxsplit-arg",
+    "use-implicit-booleaness-not-comparison",
+    "use-implicit-booleaness-not-comparison-to-zero",
+    "use-implicit-booleaness-not-comparison-to-string",
+    "use-implicit-booleaness-not-len",
+    "use-implicit-booleaness-not-len",
+]

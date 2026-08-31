@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-08-31
 **Active Branch:** `develop`
-**Current Version:** 0.25.5
+**Current Version:** 0.25.6
 
 This is the single source of truth for active work, priorities, and future design
 work. Completed release details belong in `CHANGELOG.md`; operational guidance
@@ -27,7 +27,9 @@ Completed milestones:
   standardized in English.
 - R11: release automation standardized future tags on `vX.Y.Z`.
 - Configurable database retention and automatic daily cleanup are implemented,
-      documented, and covered by tests.
+  documented, and covered by tests.
+- R9: minimal project metadata and aligned Black, isort, Pylint, and Flake8
+  configuration are implemented; both linters pass on `develop`.
 - v0.25.2 through v0.25.4: multi-node failback, naming, history, and failover
   notification defects fixed.
 
@@ -58,8 +60,11 @@ Implemented foundations already covered by automated tests:
 
 Remaining release evidence:
 
-- [ ] Resolve the existing Pylint and Flake8 debt, then run the complete lint,
-      syntax, and security suites successfully on `develop`.
+- [x] Resolve the existing Pylint and Flake8 debt. Both linters pass on
+      `develop` with an explicit project baseline.
+- [ ] Complete the dependency security scan successfully on `develop`. Python
+      and Bash syntax checks and Bandit medium/high checks pass; Safety exposes
+      vulnerable versions allowed by the current unbounded dependency ranges.
 - [ ] Execute and record both two-node and three-node Docker integration suites
       against the release candidate.
 - [ ] Perform and record an end-to-end upgrade from the current stable legacy
@@ -84,7 +89,7 @@ Remaining release evidence:
       names, and assess moving `sync-pihole-config.sh` under `bin/`.
 - [ ] Update every code, workflow, documentation, packaging, and download path in
       the same change as each moved file.
-- [ ] R9: add a minimal `pyproject.toml` for tool and project metadata.
+- [x] R9: add a minimal `pyproject.toml` for tool and project metadata.
 - [ ] Document or rename `system-requirements.txt` to a conventional, unambiguous
       system dependency filename.
 

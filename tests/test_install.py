@@ -119,6 +119,17 @@ class TestCheckPiholeApi:
         assert ok is False
         assert "unreachable" in msg
 
+    def test_invalid_ip_returns_false_without_http_request(self):
+        """An invalid host cannot be used to construct an API request."""
+        c = _make_config()
+
+        with patch("urllib.request.urlopen") as urlopen:
+            ok, msg = c._check_pihole_api("example.com", "pass")
+
+        assert ok is False
+        assert msg == "invalid IP address"
+        urlopen.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # preflight_checks  (unit)

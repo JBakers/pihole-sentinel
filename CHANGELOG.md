@@ -1,3 +1,25 @@
+## [0.25.6] - 2026-08-31
+
+### Improved
+
+- Added `pyproject.toml` with project metadata and shared Black, isort, and
+  Pylint settings.
+- Added an explicit Flake8 baseline that preserves useful defect checks while
+  accommodating the established formatter, test-fixture, and dynamic runtime
+  patterns. Pylint and Flake8 now complete successfully on `develop`.
+
+### Security
+
+- Replaced predictable remote and local `/tmp` deployment staging paths with
+  private, per-run directories and guaranteed cleanup on deployment failures.
+- Validated Pi-hole API hosts before making preflight requests and documented
+  the intentionally configurable dashboard LAN binding for static analysis.
+
+### Documentation
+
+- Documented private deployment staging and `BIND_HOST` hardening for
+  reverse-proxy-only dashboard deployments.
+
 ## [0.25.5] - 2026-08-31
 
 ### Improved

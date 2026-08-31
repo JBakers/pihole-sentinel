@@ -4405,8 +4405,9 @@ if __name__ == "__main__":
 
     if not os.path.exists(os.path.dirname(CONFIG["db_path"])):
         os.makedirs(os.path.dirname(CONFIG["db_path"]))
+    # The dashboard is intentionally reachable by LAN clients; BIND_HOST can restrict it.
     uvicorn.run(
         app,
-        host=os.getenv("BIND_HOST", "0.0.0.0"),
+        host=os.getenv("BIND_HOST", "0.0.0.0"),  # nosec B104
         port=int(os.getenv("BIND_PORT", "8080")),
     )
