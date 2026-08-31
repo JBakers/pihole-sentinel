@@ -62,9 +62,10 @@ Remaining release evidence:
 
 - [x] Resolve the existing Pylint and Flake8 debt. Both linters pass on
       `develop` with an explicit project baseline.
-- [ ] Complete the dependency security scan successfully on `develop`. Python
-      and Bash syntax checks and Bandit medium/high checks pass; Safety exposes
-      vulnerable versions allowed by the current unbounded dependency ranges.
+- [x] Complete the dependency security scan successfully on `develop`. Python
+      and Bash syntax checks, Bandit medium/high checks, `pip check`, and Safety
+      pass after patched dependency lower bounds were added. The CI project scan
+      uses `SAFETY_API_KEY` when the repository secret is configured.
 - [ ] Execute and record both two-node and three-node Docker integration suites
       against the release candidate.
 - [ ] Perform and record an end-to-end upgrade from the current stable legacy

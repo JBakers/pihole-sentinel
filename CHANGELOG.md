@@ -1,3 +1,14 @@
+## [0.25.7] - 2026-08-31
+
+### Security
+
+- Added patched lower bounds for FastAPI's Starlette dependency, aiohttp, IDNA,
+  setuptools, pip, and Safety's vulnerable transitive dependencies.
+- Upgraded the development dependency set and verified it with `pip check` and
+  Safety: no known vulnerabilities are reported.
+- Replaced deprecated `safety check` automation with `safety scan`; CI runs the
+  scan when the `SAFETY_API_KEY` repository secret is configured.
+
 ## [0.25.6] - 2026-08-31
 
 ### Improved

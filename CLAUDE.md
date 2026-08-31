@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-08-31
 
-**Version:** 0.25.6
+**Version:** 0.25.7
 
 **Project:** Pi-hole Sentinel - High Availability for Pi-hole
 **Audit Status:** ✅ Production Ready (Score: 89/100 - Excellent)
@@ -13,7 +13,7 @@ This document provides comprehensive guidance for AI assistants working with the
 > all open tasks, bugs, and design decisions.
 > This file (CLAUDE.md) is the **reference document** — PLAN.md is the **working document**.
 
-**Recent Updates (v0.25.6, August 2026):**
+**Recent Updates (v0.25.7, August 2026):**
 
 - Multi-node support is stable on `main`; active development continues on `develop`
 - Permanent branch flow simplified to `develop` -> `main`
@@ -21,6 +21,8 @@ This document provides comprehensive guidance for AI assistants working with the
 - Container architecture PoC archived for possible v2 continuation
 - Project metadata and an aligned Pylint/Flake8 baseline added
 - Deployment staging uses private per-run directories for sensitive files
+- Dependency lower bounds are aligned with the current Safety database
+- Safety project scans use the optional `SAFETY_API_KEY` CI secret
 
 ---
 

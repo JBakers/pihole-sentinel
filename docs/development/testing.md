@@ -181,7 +181,7 @@ make test              # Run all tests with coverage
 make test-cov          # HTML coverage report
 make lint              # Code quality (pylint, flake8)
 make format            # Auto-format (black, isort)
-make check-security    # Security scans (bandit)
+SAFETY_API_KEY=<key> make check-security    # Bandit plus Safety project scan
 ```
 
 ---
