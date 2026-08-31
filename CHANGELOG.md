@@ -1,3 +1,10 @@
+## [0.26.1] - 2026-09-01
+
+### Improved
+
+- Normalized `install.py` and its test suite with the configured Black style
+  and resolved the resulting Pylint style warnings.
+
 ## [0.26.0] - 2026-08-31
 
 ### Changed
